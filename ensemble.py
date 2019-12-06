@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument('pred_files', nargs='+', help='A list of prediction files written by eval.py.')
     parser.add_argument('--data_dir', default='dataset/tacred')
     parser.add_argument('--dataset', default='test', help='Evaluate on dev or test set.')
+    parser.add_argument('--weights', default='')
     args = parser.parse_args()
     return args
 
@@ -39,7 +40,10 @@ def main():
     scores_by_examples = list(zip(*scores_list))
     assert len(scores_by_examples) == len(data)
     for scores in scores_by_examples:
-        pred = ensemble(scores)
+        if len(args.weights) == 0:
+            pred = ensemble(scores)
+        else:
+            pred = weight_sum(scores, args.weights)
         predictions += [pred]
     id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
     predictions = [id2label[p] for p in predictions]
@@ -54,6 +58,15 @@ def ensemble(scores):
         idx = int(np.argmax(np.array(probs)))
         c.update([idx])
     best = c.most_common(1)[0][0]
+    return best
+
+def weight_sum(scores, weights):
+    weights = list(map(lambda x: float(x), weights.split(' ')))
+    aggregate_scores = np.zeros(len(scores[0]))
+    for model_scores, weight in zip(scores, weights):
+        scores_weights = np.array(model_scores) * weight
+        aggregate_scores += scores_weights
+    best = int(np.argmax(aggregate_scores))
     return best
 
 if __name__ == '__main__':
