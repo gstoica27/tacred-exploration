@@ -3,23 +3,23 @@
 # This is an example script of training and running model ensembles.
 
 # train 5 models with different seeds
-python train.py --seed 0 --id 00
-python train.py --seed 1 --id 01
-python train.py --seed 2 --id 02
-python train.py --seed 3 --id 03
-python train.py --seed 4 --id 04
+CUDA_VISIBLE_DEVICES=3 python train.py --seed 1234 --data_dir /home/scratch/gis/datasets/tacred/data/json/ --vocab_dir /home/scratch/gis/datasets/tacred-relation_data/ --id 01 --info "Position-aware attention model" --optim adagrad
+CUDA_VISIBLE_DEVICES=3 python train.py --seed 3145 --data_dir /home/scratch/gis/datasets/tacred/data/json/ --vocab_dir /home/scratch/gis/datasets/tacred-relation_data/ --id 02 --info "Position-aware attention model" --optim adagrad
+CUDA_VISIBLE_DEVICES=3 python train.py --seed 1776 --data_dir /home/scratch/gis/datasets/tacred/data/json/ --vocab_dir /home/scratch/gis/datasets/tacred-relation_data/ --id 03 --info "Position-aware attention model" --optim adagrad
+CUDA_VISIBLE_DEVICES=3 python train.py --seed 2019 --data_dir /home/scratch/gis/datasets/tacred/data/json/ --vocab_dir /home/scratch/gis/datasets/tacred-relation_data/ --id 04 --info "Position-aware attention model" --optim adagrad
+CUDA_VISIBLE_DEVICES=3 python train.py --seed 420 --data_dir /home/scratch/gis/datasets/tacred/data/json/ --vocab_dir /home/scratch/gis/datasets/tacred-relation_data/ --id 05 --info "Position-aware attention model" --optim adagrad
 
 # evaluate on test sets and save prediction files
-python eval.py saved_models/00 --out saved_models/out/test_0.pkl
-python eval.py saved_models/01 --out saved_models/out/test_1.pkl
-python eval.py saved_models/02 --out saved_models/out/test_2.pkl
-python eval.py saved_models/03 --out saved_models/out/test_3.pkl
-python eval.py saved_models/04 --out saved_models/out/test_4.pkl
+CUDA_VISIBLE_DEVICES=3 python eval.py /home/scratch/gis/datasets/tacred-relation_data/saved_models/01 --out /home/scratch/gis/datasets/tacred-relation_data/saved_models/out/test_1.pkl
+CUDA_VISIBLE_DEVICES=3 python eval.py /home/scratch/gis/datasets/tacred-relation_data/saved_models/02 --out /home/scratch/gis/datasets/tacred-relation_data/saved_models/out/test_2.pkl
+CUDA_VISIBLE_DEVICES=3 python eval.py /home/scratch/gis/datasets/tacred-relation_data/saved_models/03 --out /home/scratch/gis/datasets/tacred-relation_data/saved_models/out/test_3.pkl
+CUDA_VISIBLE_DEVICES=3 python eval.py /home/scratch/gis/datasets/tacred-relation_data/saved_models/04 --out /home/scratch/gis/datasets/tacred-relation_data/saved_models/out/test_4.pkl
+CUDA_VISIBLE_DEVICES=3 python eval.py /home/scratch/gis/datasets/tacred-relation_data/saved_models/05 --out /home/scratch/gis/datasets/tacred-relation_data/saved_models/out/test_5.pkl
 
 # run ensemble
-ARGS=""
-for id in 1 2 3 4 5; do
-    OUT="saved_models/out/test_${id}.pkl"
+ARGS="--data_dir /home/scratch/gis/datasets/tacred/data/json/"
+for id in 1 2 3 4; do
+    OUT="/home/scratch/gis/datasets/tacred-relation_data/saved_models/out/test_${id}.pkl"
     ARGS="$ARGS $OUT"
 done
 python ensemble.py --dataset test $ARGS

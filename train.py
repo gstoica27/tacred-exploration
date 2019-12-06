@@ -48,7 +48,7 @@ parser.add_argument('--max_grad_norm', type=float, default=5.0, help='Gradient c
 parser.add_argument('--log_step', type=int, default=20, help='Print log every k steps.')
 parser.add_argument('--log', type=str, default='logs.txt', help='Write training log to file.')
 parser.add_argument('--save_epoch', type=int, default=5, help='Save model checkpoints every k epochs.')
-parser.add_argument('--save_dir', type=str, default='./saved_models', help='Root dir for saving models.')
+parser.add_argument('--save_dir', type=str, default='/home/scratch/gis/datasets/tacred-relation_data/saved_models', help='Root dir for saving models.')
 parser.add_argument('--id', type=str, default='00', help='Model ID under which to save models.')
 parser.add_argument('--info', type=str, default='', help='Optional info for the experiment.')
 
@@ -80,7 +80,7 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'], opt, vocab, evaluation=False)
+train_batch = DataLoader(opt['data_dir'] + '/train_prop_8.json', opt['batch_size'], opt, vocab, evaluation=False)
 dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vocab, evaluation=True)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
