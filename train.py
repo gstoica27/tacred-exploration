@@ -18,9 +18,14 @@ from model.rnn import RelationModel
 from utils import scorer, constant, helper
 from utils.vocab import Vocab
 
+
+def str2bool(v):
+    return v.lower() in ('true')
+
+cwd = "/Volumes/External HDD/"
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', type=str, default='dataset/tacred')
-parser.add_argument('--vocab_dir', type=str, default='dataset/vocab')
+parser.add_argument('--data_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/json'))
+parser.add_argument('--vocab_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/vocab'))
 parser.add_argument('--emb_dim', type=int, default=300, help='Word embedding dimension.')
 parser.add_argument('--ner_dim', type=int, default=30, help='NER embedding dimension.')
 parser.add_argument('--pos_dim', type=int, default=30, help='POS embedding dimension.')
@@ -48,13 +53,16 @@ parser.add_argument('--max_grad_norm', type=float, default=5.0, help='Gradient c
 parser.add_argument('--log_step', type=int, default=20, help='Print log every k steps.')
 parser.add_argument('--log', type=str, default='logs.txt', help='Write training log to file.')
 parser.add_argument('--save_epoch', type=int, default=5, help='Save model checkpoints every k epochs.')
-parser.add_argument('--save_dir', type=str, default='/home/scratch/gis/datasets/tacred-relation_data/saved_models', help='Root dir for saving models.')
+parser.add_argument('--save_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/saved_models'), help='Root dir for saving models.')
 parser.add_argument('--id', type=str, default='00', help='Model ID under which to save models.')
 parser.add_argument('--info', type=str, default='', help='Optional info for the experiment.')
 
 parser.add_argument('--seed', type=int, default=1234)
 parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
 parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
+
+parser.add_argument('--nas_rnn', type=str2bool, default=False)
+
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -80,7 +88,7 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train_prop_8.json', opt['batch_size'], opt, vocab, evaluation=False)
+train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'], opt, vocab, evaluation=False)
 dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vocab, evaluation=True)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
