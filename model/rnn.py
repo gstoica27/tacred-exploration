@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 from utils import constant, torch_utils
 from model import layers
-from model.blocks import NASRNN
+from model.blocks import *
 
 class RelationModel(object):
     """ A wrapper class for the training and evaluation of models. """
@@ -116,9 +116,16 @@ class PositionAwareRNN(nn.Module):
         self.linear = nn.Linear(opt['hidden_dim'], opt['num_class'])
 
         if opt['attn']:
-            self.attn_layer = layers.PositionAwareAttention(opt['hidden_dim'],
-                    opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
+            if opt['nas_mlp']:
+                self.attn_layer = NASMLP3Layer(lstm_dim=opt['hidden_dim'],
+                                               subj_dim=opt['pe_dim'],
+                                               obj_dim=opt['pe_dim'],
+                                               hidden_dim=opt['hidden_dim'])
+            else:
+                self.attn_layer = layers.PositionAwareAttention(opt['hidden_dim'],
+                        opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
+
 
         self.opt = opt
         self.topn = self.opt.get('topn', 1e10)
@@ -204,7 +211,14 @@ class PositionAwareRNN(nn.Module):
             subj_pe_inputs = self.pe_emb(subj_pos + constant.MAX_LEN)
             obj_pe_inputs = self.pe_emb(obj_pos + constant.MAX_LEN)
             pe_features = torch.cat((subj_pe_inputs, obj_pe_inputs), dim=2)
-            final_hidden = self.attn_layer(outputs, masks, hidden, pe_features)
+
+            if self.opt['nas_mlp']:
+                final_hidden = self.attn_layer(lstm_input=outputs,
+                                               subj_input=subj_pe_inputs,
+                                               obj_input=obj_pe_inputs,
+                                               masks=masks)
+            else:
+                final_hidden = self.attn_layer(outputs, masks, hidden, pe_features)
         else:
             final_hidden = hidden
 

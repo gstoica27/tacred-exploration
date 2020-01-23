@@ -37,6 +37,17 @@ class SigmoidBlock(nn.Module):
         return self.network(inputs)
 
 
+class SoftmaxBlock(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(SoftmaxBlock, self).__init__()
+
+        self.network = nn.Sequential(nn.Linear(input_size, output_size, bias=False),
+                                     nn.Softmax())
+
+    def forward(self, inputs):
+        return self.network(inputs)
+
+
 class LinearBlock(nn.Module):
     def __init__(self, input_size, output_size):
         super(LinearBlock, self).__init__()
@@ -118,7 +129,6 @@ class NASCell(nn.Module):
         mixed_inps = self.linear0_0(concat_inps)
 
         output = self.branch0(mixed_inps)
-        output += self.branch0(mixed_inps)
         output += self.branch1(mixed_inps)
         output += self.branch2(mixed_inps)
         output += self.branch3(mixed_inps)
@@ -129,12 +139,95 @@ class NASCell(nn.Module):
         return output
 
 
+class NASCell3Layer(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(NASCell3Layer, self).__init__()
+
+        network_input_size = input_size + hidden_size
+        # layers
+        self.layer_0 = LinearBlock(network_input_size, 2 * hidden_size)
+        self.layer_1 = LinearBlock(hidden_size, 2 * hidden_size)
+        self.layer_2 = LinearBlock(hidden_size, 2 * hidden_size)
+        self.layers = [self.layer_0, self.layer_1, self.layer_2]
+        # activation functions
+        self.activations_0 = lambda x:x
+        self.activations_1 = torch.nn.ReLU()
+        self.activations_2 = torch.nn.ReLU()
+        self.hidden_size = hidden_size
+
+        self.network = nn.ModuleList(self.layers)
+
+    def forward(self, inputs, hidden):
+        # concatenate initial inputs
+        layer_concat_inputs = torch.cat([inputs, hidden], dim=1)
+        # first layer
+        layer_outputs = self.layer_0(layer_concat_inputs)
+        layer_h, layer_t = layer_outputs.split(self.hidden_size, dim=1)
+        layer_t = torch.sigmoid(layer_t)
+        layer_h = self.activations_0(layer_h)
+        layer_inputs_0 = hidden + layer_t * (layer_h - hidden)
+        # second layer
+        layer_outputs = self.layer_1(layer_inputs_0)
+        layer_h, layer_t = layer_outputs.split(self.hidden_size, dim=1)
+        layer_t = torch.sigmoid(layer_t)
+        layer_h = self.activations_1(layer_h)
+        layer_inputs_1 = hidden + layer_t * (layer_h - hidden)
+        # third layer
+        layer_outputs = self.layer_2(layer_inputs_0)
+        layer_h, layer_t = layer_outputs.split(self.hidden_size, dim=1)
+        layer_t = torch.sigmoid(layer_t)
+        layer_h = self.activations_2(layer_h)
+        layer_inputs_2 = hidden + layer_t * (layer_h - hidden)
+
+        output = (layer_inputs_1 + layer_inputs_2) / 2.0
+        return output
+
+
+class NASMLP3Layer(nn.Module):
+    def __init__(self, lstm_dim, subj_dim, obj_dim, hidden_dim):
+        super(NASMLP3Layer, self).__init__()
+        # layer sizes
+        self.layer_0 = LinearBlock(lstm_dim, hidden_dim)
+        self.layer_1 = LinearBlock(subj_dim, hidden_dim)
+        self.layer_2 = LinearBlock(obj_dim, hidden_dim)
+        self.layer_3 = LinearBlock(hidden_dim, hidden_dim)
+        self.layer_4 = LinearBlock(hidden_dim, hidden_dim)
+        self.layer_5 = LinearBlock(hidden_dim, hidden_dim)
+
+        self.step_importance = LinearBlock(hidden_dim, 1)
+        self.softmax = torch.nn.Softmax(dim=1)
+
+    def forward(self, lstm_input, subj_input, obj_input, masks):
+        output_0 = self.layer_0(lstm_input)
+        output_1 = self.layer_1(subj_input)
+        output_2 = self.layer_2(obj_input)
+        output_3 = torch.tanh(self.layer_3(output_1))
+
+        input_4 = (output_0 + output_1) / 2.
+        output_4 = torch.tanh(self.layer_4(input_4))
+        input_5 = (output_4 + output_2 + output_1) / 3.
+        output_5 = torch.tanh(self.layer_5(input_5))
+
+        avg = (output_3 + output_5) / 2.
+
+        step_importance = self.step_importance(avg)
+        # mask to account for EoS padding
+        length = avg.size()[1]
+        step_importance.data.masked_fill(masks.data.view(-1, length, 1), -float('inf'))
+        step_weights = self.softmax(step_importance)
+
+        output = lstm_input * step_weights
+        output = torch.sum(output, 1)
+        return output
+
+
 class NASRNN(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(NASRNN, self).__init__()
 
         self.hidden_size = hidden_size
-        self.rnn = NASCell(input_size=input_size, hidden_size=hidden_size)
+        # replace this with whatever you want
+        self.rnn = NASCell3Layer(input_size=input_size, hidden_size=hidden_size)
 
     def forward(self, inputs, hidden, masks):
 
@@ -149,6 +242,8 @@ class NASRNN(nn.Module):
         # enforce EoS padding
         outputs *= masks.view(-1, length, 1)
         return outputs
+
+
 
 
 if __name__ == '__main__':

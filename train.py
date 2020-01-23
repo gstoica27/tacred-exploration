@@ -62,6 +62,7 @@ parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
 parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
 
 parser.add_argument('--nas_rnn', type=str2bool, default=False)
+parser.add_argument('--nas_mlp', type=str2bool, default=False)
 
 args = parser.parse_args()
 
