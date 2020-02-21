@@ -29,7 +29,7 @@ parser.add_argument('--vocab_dir', type=str, default=os.path.join(cwd, 'dataset/
 parser.add_argument('--emb_dim', type=int, default=300, help='Word embedding dimension.')
 parser.add_argument('--ner_dim', type=int, default=30, help='NER embedding dimension.')
 parser.add_argument('--pos_dim', type=int, default=30, help='POS embedding dimension.')
-parser.add_argument('--hidden_dim', type=int, default=200, help='RNN hidden state size.')
+parser.add_argument('--hidden_dim', type=int, default=300, help='RNN hidden state size.')
 parser.add_argument('--num_layers', type=int, default=2, help='Num of RNN layers.')
 parser.add_argument('--dropout', type=float, default=0.5, help='Input and RNN dropout rate.')
 parser.add_argument('--word_dropout', type=float, default=0.04, help='The rate at which randomly set a word to UNK.')
@@ -101,6 +101,11 @@ helper.ensure_dir(model_save_dir, verbose=True)
 helper.save_config(opt, model_save_dir + '/config.json', verbose=True)
 vocab.save(model_save_dir + '/vocab.pkl')
 file_logger = helper.FileLogger(model_save_dir + '/' + opt['log'], header="# epoch\ttrain_loss\tdev_loss\tdev_f1")
+
+opt['arc_connections'] = [('sigmoid', 0), ('relu', 1), ('relu', 1), ('identity', 1), ('tanh', 2), ('sigmoid', 5), ('tanh', 3), ('relu', 5)]
+opt['arc_merge_layers'] = range(1, 9)
+opt['dropout_x'] = .75
+opt['dropout_h'] = .25
 
 # print model info
 helper.print_config(opt)

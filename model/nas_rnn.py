@@ -12,29 +12,20 @@ from model.blocks import *
 INITRANGE = 0.04
 
 class DARTSModel(nn.Module):
-    def __init__(self, opt, emb_matrix=None):
+    def __init__(self, opt):
         super(DARTSModel, self).__init__()
         self.opt = opt
-        self.emb_matrix = emb_matrix
         self.emb_dim = opt['emb_dim']
         self.hidden_dim = opt['hidden_dim']
-        self.is_training = True
 
         self.dropout_x = opt['dropout_x']
         self.dropout_h = opt['dropout_h']
 
-        self.token_embs = nn.Embedding(opt['vocab_size'], opt['emb_dim'], padding_idx=constant.PAD_ID)
-        if emb_matrix is not None:
-            self.token_embs.weight.data.copy_(self.emb_matrix)
-
         input_dim = opt['emb_dim']
         if opt['pos_dim'] > 0:
-            self.pos_embs = nn.Embedding(len(constant.POS_TO_ID), opt['pos_dim'], padding_idx=constant.PAD_ID)
             input_dim += opt['pos_dim']
         if opt['ner_dim'] > 0:
-            self.pos_embs = nn.Embedding(len(constant.NER_TO_ID), opt['ner_dim'], padding_idx=constant.PAD_ID)
             input_dim += opt['ner_dim']
-
         self.input_encoder = nn.Linear(input_dim, opt['emb_dim'])
 
         self.merge_layers = opt['arc_merge_layers']
@@ -48,41 +39,31 @@ class DARTSModel(nn.Module):
 
         self.decoder = nn.Linear(self.hidden_dim, opt['num_class'])
 
-    def mask2d(self, B, D, keep_prob, cuda=True):
+    def mask2d(self, B, D, keep_prob):
         m = torch.floor(torch.rand(B, D) + keep_prob) / keep_prob
         m = Variable(m, requires_grad=False)
-        if cuda:
+        if self.opt['cuda']:
             m = m.cuda()
         return m
 
-    def forward(self, inputs):
-        words, masks, pos, ner, deprel, subj_pos, obj_pos = inputs  # unpack
-        batch_size, token_dim = words.shape
+    def forward(self, inputs, hidden, masks):
+        batch_size, token_dim, _ = inputs.shape
         masks = masks.unsqueeze(2)
-        token_emb = self.token_embs(words)
-        network_inputs = [token_emb]
-        if self.opt['pos_dim'] > 0:
-            pos_emb = self.pos_embs(pos)
-            network_inputs.append(pos_emb)
-        if self.opt['ner_dim'] > 0:
-            ner_emb = self.ner_embs(ner)
-            network_inputs.append(ner_emb)
-        network_inputs = torch.cat(network_inputs, dim=-1)
-        encoded_inputs = self.input_encoder(network_inputs)
+        encoded_inputs = self.input_encoder(inputs)
 
         init_hidden, _ = self.zero_state(batch_size)
         encoded_outputs = self.encode_sequence(encoded_inputs, init_hidden)
-        masked_outputs = encoded_outputs * (1. - masks)
+        masked_outputs = encoded_outputs * masks
         aggregated_output = torch.mean(masked_outputs, dim=1)
-        logits = self.decoder(aggregated_output)
+        # logits = self.decoder(aggregated_output)
 
-        return logits, aggregated_output
+        return aggregated_output
 
     def zero_state(self, batch_size):
         state_shape = (batch_size, self.opt['hidden_dim'])
         c0 = torch.zeros(*state_shape, requires_grad=False)
         h0 = torch.zeros(*state_shape, requires_grad=False)
-        if self.use_cuda:
+        if self.opt['cuda']:
             return h0.cuda(), c0.cuda()
         else:
             return h0, c0
@@ -95,7 +76,8 @@ class DARTSModel(nn.Module):
             hidden = self.rnn_pass(input_step, hidden)
             encoded_steps.append(hidden)
         encoded_steps = torch.stack(encoded_steps)
-        return encoded_steps, encoded_steps[-1].unsqueeze(0)
+        encoded_steps = torch.transpose(encoded_steps, 0, 1)
+        return encoded_steps#, encoded_steps[-1].unsqueeze(0)
 
     def _get_activation(self, name):
       if name == 'tanh':
@@ -112,7 +94,7 @@ class DARTSModel(nn.Module):
 
     def rnn_pass(self, input_step, hidden):
         batch_size, input_dim = input_step.shape
-        if self.is_training:
+        if self.training:
             x_mask = self.mask2d(batch_size, input_dim, keep_prob=1. - self.dropout_x)
             h_mask = self.mask2d(batch_size, input_dim, keep_prob=1. - self.dropout_h)
         else:
@@ -122,11 +104,11 @@ class DARTSModel(nn.Module):
 
         for layer_idx, (activation_name, input_connection) in enumerate(self.connections):
             input_state = past_states[input_connection]
-            if self.is_training:
+            if self.training:
                 joint_state = (input_state * h_mask).mm(self._Ws[layer_idx])
             else:
                 joint_state = input_state.mm(self._Ws[layer_idx])
-            cell_state, hidden_state = torch.split(joint_state, self.hidden_dim)
+            cell_state, hidden_state = torch.split(joint_state, self.hidden_dim, dim=-1)
             cell_state = cell_state.sigmoid()
             activation = self._get_activation(activation_name)
             hidden_state = activation(hidden_state)
@@ -137,7 +119,7 @@ class DARTSModel(nn.Module):
         return rnn_output
 
     def compute_initial_state(self, init_input, hidden, x_mask, h_mask):
-        if self.is_training:
+        if self.training:
             input_state = torch.cat([init_input * x_mask, hidden * h_mask], dim=-1)
         else:
             input_state = torch.cat([init_input, hidden], dim=-1)

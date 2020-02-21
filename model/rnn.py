@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 from utils import constant, torch_utils
 from model import layers
+from model.nas_rnn import DARTSModel
 from model.blocks import *
 
 class RelationModel(object):
@@ -109,7 +110,8 @@ class PositionAwareRNN(nn.Module):
         
         input_size = opt['emb_dim'] + opt['pos_dim'] + opt['ner_dim']
         if opt['nas_rnn']:
-            self.rnn = NASRNN(input_size=input_size, hidden_size=opt['hidden_dim'])
+            # self.rnn = NASRNN(input_size=input_size, hidden_size=opt['hidden_dim'])
+            self.rnn = DARTSModel(opt)
         else:
             self.rnn = nn.LSTM(input_size, opt['hidden_dim'], opt['num_layers'], batch_first=True,\
                 dropout=opt['dropout'])
@@ -188,6 +190,7 @@ class PositionAwareRNN(nn.Module):
             hidden = self.zero_state(batch_size)[0][0]
             valid_masks = masks.eq(constant.PAD_ID)
             outputs = self.rnn(inputs, hidden, masks=valid_masks)
+            """
             # subtract 1 from sequence lens for indexing into output
             seq_idxs = [seq_len - 1 for seq_len in seq_lens]
             # seq_idxs index into the last non-padded element of sequence
@@ -195,7 +198,8 @@ class PositionAwareRNN(nn.Module):
             last_valid = outputs[range(batch_size), seq_idxs]
             hidden = self.drop(last_valid)
             outputs = self.drop(outputs)
-
+            """
+            hidden = self.drop(outputs)
         else:
             h0, c0 = self.zero_state(batch_size)
             inputs = nn.utils.rnn.pack_padded_sequence(inputs, seq_lens, batch_first=True)
