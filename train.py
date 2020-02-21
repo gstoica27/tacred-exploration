@@ -10,6 +10,7 @@ import random
 import argparse
 from shutil import copyfile
 import torch
+import pickle
 import torch.nn as nn
 import torch.optim as optim
 
@@ -27,6 +28,7 @@ cwd = "/Volumes/External HDD/"
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/json'))
 parser.add_argument('--vocab_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/vocab'))
+parser.add_argument('--test_save_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/test_perfs'))
 parser.add_argument('--emb_dim', type=int, default=300, help='Word embedding dimension.')
 parser.add_argument('--ner_dim', type=int, default=30, help='NER embedding dimension.')
 parser.add_argument('--pos_dim', type=int, default=30, help='POS embedding dimension.')
@@ -109,6 +111,10 @@ opt['arc_merge_layers'] = range(1, 9)
 opt['dropout_x'] = .04
 opt['dropout_h'] = .25
 
+test_save_dir = os.path.join(opt['test_save_dir'], opt['id'])
+os.makedirs(test_save_dir, exist_ok=True)
+test_save_file = os.path.join(test_save_dir, 'test_records.pkl')
+
 # print model info
 helper.print_config(opt)
 
@@ -160,10 +166,12 @@ for epoch in range(1, opt['num_epoch']+1):
     print("Evaluating on test set...")
     predictions = []
     test_loss = 0
+    test_preds = []
     for i, batch in enumerate(test_batch):
-        preds, _, loss = model.predict(batch)
+        preds, probs, loss = model.predict(batch)
         predictions += preds
         test_loss += loss
+        test_preds += probs
     predictions = [id2label[p] for p in predictions]
     test_p, test_r, test_f1 = scorer.score(test_batch.gold(), predictions)
     test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r}
@@ -171,6 +179,9 @@ for epoch in range(1, opt['num_epoch']+1):
     if best_dev_metrics['f1'] < current_dev_metrics['f1']:
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
+        print("Saving test info...")
+        with open(test_save_file, 'wb') as outfile:
+            pickle.dump(test_preds, outfile)
 
     print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
         best_dev_metrics['f1'], best_dev_metrics['precision'], best_dev_metrics['recall']
