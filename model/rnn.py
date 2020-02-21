@@ -190,7 +190,7 @@ class PositionAwareRNN(nn.Module):
             hidden = self.zero_state(batch_size)[0][0]
             valid_masks = masks.eq(constant.PAD_ID)
             outputs = self.rnn(inputs, hidden, masks=valid_masks)
-            """
+            #"""
             # subtract 1 from sequence lens for indexing into output
             seq_idxs = [seq_len - 1 for seq_len in seq_lens]
             # seq_idxs index into the last non-padded element of sequence
@@ -198,8 +198,8 @@ class PositionAwareRNN(nn.Module):
             last_valid = outputs[range(batch_size), seq_idxs]
             hidden = self.drop(last_valid)
             outputs = self.drop(outputs)
-            """
-            hidden = self.drop(outputs)
+            #"""
+            # hidden = self.drop(outputs)
         else:
             h0, c0 = self.zero_state(batch_size)
             inputs = nn.utils.rnn.pack_padded_sequence(inputs, seq_lens, batch_first=True)

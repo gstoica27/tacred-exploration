@@ -54,10 +54,10 @@ class DARTSModel(nn.Module):
         init_hidden, _ = self.zero_state(batch_size)
         encoded_outputs = self.encode_sequence(encoded_inputs, init_hidden)
         masked_outputs = encoded_outputs * masks
-        aggregated_output = torch.mean(masked_outputs, dim=1)
+        # aggregated_output = torch.mean(masked_outputs, dim=1)
         # logits = self.decoder(aggregated_output)
 
-        return aggregated_output
+        return masked_outputs
 
     def zero_state(self, batch_size):
         state_shape = (batch_size, self.opt['hidden_dim'])
