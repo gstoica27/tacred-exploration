@@ -33,6 +33,8 @@ class RelationModel(object):
         #     inputs = [b for b in batch[:7]]
         #     labels = batch[7]
         labels = batch['relations']
+        if self.opt['cuda']:
+            labels = labels.cuda()
 
         # step forward
         self.model.train()
@@ -63,7 +65,7 @@ class RelationModel(object):
         # forward
         self.model.eval()
         logits, _ = self.model(batch)
-        print('Logits on cuda: {} | labels on cuda: {}'.format(logits.is_cuda, labels.is_cuda))
+        # print('Logits on cuda: {} | labels on cuda: {}'.format(logits.is_cuda, labels.is_cuda))
         loss = self.criterion(logits, labels)
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
         predictions = np.argmax(logits.data.cpu().numpy(), axis=1).tolist()
