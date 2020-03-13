@@ -54,7 +54,7 @@ class DataLoader(object):
             ss, se = d['subj_start'], d['subj_end']
             os, oe = d['obj_start'], d['obj_end']
             # Extract subj data
-            subj_tokens = deepcopy(tokens[ss:se+1])
+            subj_tokens = deepcopy(map_to_ids(tokens[ss:se+1], vocab.word2id))
             subj_pos = deepcopy(pos[ss:se+1])
             subj_ner = deepcopy(ner[ss:se+1])
             subj_deprel = deepcopy(deprel[ss:se+1])
@@ -62,7 +62,7 @@ class DataLoader(object):
             #              'ner': subj_ner, 'deprel': subj_deprel}
             subj_data = (subj_tokens, subj_pos, subj_ner, subj_deprel)
             # Extract obj data
-            obj_tokens = deepcopy(tokens[os:oe + 1])
+            obj_tokens = deepcopy(map_to_ids(tokens[os:oe + 1], vocab.word2id))
             obj_pos = deepcopy(pos[os:oe + 1])
             obj_ner = deepcopy(ner[os:oe + 1])
             obj_deprel = deepcopy(deprel[os:oe+1])
@@ -109,10 +109,12 @@ class DataLoader(object):
         batch = self.data[key]
         batch_size = len(batch)
         # Sort all fields by sentence lengths for easier RNN operations
-        sentence_lens = np.array(list(map(lambda x: x['sentence'][0], batch)))
+        sentence_lens = np.array(list(map(lambda x: len(x['sentence'][0]), batch)))
         descending_len_idxs = np.argsort(-sentence_lens)
-        orig_idx = np.arange(batch_size)
+        orig_idx = np.argsort(descending_len_idxs)
+        # orig_idx = np.arange(batch_size)[descending_len_idxs]
         sorted_batch = np.array(batch)[descending_len_idxs]
+        # sorted_batch, orig_idx = sort_all(batch, sentence_lens)
 
         # batch = list(zip(*batch))
         # assert len(batch) == 7
@@ -127,7 +129,6 @@ class DataLoader(object):
         # lens = [len(x) for x in sentence[0]]
         # sentence, orig_idx = sort_all(sentence, lens)
         # descending_len_idxs = np.argsort(-np.array(lens))
-        # TODO: Transform everything below to work with Subj, Obj and Sentence Components
         # word dropout
         if not self.eval:
             sentence_words = [word_dropout(sent, self.opt['word_dropout']) for sent in sentence_batch[0]]
@@ -190,7 +191,8 @@ class DataLoader(object):
         # rels = torch.LongTensor(batch[6])
 
         # return (words, masks, pos, ner, deprel, subj_positions, obj_positions, rels, orig_idx)
-        return {'sentences': sentence_data, 'subj': subj_data, 'obj': obj_data, 'relations': relations}
+        return {'sentence': sentence_data, 'subj': subj_data, 'obj': obj_data,
+                'relations': relations, 'orig_idx': orig_idx}
 
     def __iter__(self):
         for i in range(self.__len__()):

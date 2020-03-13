@@ -18,9 +18,11 @@ from model.rnn import RelationModel
 from utils import scorer, constant, helper
 from utils.vocab import Vocab
 
+cwd = "/Volumes/External HDD/"
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', type=str, default='dataset/tacred')
-parser.add_argument('--vocab_dir', type=str, default='dataset/vocab')
+parser.add_argument('--data_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/json'))
+parser.add_argument('--vocab_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/vocab'))
+parser.add_argument('--test_save_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/test_perfs'))
 parser.add_argument('--emb_dim', type=int, default=300, help='Word embedding dimension.')
 parser.add_argument('--ner_dim', type=int, default=30, help='NER embedding dimension.')
 parser.add_argument('--pos_dim', type=int, default=30, help='POS embedding dimension.')
@@ -55,6 +57,7 @@ parser.add_argument('--info', type=str, default='', help='Optional info for the 
 parser.add_argument('--seed', type=int, default=1234)
 parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
 parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
+
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -80,8 +83,14 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'], opt, vocab, evaluation=False)
-dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vocab, evaluation=True)
+train_batch = DataLoader(opt['data_dir'] + '/train.json',
+                         opt['batch_size'], opt,
+                         vocab, evaluation=False,
+                         use_cuda=opt['cuda'])
+dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
+                       opt['batch_size'], opt, vocab,
+                       evaluation=True,
+                       use_cuda=opt['cuda'])
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = opt['save_dir'] + '/' + model_id
@@ -97,6 +106,15 @@ file_logger = helper.FileLogger(model_save_dir + '/' + opt['log'], header="# epo
 helper.print_config(opt)
 
 # model
+
+opt['cpg'] = {
+    'network_structure': [],
+    'dropout': 0.,
+    'use_batch_norm': True,
+    'batch_norm_momentum': .1,
+    'use_bias': False
+}
+
 model = RelationModel(opt, emb_matrix=emb_matrix)
 
 id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
@@ -111,7 +129,7 @@ max_steps = len(train_batch) * opt['num_epoch']
 # start training
 for epoch in range(1, opt['num_epoch']+1):
     train_loss = 0
-    for i, batch in enumerate(train_batch):
+    for i, batch in enumerate(range(0)):#train_batch):
         start_time = time.time()
         global_step += 1
         loss = model.update(batch)
@@ -131,7 +149,8 @@ for epoch in range(1, opt['num_epoch']+1):
         dev_loss += loss
     predictions = [id2label[p] for p in predictions]
     dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), predictions)
-    
+    # ground_truth = [id2label[p] for p in dev_batch['relations']]
+    # dev_p, dev_r, dev_f1 = scorer.score(ground_truth, predictions)
     train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
     dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
     print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,\

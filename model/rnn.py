@@ -9,13 +9,14 @@ from torch.nn import init
 import torch.nn.functional as F
 
 from utils import constant, torch_utils
-from model import layers
+from model import layers, cond_rnn
 
 class RelationModel(object):
     """ A wrapper class for the training and evaluation of models. """
     def __init__(self, opt, emb_matrix=None):
         self.opt = opt
-        self.model = PositionAwareRNN(opt, emb_matrix)
+        # self.model = PositionAwareRNN(opt, emb_matrix)
+        self.model = cond_rnn.ConditionalRE(params=opt, word_matrix=emb_matrix)
         self.criterion = nn.CrossEntropyLoss()
         self.parameters = [p for p in self.model.parameters() if p.requires_grad]
         if opt['cuda']:
@@ -25,17 +26,18 @@ class RelationModel(object):
     
     def update(self, batch):
         """ Run a step of forward and backward model update. """
-        if self.opt['cuda']:
-            inputs = [b.cuda() for b in batch[:7]]
-            labels = batch[7].cuda()
-        else:
-            inputs = [b for b in batch[:7]]
-            labels = batch[7]
+        # if self.opt['cuda']:
+        #     inputs = [b.cuda() for b in batch[:7]]
+        #     labels = batch[7].cuda()
+        # else:
+        #     inputs = [b for b in batch[:7]]
+        #     labels = batch[7]
+        labels = batch['relations']
 
         # step forward
         self.model.train()
         self.optimizer.zero_grad()
-        logits, _ = self.model(inputs)
+        logits, _ = self.model(batch)
         loss = self.criterion(logits, labels)
         
         # backward
@@ -47,18 +49,18 @@ class RelationModel(object):
 
     def predict(self, batch, unsort=True):
         """ Run forward prediction. If unsort is True, recover the original order of the batch. """
-        if self.opt['cuda']:
-            inputs = [b.cuda() for b in batch[:7]]
-            labels = batch[7].cuda()
-        else:
-            inputs = [b for b in batch[:7]]
-            labels = batch[7]
-
-        orig_idx = batch[8]
+        # if self.opt['cuda']:
+        #     inputs = [b.cuda() for b in batch[:7]]
+        #     labels = batch[7].cuda()
+        # else:
+        #     inputs = [b for b in batch[:7]]
+        #     labels = batch[7]
+        labels = batch['relations']
+        orig_idx = batch['orig_idx']
 
         # forward
         self.model.eval()
-        logits, _ = self.model(inputs)
+        logits, _ = self.model(batch)
         loss = self.criterion(logits, labels)
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
         predictions = np.argmax(logits.data.cpu().numpy(), axis=1).tolist()
