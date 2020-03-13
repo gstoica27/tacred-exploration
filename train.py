@@ -157,12 +157,16 @@ for epoch in range(1, opt['num_epoch'] + 1):
     print("Evaluating on dev set...")
     predictions = []
     dev_loss = 0
+    ground_truth_labels = []
     for i, batch in enumerate(dev_batch):
-        preds, _, loss = model.predict(batch)
+        preds_unsorted, probs, loss, labels, preds = model.predict(batch)
         predictions += preds
         dev_loss += loss
+        ground_truth_labels += labels
     predictions = [id2label[p] for p in predictions]
-    dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), predictions)
+    ground_truth = [id2label[p] for p in ground_truth_labels]
+    test_p, test_r, test_f1 = scorer.score(ground_truth, predictions)
+    # test_p, test_r, test_f1 = scorer.score(test_batch.gold(), predictions)
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
     dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
