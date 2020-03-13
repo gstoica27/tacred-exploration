@@ -47,7 +47,7 @@ class RelationModel(object):
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
         self.optimizer.step()
         loss_val = loss.data.item()
-        return loss_val, labels
+        return loss_val
 
     def predict(self, batch, unsort=True):
         """ Run forward prediction. If unsort is True, recover the original order of the batch. """
