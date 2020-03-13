@@ -56,6 +56,8 @@ class RelationModel(object):
         #     inputs = [b for b in batch[:7]]
         #     labels = batch[7]
         labels = batch['relations']
+        if self.opt['cuda']:
+            labels = labels.cuda()
         orig_idx = batch['orig_idx']
 
         # forward
