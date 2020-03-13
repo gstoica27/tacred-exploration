@@ -47,7 +47,7 @@ class RelationModel(object):
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
         self.optimizer.step()
         loss_val = loss.data.item()
-        return loss_val
+        return loss_val, labels
 
     def predict(self, batch, unsort=True):
         """ Run forward prediction. If unsort is True, recover the original order of the batch. """
@@ -69,10 +69,11 @@ class RelationModel(object):
         loss = self.criterion(logits, labels)
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
         predictions = np.argmax(logits.data.cpu().numpy(), axis=1).tolist()
+        predictions_unsorted = None
         if unsort:
-            _, predictions, probs = [list(t) for t in zip(*sorted(zip(orig_idx,\
+            _, predictions_unsorted, probs = [list(t) for t in zip(*sorted(zip(orig_idx,\
                     predictions, probs)))]
-        return predictions, probs, loss.data.item()
+        return predictions_unsorted, probs, loss.data.item(), labels, predictions
 
     def update_lr(self, new_lr):
         torch_utils.change_lr(self.optimizer, new_lr)

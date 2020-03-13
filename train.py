@@ -175,13 +175,17 @@ for epoch in range(1, opt['num_epoch'] + 1):
     predictions = []
     test_loss = 0
     test_preds = []
+    ground_truth_labels = []
     for i, batch in enumerate(test_batch):
-        preds, probs, loss = model.predict(batch)
+        preds_unsorted, probs, loss, labels, preds = model.predict(batch)
         predictions += preds
         test_loss += loss
         test_preds += probs
+        ground_truth_labels += labels
     predictions = [id2label[p] for p in predictions]
-    test_p, test_r, test_f1 = scorer.score(test_batch.gold(), predictions)
+    ground_truth = [id2label[p] for p in ground_truth_labels]
+    test_p, test_r, test_f1 = scorer.score(ground_truth, predictions)
+    # test_p, test_r, test_f1 = scorer.score(test_batch.gold(), predictions)
     test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r}
 
     if best_dev_metrics['f1'] < current_dev_metrics['f1']:
