@@ -12,6 +12,8 @@ from shutil import copyfile
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import pickle
+from collections import defaultdict
 
 from data.loader import DataLoader
 from model.rnn import RelationModel
@@ -91,6 +93,10 @@ dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
                        opt['batch_size'], opt, vocab,
                        evaluation=True,
                        use_cuda=opt['cuda'])
+test_batch = DataLoader(opt['data_dir'] + '/test.json',
+                        opt['batch_size'], opt, vocab,
+                        evaluation=True,
+                        use_cuda=opt['cuda'])
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = opt['save_dir'] + '/' + model_id
@@ -101,6 +107,11 @@ helper.ensure_dir(model_save_dir, verbose=True)
 helper.save_config(opt, model_save_dir + '/config.json', verbose=True)
 vocab.save(model_save_dir + '/vocab.pkl')
 file_logger = helper.FileLogger(model_save_dir + '/' + opt['log'], header="# epoch\ttrain_loss\tdev_loss\tdev_f1")
+
+test_save_dir = os.path.join(opt['test_save_dir'], opt['id'])
+os.makedirs(test_save_dir, exist_ok=True)
+test_save_file = os.path.join(test_save_dir, 'test_records.pkl')
+
 
 # print model info
 helper.print_config(opt)
@@ -125,19 +136,22 @@ global_step = 0
 global_start_time = time.time()
 format_str = '{}: step {}/{} (epoch {}/{}), loss = {:.6f} ({:.3f} sec/batch), lr: {:.6f}'
 max_steps = len(train_batch) * opt['num_epoch']
+best_dev_metrics = defaultdict(lambda: -np.inf)
+test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
 
 # start training
-for epoch in range(1, opt['num_epoch']+1):
+epoch = 0
+for epoch in range(1, opt['num_epoch'] + 1):
     train_loss = 0
-    for i, batch in enumerate(range(0)):#train_batch):
+    for i, batch in enumerate(train_batch):
         start_time = time.time()
         global_step += 1
         loss = model.update(batch)
         train_loss += loss
         if global_step % opt['log_step'] == 0:
             duration = time.time() - start_time
-            print(format_str.format(datetime.now(), global_step, max_steps, epoch,\
-                    opt['num_epoch'], loss, duration, current_lr))
+            print(format_str.format(datetime.now(), global_step, max_steps, epoch, \
+                                    opt['num_epoch'], loss, duration, current_lr))
 
     # eval on dev
     print("Evaluating on dev set...")
@@ -149,13 +163,44 @@ for epoch in range(1, opt['num_epoch']+1):
         dev_loss += loss
     predictions = [id2label[p] for p in predictions]
     dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), predictions)
-    # ground_truth = [id2label[p] for p in dev_batch['relations']]
-    # dev_p, dev_r, dev_f1 = scorer.score(ground_truth, predictions)
-    train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
+
+    train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
     dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
-    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,\
-            train_loss, dev_loss, dev_f1))
+    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(
+        epoch, train_loss, dev_loss, dev_f1))
     file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_loss, dev_f1))
+    current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r}
+
+    print("Evaluating on test set...")
+    predictions = []
+    test_loss = 0
+    test_preds = []
+    for i, batch in enumerate(test_batch):
+        preds, probs, loss = model.predict(batch)
+        predictions += preds
+        test_loss += loss
+        test_preds += probs
+    predictions = [id2label[p] for p in predictions]
+    test_p, test_r, test_f1 = scorer.score(test_batch.gold(), predictions)
+    test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r}
+
+    if best_dev_metrics['f1'] < current_dev_metrics['f1']:
+        best_dev_metrics = current_dev_metrics
+        test_metrics_at_best_dev = test_metrics_at_current_dev
+        print("Saving test info...")
+        with open(test_save_file, 'wb') as outfile:
+            pickle.dump(test_preds, outfile)
+
+    print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
+        best_dev_metrics['f1'], best_dev_metrics['precision'], best_dev_metrics['recall']
+    ))
+    print("Test Metrics at Best Dev | F1: {} | Precision: {} | Recall: {}".format(
+        test_metrics_at_best_dev['f1'], test_metrics_at_best_dev['precision'], test_metrics_at_best_dev['recall']
+    ))
+
+    train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
+    print("epoch {}: test_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, test_loss, test_f1))
+    file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_loss, test_f1))
 
     # save
     model_file = model_save_dir + '/checkpoint_epoch_{}.pt'.format(epoch)
@@ -165,7 +210,7 @@ for epoch in range(1, opt['num_epoch']+1):
         print("new best model saved.")
     if epoch % opt['save_epoch'] != 0:
         os.remove(model_file)
-    
+
     # lr schedule
     if len(dev_f1_history) > 10 and dev_f1 <= dev_f1_history[-1] and \
             opt['optim'] in ['sgd', 'adagrad']:
@@ -176,4 +221,3 @@ for epoch in range(1, opt['num_epoch']+1):
     print("")
 
 print("Training ended with {} epochs.".format(epoch))
-
