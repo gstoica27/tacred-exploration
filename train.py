@@ -75,7 +75,7 @@ opt = vars(args)
 opt['num_class'] = len(constant.LABEL_TO_ID)
 
 # load vocab
-vocab_file = opt['vocab_dir'] + '/vocab.pkl'
+vocab_file = opt['vocab_dir'] + '/vocab_new.pkl'
 vocab = Vocab(vocab_file, load=True)
 opt['vocab_size'] = vocab.size
 emb_file = opt['vocab_dir'] + '/embedding.npy'

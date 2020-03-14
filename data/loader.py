@@ -20,6 +20,7 @@ class DataLoader(object):
         self.vocab = vocab
         self.eval = evaluation
         self.use_cuda = use_cuda
+        self.loading_type = opt['loading_type']
 
         with open(filename) as infile:
             data = json.load(infile)
@@ -53,26 +54,38 @@ class DataLoader(object):
             # Extract subj and obj spans
             ss, se = d['subj_start'], d['subj_end']
             os, oe = d['obj_start'], d['obj_end']
+            if self.loading_type  == 'granular_cpg':
             # Extract subj data
-            subj_tokens = deepcopy(map_to_ids(tokens[ss:se+1], vocab.word2id))
-            subj_pos = deepcopy(pos[ss:se+1])
-            subj_ner = deepcopy(ner[ss:se+1])
-            subj_deprel = deepcopy(deprel[ss:se+1])
-            # subj_data = {'tokens': subj_tokens, 'pos': subj_pos,
-            #              'ner': subj_ner, 'deprel': subj_deprel}
-            subj_data = (subj_tokens, subj_pos, subj_ner, subj_deprel)
-            # Extract obj data
-            obj_tokens = deepcopy(map_to_ids(tokens[os:oe + 1], vocab.word2id))
-            obj_pos = deepcopy(pos[os:oe + 1])
-            obj_ner = deepcopy(ner[os:oe + 1])
-            obj_deprel = deepcopy(deprel[os:oe+1])
-            # obj_data = {'tokens': obj_tokens, 'pos': obj_pos,
-            #             'ner': obj_ner, 'deprel': obj_deprel}
-            obj_data = (obj_tokens, obj_pos, obj_ner, obj_deprel)
-            # anonymize tokens
-            tokens[ss:se+1] = ['SUBJ-'+d['subj_type']] * (se-ss+1)
-            tokens[os:oe+1] = ['OBJ-'+d['obj_type']] * (oe-os+1)
-            tokens = map_to_ids(tokens, vocab.word2id)
+                subj_tokens = deepcopy(map_to_ids(tokens[ss:se+1], vocab.word2id))
+                subj_pos = deepcopy(pos[ss:se+1])
+                subj_ner = deepcopy(ner[ss:se+1])
+                subj_deprel = deepcopy(deprel[ss:se+1])
+                subj_data = (subj_tokens, subj_pos, subj_ner, subj_deprel)
+
+                # Extract obj data
+                obj_tokens = deepcopy(map_to_ids(tokens[os:oe + 1], vocab.word2id))
+                obj_pos = deepcopy(pos[os:oe + 1])
+                obj_ner = deepcopy(ner[os:oe + 1])
+                obj_deprel = deepcopy(deprel[os:oe+1])
+                # obj_data = {'tokens': obj_tokens, 'pos': obj_pos,
+                #             'ner': obj_ner, 'deprel': obj_deprel}
+                obj_data = (obj_tokens, obj_pos, obj_ner, obj_deprel)
+
+                # anonymize tokens
+                tokens[ss:se + 1] = ['SUBJ-' + d['subj_type']] * (se - ss + 1)
+                tokens[os:oe + 1] = ['OBJ-' + d['obj_type']] * (oe - os + 1)
+                tokens = map_to_ids(tokens, vocab.word2id)
+
+            elif self.loading_type == 'typed_cpg':
+                subj_type = 'SUBJ-' + d['subj_type']
+                obj_type = 'OBJ-'+d['obj_type']
+                subj_data = (subj_type,)
+                obj_data = (obj_type,)
+                # anonymize tokens
+                tokens[ss:se + 1] = ['SUBJ'] * (se - ss + 1)
+                tokens[os:oe + 1] = ['OBJ'] * (oe - os + 1)
+            else:
+                raise ValueError('Only granular_cpg, typed_cpg and normal are valid')
 
             l = len(tokens)
             subj_positions = get_positions(d['subj_start'], d['subj_end'], l)
@@ -81,7 +94,6 @@ class DataLoader(object):
             # sentence_data = {'tokens': tokens, 'pos': pos, 'ner': ner, 'deprel': deprel,
             #                 'subj_positions': subj_positions, 'obj_positions': obj_positions}
             sentence_data = (tokens, pos, ner, deprel, subj_positions, obj_positions)
-
             sample_data = {'sentence': sentence_data, 'subj': subj_data, 'obj': obj_data, 'relation': relation}
             processed += [sample_data]
             # processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]

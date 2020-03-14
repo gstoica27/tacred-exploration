@@ -56,6 +56,7 @@ class Vocab(object):
             assert os.path.exists(filename), "Vocab file does not exist at " + filename
             # load from file and ignore all other params
             self.id2word, self.word2id = self.load(filename)
+
             self.size = len(self.id2word)
             print("Vocab size {} loaded from file".format(self.size))
         else:
@@ -67,7 +68,7 @@ class Vocab(object):
                 self.word_counter = dict([(k,v) for k,v in self.word_counter.items() if v >= threshold])
             self.id2word = sorted(self.word_counter, key=lambda k:self.word_counter[k], reverse=True)
             # add special tokens to the beginning
-            self.id2word = [constant.PAD_TOKEN, constant.UNK_TOKEN] + self.id2word
+            self.id2word = [constant.PAD_TOKEN, constant.UNK_TOKEN] + ['SUBJ', 'OBJ'] + self.id2word
             self.word2id = dict([(self.id2word[idx],idx) for idx in range(len(self.id2word))])
             self.size = len(self.id2word)
             self.save(filename)
