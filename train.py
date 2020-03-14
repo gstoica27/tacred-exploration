@@ -71,6 +71,8 @@ parser.add_argument('--no_type', type=bool, default=False,
                     help='Whether to replace subj and obj granular typing or just Subj, and obj')
 parser.add_argument('--avg_types', type=bool, default=False,
                     help='Whether to make SUBJ and OBJ embeddings average of granular types (SUBJ-*, OBJ-*)')
+parser.add_argument('--use_cpg', type=bool, default=False,
+                    help='Whether to use CPG Attention or not')
 
 args = parser.parse_args()
 
@@ -132,7 +134,6 @@ opt['cpg'] = {
     'batch_norm_momentum': .1,
     'use_bias': False
 }
-opt['use_cpg'] = True
 opt['type_enc_dim'] = 5
 opt['type_dim'] = 10
 
