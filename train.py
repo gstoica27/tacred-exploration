@@ -67,11 +67,11 @@ parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
 
 parser.add_argument('--nas_rnn', type=str2bool, default=False)
 parser.add_argument('--nas_mlp', type=str2bool, default=False)
-parser.add_argument('--no_type', type=bool, default=False,
+parser.add_argument('--no_type', type=str2bool, default=False,
                     help='Whether to replace subj and obj granular typing or just Subj, and obj')
-parser.add_argument('--avg_types', type=bool, default=False,
+parser.add_argument('--avg_types', type=str2bool, default=False,
                     help='Whether to make SUBJ and OBJ embeddings average of granular types (SUBJ-*, OBJ-*)')
-parser.add_argument('--use_cpg', type=bool, default=False,
+parser.add_argument('--use_cpg', type=str2bool, default=False,
                     help='Whether to use CPG Attention or not')
 
 args = parser.parse_args()
@@ -97,8 +97,6 @@ emb_matrix = np.load(emb_file)
 assert emb_matrix.shape[0] == vocab.size - 2
 assert emb_matrix.shape[1] == opt['emb_dim']
 
-opt['no_type'] = True
-opt['avg_types'] = True
 opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
 
