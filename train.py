@@ -56,7 +56,8 @@ parser.add_argument('--max_grad_norm', type=float, default=5.0, help='Gradient c
 parser.add_argument('--log_step', type=int, default=20, help='Print log every k steps.')
 parser.add_argument('--log', type=str, default='logs.txt', help='Write training log to file.')
 parser.add_argument('--save_epoch', type=int, default=5, help='Save model checkpoints every k epochs.')
-parser.add_argument('--save_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/saved_models'), help='Root dir for saving models.')
+parser.add_argument('--save_dir', type=str,
+                    default=os.path.join(cwd, 'dataset/tacred/saved_models'), help='Root dir for saving models.')
 parser.add_argument('--id', type=str, default='00', help='Model ID under which to save models.')
 parser.add_argument('--info', type=str, default='', help='Optional info for the experiment.')
 
@@ -66,6 +67,10 @@ parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
 
 parser.add_argument('--nas_rnn', type=str2bool, default=False)
 parser.add_argument('--nas_mlp', type=str2bool, default=False)
+parser.add_argument('--no_type', type=bool, default=False,
+                    help='Whether to replace subj and obj granular typing or just Subj, and obj')
+parser.add_argument('--avg_types', type=bool, default=False,
+                    help='Whether to make SUBJ and OBJ embeddings average of granular types (SUBJ-*, OBJ-*)')
 
 args = parser.parse_args()
 
