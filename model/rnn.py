@@ -12,6 +12,7 @@ from utils import constant, torch_utils
 from model import layers
 from model.nas_rnn import DARTSModel
 from model.blocks import *
+from model.cpg_modules import ContextualParameterGenerator
 
 class RelationModel(object):
     """ A wrapper class for the training and evaluation of models. """
@@ -30,9 +31,15 @@ class RelationModel(object):
         if self.opt['cuda']:
             inputs = [b.cuda() for b in batch[:7]]
             labels = batch[7].cuda()
+            subj_type = batch[-2].cuda()
+            obj_type = batch[-1].cuda()
+            inputs += [subj_type, obj_type]
         else:
             inputs = [b for b in batch[:7]]
             labels = batch[7]
+            subj_type = batch[-2]
+            obj_type = batch[-1]
+            inputs += [subj_type, obj_type]
 
         # step forward
         self.model.train()
@@ -109,25 +116,42 @@ class PositionAwareRNN(nn.Module):
                     padding_idx=constant.PAD_ID)
         
         input_size = opt['emb_dim'] + opt['pos_dim'] + opt['ner_dim']
-        if opt['nas_rnn']:
-            # self.rnn = NASRNN(input_size=input_size, hidden_size=opt['hidden_dim'])
-            self.rnn = DARTSModel(opt)
-        else:
-            self.rnn = nn.LSTM(input_size, opt['hidden_dim'], opt['num_layers'], batch_first=True,\
-                dropout=opt['dropout'])
-        self.linear = nn.Linear(opt['hidden_dim'], opt['num_class'])
+
+        self.rnn = nn.LSTM(input_size, opt['hidden_dim'], opt['num_layers'], batch_first=True,\
+            dropout=opt['dropout'])
 
         if opt['attn']:
-            if opt['nas_mlp']:
-                self.attn_layer = NASMLP3Layer(lstm_dim=opt['hidden_dim'],
-                                               subj_dim=opt['pe_dim'],
-                                               obj_dim=opt['pe_dim'],
-                                               hidden_dim=opt['hidden_dim'])
-            else:
-                self.attn_layer = layers.PositionAwareAttention(opt['hidden_dim'],
-                        opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
+            self.attn_layer = layers.PositionAwareAttention(opt['hidden_dim'],
+                    opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
+        if opt['use_cpg']:
+            num_subj_types = len(constant.SUBJ_NER_TO_ID) - 2
+            num_obj_types = len(constant.OBJ_NER_TO_ID) - 2
+            self.subj_type_emb = nn.Embedding(num_subj_types, opt['type_dim'])
+            self.obj_type_emb = nn.Embedding(num_obj_types, opt['type_dim'])
+            self.subj_enc = nn.Linear(opt['type_dim'], opt['type_enc_dim'])
+            self.obj_enc = nn.Linear(opt['type_dim'], opt['type_enc_dim'])
+
+            cpg_params = opt['cpg']
+            self.cpg_W1 = ContextualParameterGenerator(
+                network_structure=[opt['type_enc_dim']*2] + cpg_params['network_structure'],
+                output_shape=[opt['hidden_dim'], 100],
+                dropout=cpg_params['dropout'],
+                use_batch_norm=cpg_params['use_batch_norm'],
+                batch_norm_momentum=cpg_params['batch_norm_momentum'],
+                use_bias=cpg_params['use_bias'])
+            self.cpg_W2 = ContextualParameterGenerator(
+                network_structure=[opt['type_enc_dim'] * 2] + cpg_params['network_structure'],
+                output_shape=[100, 50],
+                dropout=cpg_params['dropout'],
+                use_batch_norm=cpg_params['use_batch_norm'],
+                batch_norm_momentum=cpg_params['batch_norm_momentum'],
+                use_bias=cpg_params['use_bias']
+            )
+            self.linear = nn.Linear(50, opt['num_class'])
+        else:
+            self.linear = nn.Linear(opt['hidden_dim'], opt['num_class'])
 
         self.opt = opt
         self.topn = self.opt.get('topn', 1e10)
@@ -140,7 +164,14 @@ class PositionAwareRNN(nn.Module):
             self.emb.weight.data[1:,:].uniform_(-1.0, 1.0) # keep padding dimension to be 0
         else:
             self.emb_matrix = torch.from_numpy(self.emb_matrix)
-            self.emb.weight.data.copy_(self.emb_matrix)
+            self.emb.weight.data[:-2].copy_(self.emb_matrix)
+
+            if self.opt.get('avg_types', False):
+                subj_avg_emb = torch.mean(self.emb.weight[self.opt['subj_idxs']], dim=0)
+                obj_avg_emb = torch.mean(self.emb.weight[self.opt['obj_idxs']], dim=0)
+                self.emb.weight.data[-2].copy_(subj_avg_emb)
+                self.emb.weight.data[-1].copy_(obj_avg_emb)
+
         if self.opt['pos_dim'] > 0:
             self.pos_emb.weight.data[1:,:].uniform_(-1.0, 1.0)
         if self.opt['ner_dim'] > 0:
@@ -150,6 +181,10 @@ class PositionAwareRNN(nn.Module):
         init.xavier_uniform_(self.linear.weight, gain=1) # initialize linear layer
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
+
+        if self.opt['use_cpg']:
+            self.subj_type_emb.weight.data.uniform_(-1., 1.)
+            self.obj_type_emb.weight.data.uniform_(-1., 1.)
 
         # decide finetuning
         if self.topn <= 0:
@@ -171,7 +206,7 @@ class PositionAwareRNN(nn.Module):
             return h0, c0
     
     def forward(self, inputs):
-        words, masks, pos, ner, deprel, subj_pos, obj_pos = inputs # unpack
+        words, masks, pos, ner, deprel, subj_pos, obj_pos, subj_type, obj_type = inputs # unpack
         seq_lens = list(masks.data.eq(constant.PAD_ID).long().sum(1).squeeze())
         batch_size = words.size()[0]
         
@@ -216,15 +251,22 @@ class PositionAwareRNN(nn.Module):
             obj_pe_inputs = self.pe_emb(obj_pos + constant.MAX_LEN)
             pe_features = torch.cat((subj_pe_inputs, obj_pe_inputs), dim=2)
 
-            if self.opt['nas_mlp']:
-                final_hidden = self.attn_layer(lstm_input=outputs,
-                                               subj_input=subj_pe_inputs,
-                                               obj_input=obj_pe_inputs,
-                                               masks=masks)
-            else:
-                final_hidden = self.attn_layer(outputs, masks, hidden, pe_features)
+
+            final_hidden = self.attn_layer(outputs, masks, hidden, pe_features)
         else:
             final_hidden = hidden
+
+        if self.opt['use_cpg']:
+            subj_emb = self.subj_type_emb(subj_type)
+            obj_emb = self.obj_type_emb(obj_type)
+            subj_enc = F.relu(self.subj_enc(subj_emb))
+            obj_enc = F.relu(self.obj_enc(obj_emb))
+            cpg_encs = torch.cat((subj_enc, obj_enc), dim=-1)
+            w1 = self.cpg_W1(cpg_encs)
+            w2 = self.cpg_W2(cpg_encs)
+
+            hidden1 = F.relu(torch.einsum('ij,ijk->ik', [final_hidden, w1]))
+            final_hidden = torch.einsum('ij,ijk->ik', [hidden1, w2])
 
         logits = self.linear(final_hidden)
         return logits, final_hidden

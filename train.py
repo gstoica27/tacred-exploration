@@ -87,8 +87,13 @@ vocab = Vocab(vocab_file, load=True)
 opt['vocab_size'] = vocab.size
 emb_file = opt['vocab_dir'] + '/embedding.npy'
 emb_matrix = np.load(emb_file)
-assert emb_matrix.shape[0] == vocab.size
+assert emb_matrix.shape[0] == vocab.size - 2
 assert emb_matrix.shape[1] == opt['emb_dim']
+
+opt['no_type'] = True
+opt['avg_types'] = True
+opt['subj_idxs'] = vocab.subj_idxs
+opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
@@ -114,6 +119,17 @@ opt['dropout_h'] = .25
 test_save_dir = os.path.join(opt['test_save_dir'], opt['id'])
 os.makedirs(test_save_dir, exist_ok=True)
 test_save_file = os.path.join(test_save_dir, 'test_records.pkl')
+
+opt['cpg'] = {
+    'network_structure': [],
+    'dropout': 0.,
+    'use_batch_norm': True,
+    'batch_norm_momentum': .1,
+    'use_bias': False
+}
+opt['use_cpg'] = True
+opt['type_enc_dim'] = 5
+opt['type_dim'] = 10
 
 # print model info
 helper.print_config(opt)
