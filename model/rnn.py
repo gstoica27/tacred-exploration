@@ -59,9 +59,15 @@ class RelationModel(object):
         if self.opt['cuda']:
             inputs = [b.cuda() for b in batch[:7]]
             labels = batch[7].cuda()
+            subj_type = batch[-2].cuda()
+            obj_type = batch[-1].cuda()
+            inputs += [subj_type, obj_type]
         else:
             inputs = [b for b in batch[:7]]
             labels = batch[7]
+            subj_type = batch[-2]
+            obj_type = batch[-1]
+            inputs += [subj_type, obj_type]
 
         orig_idx = batch[8]
 
