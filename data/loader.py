@@ -29,7 +29,7 @@ class DataLoader(object):
             random.shuffle(indices)
             data = [data[i] for i in indices]
         id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
-        self.labels = [id2label[d[-1]] for d in data] 
+        self.labels = [id2label[d[-3]] for d in data]
         self.num_examples = len(data)
 
         # chunk into batches
