@@ -145,15 +145,15 @@ class PositionAwareRNN(nn.Module):
                 use_batch_norm=cpg_params['use_batch_norm'],
                 batch_norm_momentum=cpg_params['batch_norm_momentum'],
                 use_bias=cpg_params['use_bias'])
-            self.cpg_W2 = ContextualParameterGenerator(
-                network_structure=[opt['type_dim'] * 2] + cpg_params['network_structure'],
-                output_shape=[100, 50],
-                dropout=cpg_params['dropout'],
-                use_batch_norm=cpg_params['use_batch_norm'],
-                batch_norm_momentum=cpg_params['batch_norm_momentum'],
-                use_bias=cpg_params['use_bias']
-            )
-            self.linear = nn.Linear(50, opt['num_class'])
+            # self.cpg_W2 = ContextualParameterGenerator(
+            #     network_structure=[opt['type_dim'] * 2] + cpg_params['network_structure'],
+            #     output_shape=[100, 50],
+            #     dropout=cpg_params['dropout'],
+            #     use_batch_norm=cpg_params['use_batch_norm'],
+            #     batch_norm_momentum=cpg_params['batch_norm_momentum'],
+            #     use_bias=cpg_params['use_bias']
+            # )
+            self.linear = nn.Linear(100, opt['num_class'])
         else:
             self.linear = nn.Linear(opt['hidden_dim'], opt['num_class'])
 
@@ -277,10 +277,10 @@ class PositionAwareRNN(nn.Module):
             # obj_enc = F.relu(self.obj_enc(obj_emb))
             cpg_encs = torch.cat((subj_emb, obj_emb), dim=-1)
             w1 = self.cpg_W1(cpg_encs)
-            w2 = self.cpg_W2(cpg_encs)
+            # w2 = self.cpg_W2(cpg_encs)
 
-            hidden1 = F.relu(torch.einsum('ij,ijk->ik', [final_hidden, w1]))
-            final_hidden = torch.einsum('ij,ijk->ik', [hidden1, w2])
+            final_hidden = F.relu(torch.einsum('ij,ijk->ik', [final_hidden, w1]))
+            # final_hidden = torch.einsum('ij,ijk->ik', [hidden1, w2])
 
         logits = self.linear(final_hidden)
         return logits, final_hidden
