@@ -73,6 +73,7 @@ parser.add_argument('--avg_types', type=str2bool, default=False,
                     help='Whether to make SUBJ and OBJ embeddings average of granular types (SUBJ-*, OBJ-*)')
 parser.add_argument('--use_cpg', type=str2bool, default=False,
                     help='Whether to use CPG Attention or not')
+parser.add_argument('--difference_type_spaces', type=str2bool, default=False)
 
 args = parser.parse_args()
 

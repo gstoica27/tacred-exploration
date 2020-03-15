@@ -263,8 +263,13 @@ class PositionAwareRNN(nn.Module):
             final_hidden = hidden
 
         if self.opt['use_cpg']:
-            subj_emb = self.subj_type_emb(subj_type)
-            obj_emb = self.obj_type_emb(obj_type)
+            if self.opt['difference_type_spaces']:
+                # translate for correct zero-indexing
+                subj_emb = self.subj_type_emb(subj_type - 2)
+                obj_emb = self.obj_type_emb(obj_type - 4)
+            else:
+                subj_emb = self.emb(subj_type)
+                obj_emb = self.emb(obj_type)
             subj_enc = F.relu(self.subj_enc(subj_emb))
             obj_enc = F.relu(self.obj_enc(obj_emb))
             cpg_encs = torch.cat((subj_enc, obj_enc), dim=-1)

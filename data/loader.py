@@ -54,8 +54,8 @@ class DataLoader(object):
                 tokens[ss:se+1] = ['SUBJ-'+d['subj_type']] * (se-ss+1)
                 tokens[os:oe+1] = ['OBJ-'+d['obj_type']] * (oe-os+1)
 
-            subj_type = map_to_ids(['SUBJ'+d['subj_type']], vocab.word2id)[0]
-            obj_type = map_to_ids(['OBJ' + d['obj_type']], vocab.word2id)[0]
+            subj_type = map_to_ids(['SUBJ-'+d['subj_type']], vocab.word2id)[0]
+            obj_type = map_to_ids(['OBJ-' + d['obj_type']], vocab.word2id)[0]
             tokens = map_to_ids(tokens, vocab.word2id)
             pos = map_to_ids(d['stanford_pos'], constant.POS_TO_ID)
             ner = map_to_ids(d['stanford_ner'], constant.NER_TO_ID)
