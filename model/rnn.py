@@ -136,19 +136,17 @@ class PositionAwareRNN(nn.Module):
             num_obj_types = len(constant.OBJ_NER_TO_ID) - 2
             self.subj_type_emb = nn.Embedding(num_subj_types, opt['type_dim'])
             self.obj_type_emb = nn.Embedding(num_obj_types, opt['type_dim'])
-            self.subj_enc = nn.Linear(opt['type_dim'], opt['type_enc_dim'])
-            self.obj_enc = nn.Linear(opt['type_dim'], opt['type_enc_dim'])
 
             cpg_params = opt['cpg']
             self.cpg_W1 = ContextualParameterGenerator(
-                network_structure=[opt['type_enc_dim']*2] + cpg_params['network_structure'],
+                network_structure=[opt['type_dim']*2] + cpg_params['network_structure'],
                 output_shape=[opt['hidden_dim'], 100],
                 dropout=cpg_params['dropout'],
                 use_batch_norm=cpg_params['use_batch_norm'],
                 batch_norm_momentum=cpg_params['batch_norm_momentum'],
                 use_bias=cpg_params['use_bias'])
             self.cpg_W2 = ContextualParameterGenerator(
-                network_structure=[opt['type_enc_dim'] * 2] + cpg_params['network_structure'],
+                network_structure=[opt['type_dim'] * 2] + cpg_params['network_structure'],
                 output_shape=[100, 50],
                 dropout=cpg_params['dropout'],
                 use_batch_norm=cpg_params['use_batch_norm'],
@@ -158,6 +156,10 @@ class PositionAwareRNN(nn.Module):
             self.linear = nn.Linear(50, opt['num_class'])
         else:
             self.linear = nn.Linear(opt['hidden_dim'], opt['num_class'])
+
+        if not opt['difference_type_spaces']:
+            self.subj_type_encoder = nn.Linear(opt['emb_dim'], opt['type_dim'])
+            self.obj_type_encoder = nn.Linear(opt['emb_dim'], opt['type_dim'])
 
         self.opt = opt
         self.topn = self.opt.get('topn', 1e10)
@@ -268,11 +270,12 @@ class PositionAwareRNN(nn.Module):
                 subj_emb = self.subj_type_emb(subj_type - 2)
                 obj_emb = self.obj_type_emb(obj_type - 4)
             else:
-                subj_emb = self.emb(subj_type)
-                obj_emb = self.emb(obj_type)
-            subj_enc = F.relu(self.subj_enc(subj_emb))
-            obj_enc = F.relu(self.obj_enc(obj_emb))
-            cpg_encs = torch.cat((subj_enc, obj_enc), dim=-1)
+                subj_emb = self.subj_type_encoder(self.emb(subj_type))
+                obj_emb = self.obj_type_encoder(self.emb(obj_type))
+
+            # subj_enc = F.relu(self.subj_enc(subj_emb))
+            # obj_enc = F.relu(self.obj_enc(obj_emb))
+            cpg_encs = torch.cat((subj_emb, obj_emb), dim=-1)
             w1 = self.cpg_W1(cpg_encs)
             w2 = self.cpg_W2(cpg_encs)
 
