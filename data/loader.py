@@ -29,7 +29,7 @@ class DataLoader(object):
             random.shuffle(indices)
             data = [data[i] for i in indices]
         id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
-        self.labels = [id2label[d[-3]] for d in data]
+        self.labels = [id2label[d[7]] for d in data]
         self.num_examples = len(data)
 
         # chunk into batches
@@ -64,7 +64,14 @@ class DataLoader(object):
             subj_positions = get_positions(d['subj_start'], d['subj_end'], l)
             obj_positions = get_positions(d['obj_start'], d['obj_end'], l)
             relation = constant.LABEL_TO_ID[d['relation']]
-            processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation, subj_type, obj_type)]
+
+            subj_mask = np.zeros(len(tokens), dtype=np.float32)
+            subj_mask[ss:se+1] = 1.
+            obj_mask = np.zeros(len(tokens), dtype=np.float32)
+            obj_mask[os:oe+1] = 1.
+
+            processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions,
+                           relation, subj_type, obj_type, subj_mask, obj_mask)]
         return processed
 
     def gold(self):
@@ -84,7 +91,7 @@ class DataLoader(object):
         batch = self.data[key]
         batch_size = len(batch)
         batch = list(zip(*batch))
-        assert len(batch) == 9
+        assert len(batch) == 11
 
         # sort all fields by lens for easy RNN operations
         lens = [len(x) for x in batch[0]]
@@ -108,9 +115,13 @@ class DataLoader(object):
         subj_types = torch.LongTensor(batch[7])
         obj_types = torch.LongTensor(batch[8])
 
+        subj_masks = get_long_tensor(batch[-2], batch_size)
+        obj_masks = get_long_tensor(batch[-1], batch_size)
+
         rels = torch.LongTensor(batch[6])
 
-        return (words, masks, pos, ner, deprel, subj_positions, obj_positions, rels, orig_idx, subj_types, obj_types)
+        return (words, masks, pos, ner, deprel, subj_positions, obj_positions, rels,
+                orig_idx, subj_types, obj_types, subj_masks, obj_masks)
 
     def __iter__(self):
         for i in range(self.__len__()):
