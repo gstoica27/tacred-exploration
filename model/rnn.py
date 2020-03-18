@@ -165,6 +165,7 @@ class PositionAwareRNN(nn.Module):
         if opt['ner_dim'] > 0:
             self.ner_emb = nn.Embedding(len(constant.NER_TO_ID), opt['ner_dim'],
                     padding_idx=constant.PAD_ID)
+        self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
         
         input_size = opt['emb_dim'] + opt['pos_dim'] + opt['ner_dim']
 
@@ -174,9 +175,10 @@ class PositionAwareRNN(nn.Module):
         if opt['attn']:
             self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
-            self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
         elif opt['fact_checking_attn']:
+            self.hidden_linear = nn.Linear(self.encoding_dim, self.encoding_dim)
+            self.position_linear = nn.Linear(2*opt['pe_dim'], self.encoding_dim)
             self.fact_checker = choose_fact_checker(opt['fact_checker_params'])
 
         self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
@@ -203,6 +205,9 @@ class PositionAwareRNN(nn.Module):
         init.xavier_uniform_(self.linear.weight, gain=1) # initialize linear layer
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
+        if self.opt['fact_checking_attn']:
+            self.hidden_linear.weight.data.normal_(std=0.001)
+            self.position_linear.weight.data.normal_(std=0.001)
 
         # decide finetuning
         if self.topn <= 0:
@@ -264,6 +269,12 @@ class PositionAwareRNN(nn.Module):
             final_hidden = self.attn_layer(outputs, masks, hidden, pe_features)
 
         elif self.opt['fact_checking_attn']:
+            subj_position_emb = self.pe_emb(subj_pos + constant.MAX_LEN)
+            obj_position_emb = self.pe_emb(obj_pos + constant.MAX_LEN)
+            position_embs = torch.cat((subj_position_emb, obj_position_emb), dim=2)
+            position_enc = self.position_linear(position_embs)
+            outputs = self.hidden_linear(F.relu(outputs))
+            outputs += position_enc
             # remove mask out subjects and objects in sentence masks
             non_entity_masks = masks.eq(constant.PAD_ID)
             non_entity_masks.masked_fill_(subj_masks.bool(), constant.PAD_ID)

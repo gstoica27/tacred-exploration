@@ -2,7 +2,7 @@ data_dir: '/Volumes/External HDD/dataset/tacred/data/json'
 vocab_dir: '/Volumes/External HDD/dataset/tacred/data/vocab'
 test_save_dir: '/Volumes/External HDD/dataset/tacred/test_perfs'
 save_dir: '/Volumes/External HDD/dataset/tacred/saved_models'
-encoding_type: 'BiLSTM' # sentence encoding type: LSTM or BiLSTM
+encoding_type: 'LSTM' # sentence encoding type: LSTM or BiLSTM
 emb_dim: 300  # Word embedding dimension.
 ner_dim: 30 # NER embedding dimension.
 pos_dim: 30 # POS embedding dimension.
@@ -32,4 +32,4 @@ attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 fact_checking_attn: True  # Whether to apply link prediction fact checking attention.
 fact_checking_model: 'ConvE'
-reg_params: 'fact_checking'
+reg_params: 'None'

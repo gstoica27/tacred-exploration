@@ -58,7 +58,7 @@ def add_encoding_config(cfg_dict):
 
 
 cwd = os.getcwd()
-on_server = True
+on_server = False
 config_path = os.path.join(cwd, 'configs', f'model_config{"_server" if on_server else ""}.yaml')
 # config_path = '/Users/georgestoica/Desktop/Research/tacred-exploration/configs/model_config.yaml'
 # config_path = '/zfsauton3/home/gis/research/tacred-exploration/configs/model_config_server.yaml'
