@@ -15,6 +15,19 @@ from model.blocks import *
 from model.cpg_modules import ContextualParameterGenerator
 from model.link_prediction_models import *
 
+
+def choose_fact_checker(params):
+    name = params['name'].lower()
+    if name == 'distmult':
+        fact_checker = DistMult(params)
+    elif name == 'conve':
+        fact_checker = ConvE(params)
+    elif name == 'complex':
+        fact_checker = Complex(params)
+    else:
+        raise ValueError('Only, {distmult, conve, and complex}  are supported')
+    return fact_checker
+
 class RelationModel(object):
     """ A wrapper class for the training and evaluation of models. """
     def __init__(self, opt, emb_matrix=None):
@@ -26,6 +39,11 @@ class RelationModel(object):
             self.model.cuda()
             self.criterion.cuda()
         self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
+
+        self.reg_params = opt['reg_params']
+        if self.reg_params is not None and self.reg_params['type'] == 'fact_checking':
+
+            self.fact_checker = choose_fact_checker(self.reg_params)
 
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
@@ -40,15 +58,48 @@ class RelationModel(object):
         batch['base'] = base_batch
         return batch, labels, orig_idx
 
+    def apply_fact_checking_regularization(self, inputs, sentence_encs, token_encs):
+        subj_masks, obj_masks = inputs['supplemental']['entity_masks']
+        masks = inputs['base'][1]
+        batch_size, num_tokens = subj_masks.shape
+        # remove mask out subjects and objects in sentence masks
+        non_entity_masks = masks.eq(constant.PAD_ID)
+        non_entity_masks.masked_fill_(subj_masks.bool(), constant.PAD_ID)
+        non_entity_masks.masked_fill_(obj_masks.bool(), constant.PAD_ID)
+        # extract subject and object representations
+        # [B, T, E], [B, T, E] --> [B, S, E], [B, O, E] --> [B, E], [B, E]
+        # subj_outputs = token_encs.masked_fill((1 - subj_masks).view(batch_size, -1, 1).bool(), float('-inf'))
+        subj_outputs = (token_encs + (subj_masks.view(batch_size, -1, 1) + 1e-45).log())
+        # outputs * subj_masks.unsqueeze(-1)
+        # obj_outputs = token_encs.masked_fill((1 - obj_masks).view(batch_size, -1, 1).bool(), float('-inf'))
+        obj_outputs = (token_encs + (obj_masks.view(batch_size, -1, 1) + 1e-45).log())
+        # obj_outputs = outputs * obj_masks.unsqueeze(-1)
+        subj_outputs = subj_outputs.max(1, keepdim=True)[0]
+        obj_outputs = obj_outputs.max(1, keepdim=True)[0]
+        # reshape sentence encoding for compatibility with fact checker
+        sentence_encs = sentence_encs.view(batch_size, 1, -1)
+        closeness = self.fact_checker(subj_outputs, sentence_encs, obj_outputs)
+        closeness = closeness.reshape(-1)
+        closeness = F.logsigmoid(closeness)
+        return - closeness
+
+
     def update(self, batch):
         """ Run a step of forward and backward model update. """
         inputs, labels, _ = self.maybe_place_batch_on_cuda(batch)
         # step forward
         self.model.train()
         self.optimizer.zero_grad()
-        logits, _ = self.model(inputs)
+        logits, sentence_encs, token_encs = self.model(inputs)
         loss = self.criterion(logits, labels)
-        
+
+        if self.reg_params is not None and self.reg_params['type'] == 'fact_checking':
+            regularization_measure = self.apply_fact_checking_regularization(inputs=inputs,
+                                                                             sentence_encs=sentence_encs,
+                                                                             token_encs=token_encs)
+            loss += self.reg_params['lambda'] * regularization_measure.sum()
+
+
         # backward
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
@@ -61,7 +112,7 @@ class RelationModel(object):
         inputs, labels, orig_idx = self.maybe_place_batch_on_cuda(batch)
         # forward
         self.model.eval()
-        logits, _ = self.model(inputs)
+        logits, _, _ = self.model(inputs)
         loss = self.criterion(logits, labels)
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
         predictions = np.argmax(logits.data.cpu().numpy(), axis=1).tolist()
@@ -102,9 +153,12 @@ class PositionAwareRNN(nn.Module):
 
         self.drop = nn.Dropout(opt['dropout'])
         self.emb = nn.Embedding(opt['vocab_size'], opt['emb_dim'], padding_idx=constant.PAD_ID)
-        self.bidirectional_encoding = opt['fact_checking_attn']
-        # when bidirectional encoding is False, mutliplier = 1. Else it is 2
-        self.bidirectional_multiplier = (1 - self.bidirectional_encoding) + 2 * self.bidirectional_encoding
+        # Using BiLSTM or LSTM
+        if opt['encoding_type'].lower() in ['bilstm', 'lstm']:
+            self.bidirectional_encoding = opt['bidirectional_encoding']
+
+        self.encoding_dim = opt['encoding_dim']
+
         if opt['pos_dim'] > 0:
             self.pos_emb = nn.Embedding(len(constant.POS_TO_ID), opt['pos_dim'],
                     padding_idx=constant.PAD_ID)
@@ -118,14 +172,14 @@ class PositionAwareRNN(nn.Module):
             dropout=opt['dropout'], bidirectional=self.bidirectional_encoding)
 
         if opt['attn']:
-            self.attn_layer = layers.PositionAwareAttention(opt['hidden_dim'],
+            self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
         elif opt['fact_checking_attn']:
-            self.fact_checker = self.choose_fact_checker(opt['fact_checker_params'])
+            self.fact_checker = choose_fact_checker(opt['fact_checker_params'])
 
-        self.linear = nn.Linear(opt['hidden_dim'] * self.bidirectional_multiplier, opt['num_class'])
+        self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
 
         self.opt = opt
         self.topn = float(self.opt.get('topn', 1e10))
@@ -133,31 +187,12 @@ class PositionAwareRNN(nn.Module):
         self.emb_matrix = emb_matrix
         self.init_weights()
 
-    def choose_fact_checker(self, params):
-        name = params['name'].lower()
-        if name == 'distmult':
-            fact_checker = DistMult(params)
-        elif name == 'conve':
-            fact_checker = ConvE(params)
-        elif name == 'complex':
-            fact_checker = Complex(params)
-        else:
-            raise ValueError('Only, {distmult, conve, and complex}  are supported')
-        return fact_checker
-
-    
     def init_weights(self):
         if self.emb_matrix is None:
             self.emb.weight.data[1:,:].uniform_(-1.0, 1.0) # keep padding dimension to be 0
         else:
             self.emb_matrix = torch.from_numpy(self.emb_matrix)
             self.emb.weight.data[:-2].copy_(self.emb_matrix)
-
-            # if self.opt.get('avg_types', False):
-            #     subj_avg_emb = torch.mean(self.emb.weight[self.opt['subj_idxs']], dim=0)
-            #     obj_avg_emb = torch.mean(self.emb.weight[self.opt['obj_idxs']], dim=0)
-            #     self.emb.weight.data[-2].copy_(subj_avg_emb)
-            #     self.emb.weight.data[-1].copy_(obj_avg_emb)
 
         if self.opt['pos_dim'] > 0:
             self.pos_emb.weight.data[1:,:].uniform_(-1.0, 1.0)
@@ -181,7 +216,9 @@ class PositionAwareRNN(nn.Module):
             print("Finetune all embeddings.")
 
     def zero_state(self, batch_size):
-        num_layers = self.opt['num_layers'] * self.bidirectional_multiplier
+        num_layers = self.opt['num_layers']
+        if self.bidirectional_encoding:
+            num_layers *= 2
         state_shape = (num_layers,
                        batch_size, self.opt['hidden_dim'])
         h0 = c0 = torch.zeros(*state_shape, requires_grad=False)
@@ -246,9 +283,8 @@ class PositionAwareRNN(nn.Module):
             representation_relevances = representation_relevances + (masked_elements + 1e-45).log()
             indicator_weights = F.softmax(representation_relevances, dim=1)
 
-
             final_hidden = (indicator_weights * outputs).sum(dim=1)
         else:
             final_hidden = hidden
         logits = self.linear(final_hidden)
-        return logits, final_hidden
+        return logits, final_hidden, outputs

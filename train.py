@@ -31,20 +31,47 @@ def add_fact_checking_params(cfg_dict):
     with open(fact_checking_config, 'r') as file:
         fact_checking_config_dict = yaml.load(file)
     fact_checking_model = cfg_dict['fact_checking_model']
-    cfg_dict['fact_checker_params'] = fact_checking_config_dict[fact_checking_model]
-    cfg_dict['fact_checker_params']['name'] = fact_checking_model
-    return cfg_dict
+    params = fact_checking_config_dict[fact_checking_model]
+    params['name'] = fact_checking_model
+    return params
+
+def add_reg_params(cfg_dict):
+    if cfg_dict['reg_params'] != 'None':
+        reg_config = os.path.join(cwd, 'configs', 'regularization_config.yaml')
+        with open(reg_config, 'r') as file:
+            reg_config = yaml.load(file)
+            reg_type = cfg_dict['reg_params']
+            cfg_dict['reg_params'] = reg_config[reg_type]
+            cfg_dict['reg_params'].update(add_fact_checking_params(reg_config[reg_type]))
+            cfg_dict['reg_params']['type'] = reg_type
+            cfg_dict['reg_params']['embedding_dim'] = cfg_dict['encoding_dim']
+    else:
+        cfg_dict['reg_params'] = None
+
+def add_encoding_config(cfg_dict):
+    if cfg_dict['encoding_type'] == 'BiLSTM':
+        cfg_dict['encoding_dim'] = cfg_dict['hidden_dim'] * 2
+        cfg_dict['bidirectional_encoding'] = True
+    elif cfg_dict['encoding_type'] == 'LSTM':
+        cfg_dict['encoding_dim'] = cfg_dict['hidden_dim']
+        cfg_dict['bidirectional_encoding'] = False
+
 
 cwd = os.getcwd()
-on_server = True
+on_server = False
 config_path = os.path.join(cwd, 'configs', f'model_config{"_server" if on_server else ""}.yaml')
 # config_path = '/Users/georgestoica/Desktop/Research/tacred-exploration/configs/model_config.yaml'
 # config_path = '/zfsauton3/home/gis/research/tacred-exploration/configs/model_config_server.yaml'
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 
+add_encoding_config(cfg_dict)
 if cfg_dict['fact_checking_attn']:
-    cfg_dict = add_fact_checking_params(cfg_dict)
+    cfg_dict['fact_checker_params'] = add_fact_checking_params(cfg_dict)
+    cfg_dict['fact_checker_params']['embedding_dim'] = cfg_dict['encoding_dim']
+
+add_reg_params(cfg_dict)
+
 print(cfg_dict)
 opt = cfg_dict#AttributeDict(cfg_dict)
 opt['cuda'] = torch.cuda.is_available()

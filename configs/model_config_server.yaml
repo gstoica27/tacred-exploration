@@ -2,6 +2,7 @@ data_dir: '/home/scratch/gis/datasets/tacred/data/json'
 vocab_dir: '/home/scratch/gis/datasets/tacred-relation_data'
 test_save_dir: '/home/scratch/gis/tacred_test_performances'
 save_dir: '/home/scratch/gis/saved_models'
+encoding_type: 'BiLSTM' # sentence encoding type: LSTM or BiLSTM
 emb_dim: 300  # Word embedding dimension.
 ner_dim: 30 # NER embedding dimension.
 pos_dim: 30 # POS embedding dimension.
@@ -31,3 +32,4 @@ attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 fact_checking_attn: True  # Whether to apply link prediction fact checking attention.
 fact_checking_model: 'ConvE'
+reg_params: 'fact_checking'

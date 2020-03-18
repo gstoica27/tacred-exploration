@@ -78,13 +78,20 @@ class ConvE(torch.nn.Module):
         self.loss = torch.nn.BCELoss()
         self.emb_dim1 = args['embedding_shape1']
         self.emb_dim2 = args['embedding_dim'] // self.emb_dim1
-
-        self.conv1 = torch.nn.Conv2d(1, 32, (3, 3), 1, 0, bias=args['use_bias'])
+        self.kernel_size = eval(args['kernel_size'])
+        self.filter_channels = args['filter_channels']
+        self.stride = args['stride']
+        self.padding = args['padding']
+        self.conv1 = torch.nn.Conv2d(1, self.filter_channels, self.kernel_size,
+                                     self.stride, self.padding, bias=args['use_bias'])
+        output_width = 2*self.emb_dim1 - self.kernel_size[0] + 1
+        output_height = self.emb_dim2 - self.kernel_size[1] + 1
+        output_size = output_height * output_width * self.filter_channels
         self.bn0 = torch.nn.BatchNorm2d(1)
         self.bn1 = torch.nn.BatchNorm2d(32)
         self.bn2 = torch.nn.BatchNorm1d(args['embedding_dim'])
         # self.register_parameter('b', Parameter(torch.zeros(num_entities)))
-        self.fc = torch.nn.Linear(args['hidden_size'],args['embedding_dim'])
+        self.fc = torch.nn.Linear(output_size,args['embedding_dim'])
         # print(num_entities, num_relations)
 
     def forward(self, e1, rel, e2):

@@ -20,7 +20,11 @@ class DataLoader(object):
         self.vocab = vocab
         self.eval = evaluation
         self.remove_entity_types = opt['remove_entity_types']
-        self.fact_checking_attn = opt['fact_checking_attn']
+        # Check if there is fact checking data is needed to be processed & loaded
+        reg_params = opt['reg_params']
+        fact_checking_reg = reg_params is not None and reg_params['type'] == 'fact_checking'
+        fact_checking_component = opt['fact_checking_attn'] or fact_checking_reg
+        self.fact_checking_component = fact_checking_component
 
         with open(filename) as infile:
             data = json.load(infile)
@@ -106,7 +110,7 @@ class DataLoader(object):
             relation = constant.LABEL_TO_ID[d['relation']]
 
             base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
-            if self.fact_checking_attn:
+            if self.fact_checking_component:
                 entity_masks = self.add_entity_masks(length=len(tokens), subj_span=(ss, se), obj_span=(os, oe))
                 supplemental_components['entity_masks'] += [entity_masks]
 
