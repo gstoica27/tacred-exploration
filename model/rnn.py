@@ -177,7 +177,8 @@ class PositionAwareRNN(nn.Module):
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
 
         elif opt['fact_checking_attn']:
-            self.hidden_linear = nn.Linear(self.encoding_dim, self.encoding_dim)
+            self.sent_linear = nn.Linear(self.encoding_dim, self.encoding_dim)
+            self.output_linear = nn.Linear(self.encoding_dim, self.encoding_dim)
             self.position_linear = nn.Linear(2*opt['pe_dim'], self.encoding_dim)
             self.fact_checker = choose_fact_checker(opt['fact_checker_params'])
 
@@ -206,7 +207,8 @@ class PositionAwareRNN(nn.Module):
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
         if self.opt['fact_checking_attn']:
-            self.hidden_linear.weight.data.normal_(std=0.001)
+            self.sent_linear.weight.data.normal_(std=0.001)
+            self.output_linear.weight.data.normal_(std=0.001)
             self.position_linear.weight.data.normal_(std=0.001)
 
         # decide finetuning
@@ -269,12 +271,16 @@ class PositionAwareRNN(nn.Module):
             final_hidden = self.attn_layer(outputs, masks, hidden, pe_features)
 
         elif self.opt['fact_checking_attn']:
+            # Add Positional encodings
             subj_position_emb = self.pe_emb(subj_pos + constant.MAX_LEN)
             obj_position_emb = self.pe_emb(obj_pos + constant.MAX_LEN)
             position_embs = torch.cat((subj_position_emb, obj_position_emb), dim=2)
             position_enc = self.position_linear(position_embs)
-            #outputs = self.hidden_linear(F.relu(outputs))
-            outputs += position_enc
+            # Add sentence encoding
+            sentence_enc = self.sent_linear(hidden).unsqueeze(1)
+            outputs += position_enc + sentence_enc
+            # Non-Linear processing
+            outputs = self.output_linear(F.tanh(outputs))
             # remove mask out subjects and objects in sentence masks
             non_entity_masks = masks.eq(constant.PAD_ID)
             non_entity_masks.masked_fill_(subj_masks.bool(), constant.PAD_ID)
