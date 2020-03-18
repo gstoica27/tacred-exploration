@@ -11,6 +11,7 @@ import argparse
 from shutil import copyfile
 import torch
 import pickle
+import yaml
 import torch.nn as nn
 import torch.optim as optim
 
@@ -19,75 +20,95 @@ from model.rnn import RelationModel
 from utils import scorer, constant, helper
 from utils.vocab import Vocab
 from collections import defaultdict
+from configs.dict_with_attributes import AttributeDict
 
 
 def str2bool(v):
     return v.lower() in ('true')
 
-cwd = "/Volumes/External HDD/"
-parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/json'))
-parser.add_argument('--vocab_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/vocab'))
-parser.add_argument('--test_save_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/test_perfs'))
-parser.add_argument('--emb_dim', type=int, default=300, help='Word embedding dimension.')
-parser.add_argument('--ner_dim', type=int, default=30, help='NER embedding dimension.')
-parser.add_argument('--pos_dim', type=int, default=30, help='POS embedding dimension.')
-parser.add_argument('--hidden_dim', type=int, default=300, help='RNN hidden state size.')
-parser.add_argument('--num_layers', type=int, default=2, help='Num of RNN layers.')
-parser.add_argument('--dropout', type=float, default=0.5, help='Input and RNN dropout rate.')
-parser.add_argument('--word_dropout', type=float, default=0.04, help='The rate at which randomly set a word to UNK.')
-parser.add_argument('--topn', type=int, default=1e10, help='Only finetune top N embeddings.')
-parser.add_argument('--lower', dest='lower', action='store_true', help='Lowercase all words.')
-parser.add_argument('--no-lower', dest='lower', action='store_false')
-parser.set_defaults(lower=False)
+# cwd = "/Volumes/External HDD/"
+# parser = argparse.ArgumentParser()
+# parser.add_argument('--data_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/json'))
+# parser.add_argument('--vocab_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/vocab'))
+# parser.add_argument('--test_save_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/test_perfs'))
+# parser.add_argument('--emb_dim', type=int, default=300, help='Word embedding dimension.')
+# parser.add_argument('--ner_dim', type=int, default=30, help='NER embedding dimension.')
+# parser.add_argument('--pos_dim', type=int, default=30, help='c')
+# parser.add_argument('--hidden_dim', type=int, default=300, help='RNN hidden state size.')
+# parser.add_argument('--num_layers', type=int, default=2, help='Num of RNN layers.')
+# parser.add_argument('--dropout', type=float, default=0.5, help='Input and RNN dropout rate.')
+# parser.add_argument('--word_dropout', type=float, default=0.04, help='The rate at which randomly set a word to UNK.')
+# parser.add_argument('--topn', type=int, default=1e10, help='Only finetune top N embeddings.')
+# parser.add_argument('--lower', dest='lower', action='store_true', help='Lowercase all words.')
+# parser.add_argument('--no-lower', dest='lower', action='store_false')
+# parser.set_defaults(lower=False)
+#
+# parser.add_argument('--attn', dest='attn', action='store_true', help='Use attention layer.')
+# parser.add_argument('--no-attn', dest='attn', action='store_false')
+# parser.set_defaults(attn=True)
+# parser.add_argument('--attn_dim', type=int, default=200, help='Attention size.')
+# parser.add_argument('--pe_dim', type=int, default=30, help='Position encoding dimension.')
+#
+# parser.add_argument('--lr', type=float, default=1.0, help='Applies to SGD and Adagrad.')
+# parser.add_argument('--lr_decay', type=float, default=0.9)
+# parser.add_argument('--optim', type=str, default='sgd', help='sgd, adagrad, adam or adamax.')
+# parser.add_argument('--num_epoch', type=int, default=30)
+# parser.add_argument('--batch_size', type=int, default=50)
+# parser.add_argument('--max_grad_norm', type=float, default=5.0, help='Gradient clipping.')
+# parser.add_argument('--log_step', type=int, default=20, help='Print log every k steps.')
+# parser.add_argument('--log', type=str, default='logs.txt', help='Write training log to file.')
+# parser.add_argument('--save_epoch', type=int, default=5, help='Save model checkpoints every k epochs.')
+# parser.add_argument('--save_dir', type=str,
+#                     default=os.path.join(cwd, 'dataset/tacred/saved_models'), help='Root dir for saving models.')
+# parser.add_argument('--id', type=str, default='00', help='Model ID under which to save models.')
+# parser.add_argument('--info', type=str, default='', help='Optional info for the experiment.')
+#
+# parser.add_argument('--seed', type=int, default=1234)
+# parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
+# parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
+#
+# parser.add_argument('--nas_rnn', type=str2bool, default=False)
+# parser.add_argument('--nas_mlp', type=str2bool, default=False)
+# parser.add_argument('--remove_entity_types', type=str2bool, default=False,
+#                     help='Whether to replace subj and obj granular typing or just Subj, and obj')
+# parser.add_argument('--avg_types', type=str2bool, default=False,
+#                     help='Whether to make SUBJ and OBJ embeddings average of granular types (SUBJ-*, OBJ-*)')
+# parser.add_argument('--use_cpg', type=str2bool, default=False,
+#                     help='Whether to use CPG Attention or not')
+# parser.add_argument('--difference_type_spaces', type=str2bool, default=False)
+# parser.add_argument('--by_entity', type=str2bool, default=False)
+#
+# parser.add_argument('--fact_checking_attn', type=str2bool, default=False,
+#                     help='whether to apply link prediction fact checking attention')
+#
+# args = parser.parse_args()
 
-parser.add_argument('--attn', dest='attn', action='store_true', help='Use attention layer.')
-parser.add_argument('--no-attn', dest='attn', action='store_false')
-parser.set_defaults(attn=True)
-parser.add_argument('--attn_dim', type=int, default=200, help='Attention size.')
-parser.add_argument('--pe_dim', type=int, default=30, help='Position encoding dimension.')
-
-parser.add_argument('--lr', type=float, default=1.0, help='Applies to SGD and Adagrad.')
-parser.add_argument('--lr_decay', type=float, default=0.9)
-parser.add_argument('--optim', type=str, default='sgd', help='sgd, adagrad, adam or adamax.')
-parser.add_argument('--num_epoch', type=int, default=30)
-parser.add_argument('--batch_size', type=int, default=50)
-parser.add_argument('--max_grad_norm', type=float, default=5.0, help='Gradient clipping.')
-parser.add_argument('--log_step', type=int, default=20, help='Print log every k steps.')
-parser.add_argument('--log', type=str, default='logs.txt', help='Write training log to file.')
-parser.add_argument('--save_epoch', type=int, default=5, help='Save model checkpoints every k epochs.')
-parser.add_argument('--save_dir', type=str,
-                    default=os.path.join(cwd, 'dataset/tacred/saved_models'), help='Root dir for saving models.')
-parser.add_argument('--id', type=str, default='00', help='Model ID under which to save models.')
-parser.add_argument('--info', type=str, default='', help='Optional info for the experiment.')
-
-parser.add_argument('--seed', type=int, default=1234)
-parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
-parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
-
-parser.add_argument('--nas_rnn', type=str2bool, default=False)
-parser.add_argument('--nas_mlp', type=str2bool, default=False)
-parser.add_argument('--no_type', type=str2bool, default=False,
-                    help='Whether to replace subj and obj granular typing or just Subj, and obj')
-parser.add_argument('--avg_types', type=str2bool, default=False,
-                    help='Whether to make SUBJ and OBJ embeddings average of granular types (SUBJ-*, OBJ-*)')
-parser.add_argument('--use_cpg', type=str2bool, default=False,
-                    help='Whether to use CPG Attention or not')
-parser.add_argument('--difference_type_spaces', type=str2bool, default=False)
-parser.add_argument('--by_entity', type=str2bool, default=False)
-
-args = parser.parse_args()
-
-torch.manual_seed(args.seed)
-np.random.seed(args.seed)
-random.seed(1234)
-if args.cpu:
-    args.cuda = False
-elif args.cuda:
-    torch.cuda.manual_seed(args.seed)
+# torch.manual_seed(args.seed)
+# np.random.seed(args.seed)
+# random.seed(1234)
+# if args.cpu:
+#     args.cuda = False
+# elif args.cuda:
+#     torch.cuda.manual_seed(args.seed)
 
 # make opt
-opt = vars(args)
+# config_path = '/Users/georgestoica/Desktop/Research/tacred-exploration/configs/model_config.yaml'
+config_path = '/zfsauton3/home/gis/research/tacred-exploration/configs/model_config_server.yaml'
+with open(config_path, 'r') as file:
+    cfg_dict = yaml.load(file)
+print(cfg_dict)
+opt = cfg_dict#AttributeDict(cfg_dict)
+opt['cuda'] = torch.cuda.is_available()
+opt['cpu'] = not opt['cuda']
+torch.manual_seed(opt['seed'])
+np.random.seed(opt['seed'])
+random.seed(opt['seed'])
+if opt['cpu']:
+    opt['cuda'] = False
+elif opt['cuda']:
+    torch.cuda.manual_seed(opt['seed'])
+
+# opt = vars(args)
 opt['num_class'] = len(constant.LABEL_TO_ID)
 
 # load vocab
@@ -109,7 +130,7 @@ dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vo
 test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'], opt, vocab, evaluation=True)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
-model_save_dir = opt['save_dir'] + '/' + model_id
+model_save_dir = os.path.join(opt['save_dir'], model_id)
 opt['model_save_dir'] = model_save_dir
 helper.ensure_dir(model_save_dir, verbose=True)
 
@@ -118,24 +139,10 @@ helper.save_config(opt, model_save_dir + '/config.json', verbose=True)
 vocab.save(model_save_dir + '/vocab.pkl')
 file_logger = helper.FileLogger(model_save_dir + '/' + opt['log'], header="# epoch\ttrain_loss\tdev_loss\tdev_f1")
 
-opt['arc_connections'] = [('sigmoid', 0), ('relu', 1), ('relu', 1), ('identity', 1), ('tanh', 2), ('sigmoid', 5), ('tanh', 3), ('relu', 5)]
-opt['arc_merge_layers'] = range(1, 9)
-opt['dropout_x'] = .04
-opt['dropout_h'] = .25
 
 test_save_dir = os.path.join(opt['test_save_dir'], opt['id'])
 os.makedirs(test_save_dir, exist_ok=True)
 test_save_file = os.path.join(test_save_dir, 'test_records.pkl')
-
-opt['cpg'] = {
-    'network_structure': [],
-    'dropout': 0.,
-    'use_batch_norm': True,
-    'batch_norm_momentum': .1,
-    'use_bias': False
-}
-opt['type_enc_dim'] = 5
-opt['type_dim'] = 10
 
 # print model info
 helper.print_config(opt)

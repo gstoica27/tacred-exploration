@@ -13,6 +13,7 @@ from model import layers
 from model.nas_rnn import DARTSModel
 from model.blocks import *
 from model.cpg_modules import ContextualParameterGenerator
+from model.link_prediction_models import *
 
 class RelationModel(object):
     """ A wrapper class for the training and evaluation of models. """
@@ -25,16 +26,29 @@ class RelationModel(object):
             self.model.cuda()
             self.criterion.cuda()
         self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
-    
+
+    def maybe_place_batch_on_cuda(self, batch):
+        base_batch = batch['base'][:7]
+        labels = batch['base'][7]
+        orig_idx = batch['base'][8]
+        if self.opt['cuda']:
+            base_batch = [component.cuda() for component in base_batch]
+            labels = labels.cuda()
+            for name, data in batch['supplemental'].items():
+                batch['supplemental'][name] = [component.cuda() for component in data]
+
+        batch['base'] = base_batch
+        return batch, labels, orig_idx
+
     def update(self, batch):
         """ Run a step of forward and backward model update. """
-        if self.opt['cuda']:
-            inputs = [b.cuda() for b in batch[:7] + batch[9:]]
-            labels = batch[7].cuda()
-        else:
-            inputs = [b for b in batch[:7] + batch[9:]]
-            labels = batch[7]
-
+        # if self.opt['cuda']:
+        #     inputs = [b.cuda() for b in batch[:7] + batch[9:]]
+        #     labels = batch[7].cuda()
+        # else:
+        #     inputs = [b for b in batch[:7] + batch[9:]]
+        #     labels = batch[7]
+        inputs, labels, _ = self.maybe_place_batch_on_cuda(batch)
         # step forward
         self.model.train()
         self.optimizer.zero_grad()
@@ -50,28 +64,18 @@ class RelationModel(object):
 
     def predict(self, batch, unsort=True):
         """ Run forward prediction. If unsort is True, recover the original order of the batch. """
-        if self.opt['cuda']:
-            inputs = [b.cuda() for b in batch[:7] + batch[9:]]
-            labels = batch[7].cuda()
-            # subj_type = batch[-6].cuda()
-            # obj_type = batch[-5].cuda()
-            # ss = batch[-4].cuda()
-            # se = batch[-3].cuda()
-            # os = batch[-2].cuda()
-            # oe = batch[-1].cuda()
-        else:
-            inputs = [b for b in batch[:7] + batch[9:]]
-            labels = batch[7]
-            # subj_type = batch[-6]
-            # obj_type = batch[-5]
-            # ss = batch[-4]
-            # se = batch[-3]
-            # os = batch[-2]
-            # oe = batch[-1]
+        # if self.opt['cuda']:
+        #     inputs = [b.cuda() for b in batch[:7] + batch[9:]]
+        #     labels = batch[7].cuda()
+        #
+        # else:
+        #     inputs = [b for b in batch[:7] + batch[9:]]
+        #     labels = batch[7]
 
         # inputs += [subj_type, obj_type, ss, se, os, oe]
-
-        orig_idx = batch[8]
+        # orig_idx = batch[8]
+        inputs, labels, orig_idx = self.maybe_place_batch_on_cuda(batch)
+        # orig_idx = batch['base'][8]
 
         # forward
         self.model.eval()
@@ -116,6 +120,9 @@ class PositionAwareRNN(nn.Module):
 
         self.drop = nn.Dropout(opt['dropout'])
         self.emb = nn.Embedding(opt['vocab_size'], opt['emb_dim'], padding_idx=constant.PAD_ID)
+        self.bidirectional_encoding = opt['fact_checking_attn']
+        # when bidirectional encoding is False, mutliplier = 1. Else it is 2
+        self.bidirectional_multiplier = (1 - self.bidirectional_encoding) + 2 * self.bidirectional_encoding
         if opt['pos_dim'] > 0:
             self.pos_emb = nn.Embedding(len(constant.POS_TO_ID), opt['pos_dim'],
                     padding_idx=constant.PAD_ID)
@@ -125,58 +132,37 @@ class PositionAwareRNN(nn.Module):
         
         input_size = opt['emb_dim'] + opt['pos_dim'] + opt['ner_dim']
 
-        if opt['by_entity']:
-            bidirectional = True
-        else:
-            bidirectional = False
-
-        self.rnn = nn.LSTM(input_size, opt['hidden_dim'], opt['num_layers'], batch_first=True,\
-            dropout=opt['dropout'], bidirectional=bidirectional)
+        self.rnn = nn.LSTM(input_size, opt['hidden_dim'], opt['num_layers'], batch_first=True,
+            dropout=opt['dropout'], bidirectional=self.bidirectional_encoding)
 
         if opt['attn']:
             self.attn_layer = layers.PositionAwareAttention(opt['hidden_dim'],
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
-        if opt['use_cpg']:
-            num_subj_types = len(constant.SUBJ_NER_TO_ID) - 2
-            num_obj_types = len(constant.OBJ_NER_TO_ID) - 2
-            self.subj_type_emb = nn.Embedding(num_subj_types, opt['type_dim'])
-            self.obj_type_emb = nn.Embedding(num_obj_types, opt['type_dim'])
+        elif opt['fact_checking_attn']:
+            self.fact_checker = self.choose_fact_checker(opt['fact_checker_params'])
 
-            cpg_params = opt['cpg']
-            if opt['by_entity']:
-                multiple_dim = opt['hidden_dim'] * 4
-            else:
-                multiple_dim = opt['hidden_dim']
-            self.cpg_W1 = ContextualParameterGenerator(
-                network_structure=[opt['type_dim']*2] + cpg_params['network_structure'],
-                output_shape=[multiple_dim, 100],
-                dropout=cpg_params['dropout'],
-                use_batch_norm=cpg_params['use_batch_norm'],
-                batch_norm_momentum=cpg_params['batch_norm_momentum'],
-                use_bias=cpg_params['use_bias'])
-            # self.cpg_W2 = ContextualParameterGenerator(
-            #     network_structure=[opt['type_dim'] * 2] + cpg_params['network_structure'],
-            #     output_shape=[100, 50],
-            #     dropout=cpg_params['dropout'],
-            #     use_batch_norm=cpg_params['use_batch_norm'],
-            #     batch_norm_momentum=cpg_params['batch_norm_momentum'],
-            #     use_bias=cpg_params['use_bias']
-            # )
-            self.linear = nn.Linear(100, opt['num_class'])
-        else:
-            self.linear = nn.Linear(opt['hidden_dim'], opt['num_class'])
-
-        if not opt['difference_type_spaces']:
-            self.subj_type_encoder = nn.Linear(opt['emb_dim'], opt['type_dim'])
-            self.obj_type_encoder = nn.Linear(opt['emb_dim'], opt['type_dim'])
+        self.linear = nn.Linear(opt['hidden_dim'] * self.bidirectional_multiplier, opt['num_class'])
 
         self.opt = opt
-        self.topn = self.opt.get('topn', 1e10)
+        self.topn = float(self.opt.get('topn', 1e10))
         self.use_cuda = opt['cuda']
         self.emb_matrix = emb_matrix
         self.init_weights()
+
+    def choose_fact_checker(self, params):
+        name = params['name'].lower()
+        if name == 'distmult':
+            fact_checker = DistMult(params)
+        elif name == 'conve':
+            fact_checker = ConvE(params)
+        elif name == 'complex':
+            fact_checker = Complex(params)
+        else:
+            raise ValueError('Only, {distmult, conve, and complex}  are supported')
+        return fact_checker
+
     
     def init_weights(self):
         if self.emb_matrix is None:
@@ -185,11 +171,11 @@ class PositionAwareRNN(nn.Module):
             self.emb_matrix = torch.from_numpy(self.emb_matrix)
             self.emb.weight.data[:-2].copy_(self.emb_matrix)
 
-            if self.opt.get('avg_types', False):
-                subj_avg_emb = torch.mean(self.emb.weight[self.opt['subj_idxs']], dim=0)
-                obj_avg_emb = torch.mean(self.emb.weight[self.opt['obj_idxs']], dim=0)
-                self.emb.weight.data[-2].copy_(subj_avg_emb)
-                self.emb.weight.data[-1].copy_(obj_avg_emb)
+            # if self.opt.get('avg_types', False):
+            #     subj_avg_emb = torch.mean(self.emb.weight[self.opt['subj_idxs']], dim=0)
+            #     obj_avg_emb = torch.mean(self.emb.weight[self.opt['obj_idxs']], dim=0)
+            #     self.emb.weight.data[-2].copy_(subj_avg_emb)
+            #     self.emb.weight.data[-1].copy_(obj_avg_emb)
 
         if self.opt['pos_dim'] > 0:
             self.pos_emb.weight.data[1:,:].uniform_(-1.0, 1.0)
@@ -201,9 +187,9 @@ class PositionAwareRNN(nn.Module):
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
 
-        if self.opt['use_cpg']:
-            self.subj_type_emb.weight.data.uniform_(-1., 1.)
-            self.obj_type_emb.weight.data.uniform_(-1., 1.)
+        # if self.opt['use_cpg']:
+        #     self.subj_type_emb.weight.data.uniform_(-1., 1.)
+        #     self.obj_type_emb.weight.data.uniform_(-1., 1.)
 
         # decide finetuning
         if self.topn <= 0:
@@ -216,8 +202,10 @@ class PositionAwareRNN(nn.Module):
         else:
             print("Finetune all embeddings.")
 
-    def zero_state(self, batch_size, is_bidirectional=False):
-        state_shape = (self.opt['num_layers'] * 2 * is_bidirectional, batch_size, self.opt['hidden_dim'])
+    def zero_state(self, batch_size):
+        num_layers = self.opt['num_layers'] * self.bidirectional_multiplier
+        state_shape = (num_layers,
+                       batch_size, self.opt['hidden_dim'])
         h0 = c0 = torch.zeros(*state_shape, requires_grad=False)
         if self.use_cuda:
             return h0.cuda(), c0.cuda()
@@ -225,7 +213,11 @@ class PositionAwareRNN(nn.Module):
             return h0, c0
     
     def forward(self, inputs):
-        words, masks, pos, ner, deprel, subj_pos, obj_pos, subj_type, obj_type, subj_masks, obj_masks = inputs # unpack
+        base_inputs, supplemental_inputs = inputs['base'], inputs['supplemental']
+        words, masks, pos, ner, deprel, subj_pos, obj_pos = base_inputs
+        if self.opt['fact_checking_attn']:
+            subj_masks, obj_masks = inputs['supplemental']['entity_masks']
+        # words, masks, pos, ner, deprel, subj_pos, obj_pos, subj_type, obj_type, subj_masks, obj_masks = inputs # unpack
         seq_lens = list(masks.data.eq(constant.PAD_ID).long().sum(1).squeeze())
         batch_size = words.size()[0]
         
@@ -237,30 +229,14 @@ class PositionAwareRNN(nn.Module):
         if self.opt['ner_dim'] > 0:
             inputs += [self.ner_emb(ner)]
         inputs = self.drop(torch.cat(inputs, dim=2)) # add dropout to input
-        input_size = inputs.size(2)
-        
+
         # rnn
-        if self.opt['nas_rnn']:
-            hidden = self.zero_state(batch_size, is_bidirectional=self.opt['by_entity'])[0][0]
-            valid_masks = masks.eq(constant.PAD_ID)
-            outputs = self.rnn(inputs, hidden, masks=valid_masks)
-            #"""
-            # subtract 1 from sequence lens for indexing into output
-            seq_idxs = [seq_len - 1 for seq_len in seq_lens]
-            # seq_idxs index into the last non-padded element of sequence
-            # this indexing will go into the [B, S, E] output tensor -> [B, E] hidden only tensor
-            last_valid = outputs[range(batch_size), seq_idxs]
-            hidden = self.drop(last_valid)
-            outputs = self.drop(outputs)
-            #"""
-            # hidden = self.drop(outputs)
-        else:
-            h0, c0 = self.zero_state(batch_size, self.opt['by_entity'])
-            inputs = nn.utils.rnn.pack_padded_sequence(inputs, seq_lens, batch_first=True)
-            outputs, (ht, ct) = self.rnn(inputs, (h0, c0))
-            outputs, output_lens = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
-            hidden = self.drop(ht[-1,:,:]) # get the outmost layer h_n
-            outputs = self.drop(outputs)
+        h0, c0 = self.zero_state(batch_size)
+        inputs = nn.utils.rnn.pack_padded_sequence(inputs, seq_lens, batch_first=True)
+        outputs, (ht, ct) = self.rnn(inputs, (h0, c0))
+        outputs, output_lens = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
+        hidden = self.drop(ht[-1,:,:]) # get the outmost layer h_n
+        outputs = self.drop(outputs)
 
         # attention
         if self.opt['attn']:
@@ -272,34 +248,32 @@ class PositionAwareRNN(nn.Module):
 
 
             final_hidden = self.attn_layer(outputs, masks, hidden, pe_features)
+
+        elif self.opt['fact_checking_attn']:
+            # remove mask out subjects and objects in sentence masks
+            non_entity_masks = masks.eq(constant.PAD_ID)
+            non_entity_masks.masked_fill_(subj_masks.bool(), constant.PAD_ID)
+            non_entity_masks.masked_fill_(obj_masks.bool(), constant.PAD_ID)
+            # extract subject and object representations
+            # [B, T, E], [B, T, E] --> [B, S, E], [B, O, E] --> [B, E], [B, E]
+            subj_outputs = outputs.masked_fill((1 - subj_masks).view(batch_size, -1, 1).bool(), float('-inf'))
+                # outputs * subj_masks.unsqueeze(-1)
+            obj_outputs = outputs.masked_fill((1 - obj_masks).view(batch_size, -1, 1).bool(), float('-inf'))
+            # obj_outputs = outputs * obj_masks.unsqueeze(-1)
+            subj_outputs = subj_outputs.max(1, keepdim=True)[0]
+            obj_outputs = obj_outputs.max(1, keepdim=True)[0]
+
+            representation_relevances = self.fact_checker(subj_outputs, outputs, obj_outputs)
+            # remove subject and object representations
+            masked_elements = non_entity_masks.unsqueeze(-1).eq(0)
+            # representation_relevances[masked_elements] = -torch.inf
+            representation_relevances = F.softmax(representation_relevances.masked_fill(masked_elements.bool(),
+                                                                                        float('-inf')), dim=1)
+
+
+            final_hidden = (representation_relevances * outputs).sum(dim=1)
         else:
             final_hidden = hidden
-
-        if self.opt['by_entity']:
-            subj_encodings = outputs * torch.unsqueeze(subj_masks, dim=-1)
-            obj_encodings = outputs * torch.unsqueeze(obj_masks, dim=-1)
-            subj_encoding = torch.sum(subj_encodings, dim=1) / torch.sum(subj_masks, dim=-1, keepdim=True)
-            obj_encoding = torch.mean(obj_encodings, dim=1) / torch.sum(obj_masks, dim=-1, keepdim=True)
-            final_hidden = torch.cat((subj_encoding, obj_encoding), dim=-1)
-
-        if self.opt['use_cpg']:
-            if self.opt['difference_type_spaces']:
-                # translate for correct zero-indexing
-                subj_emb = self.subj_type_emb(subj_type - 2)
-                obj_emb = self.obj_type_emb(obj_type - 4)
-            else:
-                subj_emb = self.subj_type_encoder(self.emb(subj_type))
-                obj_emb = self.obj_type_encoder(self.emb(obj_type))
-
-            # subj_enc = F.relu(self.subj_enc(subj_emb))
-            # obj_enc = F.relu(self.obj_enc(obj_emb))
-            cpg_encs = torch.cat((subj_emb, obj_emb), dim=-1)
-            w1 = self.cpg_W1(cpg_encs)
-            # w2 = self.cpg_W2(cpg_encs)
-
-            final_hidden = F.relu(torch.einsum('ij,ijk->ik', [final_hidden, w1]))
-            # final_hidden = torch.einsum('ij,ijk->ik', [hidden1, w2])
-
         logits = self.linear(final_hidden)
         return logits, final_hidden
 
@@ -378,7 +352,7 @@ class ArcModel(nn.Module):
         else:
             print("Finetune all embeddings.")
 
-    def zero_state(self, batch_size, is_bidirectional=False):
+    def zero_state(self, batch_size):
         state_shape = (self.opt['num_layers'] * 2 * is_bidirectional, batch_size, self.opt['hidden_dim'])
         h0 = c0 = torch.zeros(*state_shape, requires_grad=False)
         if self.use_cuda:
@@ -402,7 +376,7 @@ class ArcModel(nn.Module):
         input_size = inputs.size(2)
 
         # rnn
-        h0, c0 = self.zero_state(batch_size, is_bidirectional=self.opt['by_entity'])
+        h0, c0 = self.zero_state(batch_size)
         inputs = nn.utils.rnn.pack_padded_sequence(inputs, seq_lens, batch_first=True)
         outputs, (ht, ct) = self.rnn(inputs, (h0, c0))
         outputs, output_lens = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)

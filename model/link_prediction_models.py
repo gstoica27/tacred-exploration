@@ -1,0 +1,121 @@
+# Copied from https://github.com/TimDettmers/ConvE/blob/master/model.py
+
+import torch
+from torch.nn import functional as F, Parameter
+from torch.autograd import Variable
+
+
+from torch.nn.init import xavier_normal_, xavier_uniform_
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+
+__all__ = ['Complex', 'DistMult', 'ConvE']
+
+class Complex(torch.nn.Module):
+    def __init__(self, args, num_entities, num_relations):
+        super(Complex, self).__init__()
+        self.num_entities = num_entities
+        self.emb_e_real = torch.nn.Embedding(num_entities, args.embedding_dim, padding_idx=0)
+        self.emb_e_img = torch.nn.Embedding(num_entities, args.embedding_dim, padding_idx=0)
+        self.emb_rel_real = torch.nn.Embedding(num_relations, args.embedding_dim, padding_idx=0)
+        self.emb_rel_img = torch.nn.Embedding(num_relations, args.embedding_dim, padding_idx=0)
+        self.inp_drop = torch.nn.Dropout(args.input_drop)
+        self.loss = torch.nn.BCELoss()
+
+    def init(self):
+        xavier_normal_(self.emb_e_real.weight.data)
+        xavier_normal_(self.emb_e_img.weight.data)
+        xavier_normal_(self.emb_rel_real.weight.data)
+        xavier_normal_(self.emb_rel_img.weight.data)
+
+    def forward(self, e1, rel):
+
+        e1_embedded_real = self.emb_e_real(e1).squeeze()
+        rel_embedded_real = self.emb_rel_real(rel).squeeze()
+        e1_embedded_img =  self.emb_e_img(e1).squeeze()
+        rel_embedded_img = self.emb_rel_img(rel).squeeze()
+
+        e1_embedded_real = self.inp_drop(e1_embedded_real)
+        rel_embedded_real = self.inp_drop(rel_embedded_real)
+        e1_embedded_img = self.inp_drop(e1_embedded_img)
+        rel_embedded_img = self.inp_drop(rel_embedded_img)
+
+        # complex space bilinear product (equivalent to HolE)
+        realrealreal = torch.mm(e1_embedded_real*rel_embedded_real, self.emb_e_real.weight.transpose(1,0))
+        realimgimg = torch.mm(e1_embedded_real*rel_embedded_img, self.emb_e_img.weight.transpose(1,0))
+        imgrealimg = torch.mm(e1_embedded_img*rel_embedded_real, self.emb_e_img.weight.transpose(1,0))
+        imgimgreal = torch.mm(e1_embedded_img*rel_embedded_img, self.emb_e_real.weight.transpose(1,0))
+        pred = realrealreal + realimgimg + imgrealimg - imgimgreal
+        pred = torch.sigmoid(pred)
+
+        return pred
+
+
+class DistMult(torch.nn.Module):
+    def __init__(self, args):
+        super(DistMult, self).__init__()
+        self.inp_drop = torch.nn.Dropout(args['input_drop'])
+
+    def forward(self, e1, rel, e2):
+        # [B, T, E]
+        e1_embedded = e1
+        rel_embedded = rel
+        e2_embedded = e2
+        # e1_embedded = e1_embedded.squeeze()
+        # rel_embedded = rel_embedded.squeeze()
+
+        e1_embedded = self.inp_drop(e1_embedded)
+        rel_embedded = self.inp_drop(rel_embedded)
+        # ([B, T, E] * [B, 1, E]) --> [B, T, E], [B, T, E] x [B, E, 1] --> [B, T, 1]
+        logits = torch.bmm(e1_embedded*rel_embedded, e2_embedded.transpose(2,1))
+        return logits
+
+class ConvE(torch.nn.Module):
+    def __init__(self, args):
+        super(ConvE, self).__init__()
+        self.inp_drop = torch.nn.Dropout(args['input_drop'])
+        self.hidden_drop = torch.nn.Dropout(args['hidden_drop'])
+        self.feature_map_drop = torch.nn.Dropout2d(args['feat_drop'])
+        self.loss = torch.nn.BCELoss()
+        self.emb_dim1 = args['embedding_shape1']
+        self.emb_dim2 = args['embedding_dim'] // self.emb_dim1
+
+        self.conv1 = torch.nn.Conv2d(1, 32, (3, 3), 1, 0, bias=args.use_bias)
+        self.bn0 = torch.nn.BatchNorm2d(1)
+        self.bn1 = torch.nn.BatchNorm2d(32)
+        self.bn2 = torch.nn.BatchNorm1d(args['embedding_dim'])
+        # self.register_parameter('b', Parameter(torch.zeros(num_entities)))
+        self.fc = torch.nn.Linear(args['hidden_size'],args['embedding_dim'])
+        # print(num_entities, num_relations)
+
+    def forward(self, e1, rel, e2):
+        # e1_embedded= self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
+        # rel_embedded = self.emb_rel(rel).view(-1, 1, self.emb_dim1, self.emb_dim2)
+        batch_size, num_tokens = e1.shape[:2]
+
+        # [B, T, E] --> [B*T, 1, H, W]
+        e1_embedded = e1.view(-1, 1, self.emb_dim1, self.emb_dim2)
+        # [B, 1, E] --> [B, T, E] --> [B*T, 1, H, W]
+        rel_embedded = rel.repeat(1, num_tokens, 1).view(-1, 1, self.emb_dim1, self.emb_dim2)
+        # rel_embedded = rel.view(-1, 1, self.emb_dim1, self.emb_dim2).repeat(1, num_tokens, 1, 1)
+
+        stacked_inputs = torch.cat([e1_embedded, rel_embedded], 2)
+
+        stacked_inputs = self.bn0(stacked_inputs)
+        x= self.inp_drop(stacked_inputs)
+        x= self.conv1(x)
+        x= self.bn1(x)
+        x= F.relu(x)
+        x = self.feature_map_drop(x)
+        x = x.view(x.shape[0], -1)
+        x = self.fc(x)
+        x = self.hidden_drop(x)
+        x = self.bn2(x)
+        x = F.relu(x)
+        x = x.view(batch_size, num_tokens, -1)
+        # [B, T, E] x [B, E, 1] --> [B, T, 1]
+        pred = torch.bmm(x, e2.transpose(2, 1))
+        # x = torch.mm(x, self.emb_e.weight.transpose(1,0))
+        # x += self.b.expand_as(x)
+        # pred = torch.sigmoid(x)
+
+        return pred
