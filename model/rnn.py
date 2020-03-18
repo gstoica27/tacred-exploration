@@ -265,13 +265,15 @@ class PositionAwareRNN(nn.Module):
 
             representation_relevances = self.fact_checker(subj_outputs, outputs, obj_outputs)
             # remove subject and object representations
-            masked_elements = non_entity_masks.unsqueeze(-1).eq(0)
+            masked_elements = non_entity_masks.view(batch_size, -1, 1)
             # representation_relevances[masked_elements] = -torch.inf
-            representation_relevances = F.softmax(representation_relevances.masked_fill(masked_elements.bool(),
-                                                                                        float('-inf')), dim=1)
+            # representation_relevances = F.softmax(representation_relevances.masked_fill(masked_elements.bool(),
+            #                                                                             float('-inf')), dim=1)
+            representation_relevances = representation_relevances + (masked_elements + 1e-45).log()
+            indicator_weights = F.softmax(representation_relevances, dim=1)
 
 
-            final_hidden = (representation_relevances * outputs).sum(dim=1)
+            final_hidden = (indicator_weights * outputs).sum(dim=1)
         else:
             final_hidden = hidden
         logits = self.linear(final_hidden)

@@ -92,8 +92,8 @@ def str2bool(v):
 #     torch.cuda.manual_seed(args.seed)
 
 # make opt
-# config_path = '/Users/georgestoica/Desktop/Research/tacred-exploration/configs/model_config.yaml'
-config_path = '/zfsauton3/home/gis/research/tacred-exploration/configs/model_config_server.yaml'
+config_path = '/Users/georgestoica/Desktop/Research/tacred-exploration/configs/model_config.yaml'
+# config_path = '/zfsauton3/home/gis/research/tacred-exploration/configs/model_config_server.yaml'
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 print(cfg_dict)
