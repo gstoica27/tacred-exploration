@@ -30,6 +30,4 @@ attn: False # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 fact_checking_attn: True  # Whether to apply link prediction fact checking attention.
-fact_checker_params:
-  name: 'distmult'
-  input_drop: 0.04
+fact_checking_model: 'ConvE'

@@ -1,0 +1,11 @@
+ConvE:
+  input_drop: 0.2
+  hidden_drop: 0.3
+  feat_drop: 0.2
+  embedding_shape1: 30
+  embedding_dim: 600
+  hidden_size: 33408
+  use_bias: True
+DistMult:
+  input_drop: 0.04
+

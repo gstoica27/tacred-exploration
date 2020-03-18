@@ -79,7 +79,7 @@ class ConvE(torch.nn.Module):
         self.emb_dim1 = args['embedding_shape1']
         self.emb_dim2 = args['embedding_dim'] // self.emb_dim1
 
-        self.conv1 = torch.nn.Conv2d(1, 32, (3, 3), 1, 0, bias=args.use_bias)
+        self.conv1 = torch.nn.Conv2d(1, 32, (3, 3), 1, 0, bias=args['use_bias'])
         self.bn0 = torch.nn.BatchNorm2d(1)
         self.bn1 = torch.nn.BatchNorm2d(32)
         self.bn2 = torch.nn.BatchNorm1d(args['embedding_dim'])
@@ -90,21 +90,21 @@ class ConvE(torch.nn.Module):
     def forward(self, e1, rel, e2):
         # e1_embedded= self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # rel_embedded = self.emb_rel(rel).view(-1, 1, self.emb_dim1, self.emb_dim2)
-        batch_size, num_tokens = e1.shape[:2]
+        batch_size, num_tokens = rel.shape[:2]
 
         # [B, T, E] --> [B*T, 1, H, W]
-        e1_embedded = e1.view(-1, 1, self.emb_dim1, self.emb_dim2)
+        e1_embedded = e1.repeat(1, num_tokens, 1).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # [B, 1, E] --> [B, T, E] --> [B*T, 1, H, W]
-        rel_embedded = rel.repeat(1, num_tokens, 1).view(-1, 1, self.emb_dim1, self.emb_dim2)
+        rel_embedded = rel.view(-1, 1, self.emb_dim1, self.emb_dim2)
         # rel_embedded = rel.view(-1, 1, self.emb_dim1, self.emb_dim2).repeat(1, num_tokens, 1, 1)
 
         stacked_inputs = torch.cat([e1_embedded, rel_embedded], 2)
 
         stacked_inputs = self.bn0(stacked_inputs)
-        x= self.inp_drop(stacked_inputs)
-        x= self.conv1(x)
-        x= self.bn1(x)
-        x= F.relu(x)
+        x = self.inp_drop(stacked_inputs)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = F.relu(x)
         x = self.feature_map_drop(x)
         x = x.view(x.shape[0], -1)
         x = self.fc(x)

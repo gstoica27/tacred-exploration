@@ -92,10 +92,26 @@ def str2bool(v):
 #     torch.cuda.manual_seed(args.seed)
 
 # make opt
+
+def add_fact_checking_params(cfg_dict):
+    fact_checking_config = os.path.join(cwd, 'configs', 'fact_checking_configs.yaml')
+    with open(fact_checking_config, 'r') as file:
+        fact_checking_config_dict = yaml.load(file)
+    fact_checking_model = cfg_dict['fact_checking_model']
+    cfg_dict['fact_checker_params'] = fact_checking_config_dict[fact_checking_model]
+    cfg_dict['fact_checker_params']['name'] = fact_checking_model
+    return cfg_dict
+
+cwd = os.getcwd()
+on_server = True
+config_path = os.path.join(cwd, 'configs', f'model_config{"_server" if on_server else ""}.yaml')
 # config_path = '/Users/georgestoica/Desktop/Research/tacred-exploration/configs/model_config.yaml'
-config_path = '/zfsauton3/home/gis/research/tacred-exploration/configs/model_config_server.yaml'
+# config_path = '/zfsauton3/home/gis/research/tacred-exploration/configs/model_config_server.yaml'
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
+
+if cfg_dict['fact_checking_attn']:
+    cfg_dict = add_fact_checking_params(cfg_dict)
 print(cfg_dict)
 opt = cfg_dict#AttributeDict(cfg_dict)
 opt['cuda'] = torch.cuda.is_available()
