@@ -8,4 +8,3 @@ ConvE:
   use_bias: True
 DistMult:
   input_drop: 0.04
-
