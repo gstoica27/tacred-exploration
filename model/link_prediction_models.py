@@ -95,7 +95,7 @@ class ConvE(torch.nn.Module):
         # [B, T, E] --> [B*T, 1, H, W]
         e1_embedded = e1.repeat(1, num_tokens, 1).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # [B, 1, E] --> [B, T, E] --> [B*T, 1, H, W]
-        rel_embedded = rel.view(-1, 1, self.emb_dim1, self.emb_dim2)
+        rel_embedded = rel.reshape(-1, 1, self.emb_dim1, self.emb_dim2)
         # rel_embedded = rel.view(-1, 1, self.emb_dim1, self.emb_dim2).repeat(1, num_tokens, 1, 1)
 
         stacked_inputs = torch.cat([e1_embedded, rel_embedded], 2)

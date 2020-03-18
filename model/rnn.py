@@ -42,12 +42,6 @@ class RelationModel(object):
 
     def update(self, batch):
         """ Run a step of forward and backward model update. """
-        # if self.opt['cuda']:
-        #     inputs = [b.cuda() for b in batch[:7] + batch[9:]]
-        #     labels = batch[7].cuda()
-        # else:
-        #     inputs = [b for b in batch[:7] + batch[9:]]
-        #     labels = batch[7]
         inputs, labels, _ = self.maybe_place_batch_on_cuda(batch)
         # step forward
         self.model.train()
@@ -64,19 +58,7 @@ class RelationModel(object):
 
     def predict(self, batch, unsort=True):
         """ Run forward prediction. If unsort is True, recover the original order of the batch. """
-        # if self.opt['cuda']:
-        #     inputs = [b.cuda() for b in batch[:7] + batch[9:]]
-        #     labels = batch[7].cuda()
-        #
-        # else:
-        #     inputs = [b for b in batch[:7] + batch[9:]]
-        #     labels = batch[7]
-
-        # inputs += [subj_type, obj_type, ss, se, os, oe]
-        # orig_idx = batch[8]
         inputs, labels, orig_idx = self.maybe_place_batch_on_cuda(batch)
-        # orig_idx = batch['base'][8]
-
         # forward
         self.model.eval()
         logits, _ = self.model(inputs)
@@ -187,10 +169,6 @@ class PositionAwareRNN(nn.Module):
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
 
-        # if self.opt['use_cpg']:
-        #     self.subj_type_emb.weight.data.uniform_(-1., 1.)
-        #     self.obj_type_emb.weight.data.uniform_(-1., 1.)
-
         # decide finetuning
         if self.topn <= 0:
             print("Do not finetune word embedding layer.")
@@ -217,7 +195,6 @@ class PositionAwareRNN(nn.Module):
         words, masks, pos, ner, deprel, subj_pos, obj_pos = base_inputs
         if self.opt['fact_checking_attn']:
             subj_masks, obj_masks = inputs['supplemental']['entity_masks']
-        # words, masks, pos, ner, deprel, subj_pos, obj_pos, subj_type, obj_type, subj_masks, obj_masks = inputs # unpack
         seq_lens = list(masks.data.eq(constant.PAD_ID).long().sum(1).squeeze())
         batch_size = words.size()[0]
         
@@ -266,9 +243,6 @@ class PositionAwareRNN(nn.Module):
             representation_relevances = self.fact_checker(subj_outputs, outputs, obj_outputs)
             # remove subject and object representations
             masked_elements = non_entity_masks.view(batch_size, -1, 1)
-            # representation_relevances[masked_elements] = -torch.inf
-            # representation_relevances = F.softmax(representation_relevances.masked_fill(masked_elements.bool(),
-            #                                                                             float('-inf')), dim=1)
             representation_relevances = representation_relevances + (masked_elements + 1e-45).log()
             indicator_weights = F.softmax(representation_relevances, dim=1)
 

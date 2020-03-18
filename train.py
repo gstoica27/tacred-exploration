@@ -26,73 +26,6 @@ from configs.dict_with_attributes import AttributeDict
 def str2bool(v):
     return v.lower() in ('true')
 
-# cwd = "/Volumes/External HDD/"
-# parser = argparse.ArgumentParser()
-# parser.add_argument('--data_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/json'))
-# parser.add_argument('--vocab_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/data/vocab'))
-# parser.add_argument('--test_save_dir', type=str, default=os.path.join(cwd, 'dataset/tacred/test_perfs'))
-# parser.add_argument('--emb_dim', type=int, default=300, help='Word embedding dimension.')
-# parser.add_argument('--ner_dim', type=int, default=30, help='NER embedding dimension.')
-# parser.add_argument('--pos_dim', type=int, default=30, help='c')
-# parser.add_argument('--hidden_dim', type=int, default=300, help='RNN hidden state size.')
-# parser.add_argument('--num_layers', type=int, default=2, help='Num of RNN layers.')
-# parser.add_argument('--dropout', type=float, default=0.5, help='Input and RNN dropout rate.')
-# parser.add_argument('--word_dropout', type=float, default=0.04, help='The rate at which randomly set a word to UNK.')
-# parser.add_argument('--topn', type=int, default=1e10, help='Only finetune top N embeddings.')
-# parser.add_argument('--lower', dest='lower', action='store_true', help='Lowercase all words.')
-# parser.add_argument('--no-lower', dest='lower', action='store_false')
-# parser.set_defaults(lower=False)
-#
-# parser.add_argument('--attn', dest='attn', action='store_true', help='Use attention layer.')
-# parser.add_argument('--no-attn', dest='attn', action='store_false')
-# parser.set_defaults(attn=True)
-# parser.add_argument('--attn_dim', type=int, default=200, help='Attention size.')
-# parser.add_argument('--pe_dim', type=int, default=30, help='Position encoding dimension.')
-#
-# parser.add_argument('--lr', type=float, default=1.0, help='Applies to SGD and Adagrad.')
-# parser.add_argument('--lr_decay', type=float, default=0.9)
-# parser.add_argument('--optim', type=str, default='sgd', help='sgd, adagrad, adam or adamax.')
-# parser.add_argument('--num_epoch', type=int, default=30)
-# parser.add_argument('--batch_size', type=int, default=50)
-# parser.add_argument('--max_grad_norm', type=float, default=5.0, help='Gradient clipping.')
-# parser.add_argument('--log_step', type=int, default=20, help='Print log every k steps.')
-# parser.add_argument('--log', type=str, default='logs.txt', help='Write training log to file.')
-# parser.add_argument('--save_epoch', type=int, default=5, help='Save model checkpoints every k epochs.')
-# parser.add_argument('--save_dir', type=str,
-#                     default=os.path.join(cwd, 'dataset/tacred/saved_models'), help='Root dir for saving models.')
-# parser.add_argument('--id', type=str, default='00', help='Model ID under which to save models.')
-# parser.add_argument('--info', type=str, default='', help='Optional info for the experiment.')
-#
-# parser.add_argument('--seed', type=int, default=1234)
-# parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
-# parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
-#
-# parser.add_argument('--nas_rnn', type=str2bool, default=False)
-# parser.add_argument('--nas_mlp', type=str2bool, default=False)
-# parser.add_argument('--remove_entity_types', type=str2bool, default=False,
-#                     help='Whether to replace subj and obj granular typing or just Subj, and obj')
-# parser.add_argument('--avg_types', type=str2bool, default=False,
-#                     help='Whether to make SUBJ and OBJ embeddings average of granular types (SUBJ-*, OBJ-*)')
-# parser.add_argument('--use_cpg', type=str2bool, default=False,
-#                     help='Whether to use CPG Attention or not')
-# parser.add_argument('--difference_type_spaces', type=str2bool, default=False)
-# parser.add_argument('--by_entity', type=str2bool, default=False)
-#
-# parser.add_argument('--fact_checking_attn', type=str2bool, default=False,
-#                     help='whether to apply link prediction fact checking attention')
-#
-# args = parser.parse_args()
-
-# torch.manual_seed(args.seed)
-# np.random.seed(args.seed)
-# random.seed(1234)
-# if args.cpu:
-#     args.cuda = False
-# elif args.cuda:
-#     torch.cuda.manual_seed(args.seed)
-
-# make opt
-
 def add_fact_checking_params(cfg_dict):
     fact_checking_config = os.path.join(cwd, 'configs', 'fact_checking_configs.yaml')
     with open(fact_checking_config, 'r') as file:
@@ -195,6 +128,7 @@ for epoch in range(1, opt['num_epoch']+1):
     predictions = []
     train_eval_loss = 0
     for i, batch in enumerate(train_batch):
+    # for i, _ in enumerate([]):
         preds, _, loss = model.predict(batch)
         predictions += preds
         train_eval_loss += loss
