@@ -273,7 +273,7 @@ class PositionAwareRNN(nn.Module):
             obj_position_emb = self.pe_emb(obj_pos + constant.MAX_LEN)
             position_embs = torch.cat((subj_position_emb, obj_position_emb), dim=2)
             position_enc = self.position_linear(position_embs)
-            outputs = self.hidden_linear(F.relu(outputs))
+            #outputs = self.hidden_linear(F.relu(outputs))
             outputs += position_enc
             # remove mask out subjects and objects in sentence masks
             non_entity_masks = masks.eq(constant.PAD_ID)
