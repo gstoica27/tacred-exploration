@@ -175,6 +175,7 @@ class PositionAwareRNN(nn.Module):
         if opt['attn']:
             self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
+            self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
 
         elif opt['fact_checking_attn']:
             self.fact_checker = choose_fact_checker(opt['fact_checker_params'])
@@ -184,11 +185,13 @@ class PositionAwareRNN(nn.Module):
                 self.token_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
                 self.subj_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
                 self.obj_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
+                self.linear = nn.Linear(embedding_dim, opt['num_class'])
                 self.encode_fact_check_inputs = True
             else:
                 self.encode_fact_check_inputs = False
+                self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
 
-        self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
+        # self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
 
         self.opt = opt
         self.topn = float(self.opt.get('topn', 1e10))
