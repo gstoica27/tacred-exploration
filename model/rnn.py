@@ -212,10 +212,6 @@ class PositionAwareRNN(nn.Module):
         init.xavier_uniform_(self.linear.weight, gain=1) # initialize linear layer
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
-        if self.opt['fact_checking_attn']:
-            self.sent_linear.weight.data.normal_(std=0.001)
-            self.output_linear.weight.data.normal_(std=0.001)
-            self.position_linear.weight.data.normal_(std=0.001)
 
         # decide finetuning
         if self.topn <= 0:
