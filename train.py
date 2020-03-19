@@ -71,7 +71,7 @@ with open(config_path, 'r') as file:
 add_encoding_config(cfg_dict)
 if cfg_dict['fact_checking_attn']:
     cfg_dict['fact_checker_params'] = add_fact_checking_params(cfg_dict)
-    if cfg_dict['load_path'] == 'None':
+    if cfg_dict['fact_checker_params']['load_path'] == 'None':
         cfg_dict['fact_checker_params']['embedding_dim'] = cfg_dict['encoding_dim']
     else:
         cfg_dict['fact_checker_params']['embedding_dim'] = 200

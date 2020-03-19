@@ -93,8 +93,8 @@ class ConvE(torch.nn.Module):
         # self.register_parameter('b', Parameter(torch.zeros(num_entities)))
         self.fc = torch.nn.Linear(output_size,args['embedding_dim'])
         # load model if exists
-        if args['model_path'] != 'None':
-            self.load_model(args['model_path'])
+        if args['load_path'] != 'None':
+            self.load_model(args['load_path'])
             self.is_pretrained = True
         else:
             self.is_pretrained = False
