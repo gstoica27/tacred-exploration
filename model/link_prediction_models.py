@@ -92,7 +92,13 @@ class ConvE(torch.nn.Module):
         self.bn2 = torch.nn.BatchNorm1d(args['embedding_dim'])
         # self.register_parameter('b', Parameter(torch.zeros(num_entities)))
         self.fc = torch.nn.Linear(output_size,args['embedding_dim'])
-        # print(num_entities, num_relations)
+        # load model if exists
+        if args['model_path'] != 'None':
+            self.load_model(args['model_path'])
+            self.is_pretrained = True
+        else:
+            self.is_pretrained = False
+
 
     def forward(self, e1, rel, e2):
         # e1_embedded= self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
@@ -103,7 +109,6 @@ class ConvE(torch.nn.Module):
         e1_embedded = e1.repeat(1, num_tokens, 1).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # [B, 1, E] --> [B, T, E] --> [B*T, 1, H, W]
         rel_embedded = rel.reshape(-1, 1, self.emb_dim1, self.emb_dim2)
-        # rel_embedded = rel.view(-1, 1, self.emb_dim1, self.emb_dim2).repeat(1, num_tokens, 1, 1)
 
         stacked_inputs = torch.cat([e1_embedded, rel_embedded], 2)
 
@@ -126,3 +131,8 @@ class ConvE(torch.nn.Module):
         # pred = torch.sigmoid(x)
 
         return pred
+
+    def load_model(self, model_path):
+        state_dict = torch.load(model_path)
+        relevant_state_dict = dict([(k,v) for k,v in state_dict.items() if 'emb' not in k and k != 'b'])
+        self.load_state_dict(relevant_state_dict)

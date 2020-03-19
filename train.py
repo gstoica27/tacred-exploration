@@ -44,7 +44,10 @@ def add_reg_params(cfg_dict):
             cfg_dict['reg_params'] = reg_config[reg_type]
             cfg_dict['reg_params'].update(add_fact_checking_params(reg_config[reg_type]))
             cfg_dict['reg_params']['type'] = reg_type
-            cfg_dict['reg_params']['embedding_dim'] = cfg_dict['encoding_dim']
+            if cfg_dict['reg_params']['load_path'] == 'None':
+                cfg_dict['reg_params']['embedding_dim'] = cfg_dict['encoding_dim']
+            else:
+                cfg_dict['reg_params']['embedding_dim'] = 200
     else:
         cfg_dict['reg_params'] = None
 
@@ -68,7 +71,10 @@ with open(config_path, 'r') as file:
 add_encoding_config(cfg_dict)
 if cfg_dict['fact_checking_attn']:
     cfg_dict['fact_checker_params'] = add_fact_checking_params(cfg_dict)
-    cfg_dict['fact_checker_params']['embedding_dim'] = cfg_dict['encoding_dim']
+    if cfg_dict['load_path'] == 'None':
+        cfg_dict['fact_checker_params']['embedding_dim'] = cfg_dict['encoding_dim']
+    else:
+        cfg_dict['fact_checker_params']['embedding_dim'] = 200
 
 add_reg_params(cfg_dict)
 
