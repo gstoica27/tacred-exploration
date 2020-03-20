@@ -156,7 +156,7 @@ class PositionAwareRNN(nn.Module):
         # Using BiLSTM or LSTM
         if opt.get('encoding_type', 'lstm').lower() in ['bilstm', 'lstm']:
             self.bidirectional_encoding = opt.get('bidirectional_encoding', False)
-
+        # TODO: Remove this soft check
         self.encoding_dim = opt.get('encoding_dim', opt['hidden_dim'])
 
         if opt['pos_dim'] > 0:
