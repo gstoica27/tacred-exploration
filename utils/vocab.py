@@ -60,9 +60,9 @@ class Vocab(object):
             self.subj_idxs = [idx for idx, id in enumerate(self.id2word) if 'SUBJ-' in id]
             self.obj_idxs = [idx for idx, id in enumerate(self.id2word) if 'OBJ-' in id]
 
-            self.id2word += ['SUBJ', 'OBJ']
-            self.word2id['SUBJ'] = max(self.word2id.values()) + 1
-            self.word2id['OBJ'] = max(self.word2id.values()) + 1
+            # self.id2word += ['SUBJ', 'OBJ']
+            # self.word2id['SUBJ'] = max(self.word2id.values()) + 1
+            # self.word2id['OBJ'] = max(self.word2id.values()) + 1
             self.size = len(self.id2word)
             print("Vocab size {} loaded from file".format(self.size))
 
@@ -78,7 +78,7 @@ class Vocab(object):
             self.subj_idxs = [idx for idx, id in enumerate(self.id2word) if 'SUBJ-' in id]
             self.obj_idxs = [idx for idx, id in enumerate(self.id2word) if 'OBJ-' in id]
             # add special tokens to the beginning and end
-            self.id2word = [constant.PAD_TOKEN, constant.UNK_TOKEN] + self.id2word + ['SUBJ', 'OBJ']
+            self.id2word = [constant.PAD_TOKEN, constant.UNK_TOKEN] #+ self.id2word + ['SUBJ', 'OBJ']
             self.word2id = dict([(self.id2word[idx],idx) for idx in range(len(self.id2word))])
             self.size = len(self.id2word)
             self.save(filename)
