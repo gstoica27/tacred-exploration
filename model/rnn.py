@@ -40,7 +40,7 @@ class RelationModel(object):
             self.criterion.cuda()
         self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
 
-        self.reg_params = opt['reg_params']
+        self.reg_params = opt.get('reg_params', None)
         if self.reg_params is not None and self.reg_params['type'] == 'fact_checking':
 
             self.fact_checker = choose_fact_checker(self.reg_params)
