@@ -21,7 +21,7 @@ class DataLoader(object):
         self.eval = evaluation
         self.remove_entity_types = opt['remove_entity_types']
         # Check if there is fact checking data is needed to be processed & loaded
-        reg_params = opt['reg_params']
+        reg_params = opt.get('reg_params', None)
         fact_checking_reg = reg_params is not None and reg_params['type'] == 'fact_checking'
         fact_checking_component = opt['fact_checking_attn'] or fact_checking_reg
         self.fact_checking_component = fact_checking_component
