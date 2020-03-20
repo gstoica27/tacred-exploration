@@ -157,7 +157,7 @@ class PositionAwareRNN(nn.Module):
         if opt.get('encoding_type', 'lstm').lower() in ['bilstm', 'lstm']:
             self.bidirectional_encoding = opt.get('bidirectional_encoding', False)
 
-        self.encoding_dim = opt['encoding_dim']
+        self.encoding_dim = opt.get('encoding_dim', opt['hidden_dim'])
 
         if opt['pos_dim'] > 0:
             self.pos_emb = nn.Embedding(len(constant.POS_TO_ID), opt['pos_dim'],
