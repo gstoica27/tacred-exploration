@@ -180,7 +180,10 @@ class PositionAwareRNN(nn.Module):
         elif opt['fact_checking_attn']:
             self.fact_checker = choose_fact_checker(opt['fact_checker_params'])
             # Condense outputs to fit fact checker dimensions
-            embedding_dim = self.fact_checker.emb_dim1 * self.fact_checker.emb_dim2
+            if opt['fact_checker_params']['name'] == 'ConvE':
+                embedding_dim = self.fact_checker.emb_dim1 * self.fact_checker.emb_dim2
+            else:
+                embedding_dim = opt['hidden_dim']
             if self.fact_checker.is_pretrained and embedding_dim != opt['encoding_dim']:
                 self.token_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
                 self.subj_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)

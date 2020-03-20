@@ -54,6 +54,7 @@ class DistMult(torch.nn.Module):
     def __init__(self, args):
         super(DistMult, self).__init__()
         self.inp_drop = torch.nn.Dropout(args['input_drop'])
+        self.is_pretrained = False
 
     def forward(self, e1, rel, e2):
         # [B, T, E]
