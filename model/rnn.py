@@ -154,7 +154,7 @@ class PositionAwareRNN(nn.Module):
         self.drop = nn.Dropout(opt['dropout'])
         self.emb = nn.Embedding(opt['vocab_size'], opt['emb_dim'], padding_idx=constant.PAD_ID)
         # Using BiLSTM or LSTM
-        if opt['encoding_type'].lower() in ['bilstm', 'lstm']:
+        if opt.get('encoding_type', 'lstm').lower() in ['bilstm', 'lstm']:
             self.bidirectional_encoding = opt['bidirectional_encoding']
 
         self.encoding_dim = opt['encoding_dim']
