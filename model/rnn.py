@@ -165,7 +165,7 @@ class PositionAwareRNN(nn.Module):
         if opt['ner_dim'] > 0:
             self.ner_emb = nn.Embedding(len(constant.NER_TO_ID), opt['ner_dim'],
                     padding_idx=constant.PAD_ID)
-        self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
+        #
         
         input_size = opt['emb_dim'] + opt['pos_dim'] + opt['ner_dim']
 
@@ -176,15 +176,13 @@ class PositionAwareRNN(nn.Module):
             self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
+            self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
         elif opt['fact_checking_attn']:
             self.fact_checker = choose_fact_checker(opt['fact_checker_params'])
             # Condense outputs to fit fact checker dimensions
-            if opt['fact_checker_params']['name'] == 'ConvE':
-                embedding_dim = self.fact_checker.emb_dim1 * self.fact_checker.emb_dim2
-            else:
-                embedding_dim = opt['hidden_dim']
-            if self.fact_checker.is_pretrained and embedding_dim != opt['encoding_dim']:
+            embedding_dim = self.fact_checker.embedding_dim
+            if embedding_dim != opt['encoding_dim']:
                 self.token_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
                 self.subj_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
                 self.obj_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
@@ -192,7 +190,7 @@ class PositionAwareRNN(nn.Module):
                 self.encode_fact_check_inputs = True
             else:
                 self.encode_fact_check_inputs = False
-                self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
+                self.linear = nn.Linear(embedding_dim, opt['num_class'])
 
         # self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
 

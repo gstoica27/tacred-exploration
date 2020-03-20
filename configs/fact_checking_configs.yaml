@@ -1,4 +1,5 @@
 ConvE:
+  embedding_dim: 200
   input_drop: 0.2
   hidden_drop: 0.3
   feat_drop: 0.2
@@ -10,4 +11,5 @@ ConvE:
   padding: 0
   load_path: '/home/scratch/gis/saved_models/conve_pretrained/FB15k-237_conve_0.2_0.3.model'
 DistMult:
+  embedding_dim: 300
   input_drop: 0.04

@@ -55,6 +55,7 @@ class DistMult(torch.nn.Module):
         super(DistMult, self).__init__()
         self.inp_drop = torch.nn.Dropout(args['input_drop'])
         self.is_pretrained = False
+        self.embedding_dim = args['embedding_dim']
 
     def forward(self, e1, rel, e2):
         # [B, T, E]
@@ -83,6 +84,7 @@ class ConvE(torch.nn.Module):
         self.filter_channels = args['filter_channels']
         self.stride = args['stride']
         self.padding = args['padding']
+        self.embedding_dim = args['embedding_dim']
         self.conv1 = torch.nn.Conv2d(1, self.filter_channels, self.kernel_size,
                                      self.stride, self.padding, bias=args['use_bias'])
         output_width = 2*self.emb_dim1 - self.kernel_size[0] + 1

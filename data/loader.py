@@ -31,18 +31,12 @@ class DataLoader(object):
         data = self.preprocess(data, vocab, opt)
         # shuffle for training
         if not evaluation:
-            # indices = list(range(len(data)))
-            # random.shuffle(indices)
-            # data = [data[i] for i in indices]
             data = self.shuffle_data(data)
 
         id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
-        # self.labels = [id2label[d[-1]] for d in data]
         self.labels = [id2label[d[-1]] for d in data['base']]
         self.num_examples = len(data['base'])
-
         # chunk into batches
-        # data = [data[i:i+batch_size] for i in range(0, len(data), batch_size)]
         data = self.create_batches(data=data, batch_size=batch_size)
         self.data = data
         print("{} batches created for {}".format(len(data), filename))
@@ -98,8 +92,6 @@ class DataLoader(object):
                 tokens[ss:se+1] = ['SUBJ-'+d['subj_type']] * (se-ss+1)
                 tokens[os:oe+1] = ['OBJ-'+d['obj_type']] * (oe-os+1)
 
-            # subj_type = map_to_ids(['SUBJ-'+d['subj_type']], vocab.word2id)[0]
-            # obj_type = map_to_ids(['OBJ-' + d['obj_type']], vocab.word2id)[0]
             tokens = map_to_ids(tokens, vocab.word2id)
             pos = map_to_ids(d['stanford_pos'], constant.POS_TO_ID)
             ner = map_to_ids(d['stanford_ner'], constant.NER_TO_ID)
@@ -124,7 +116,6 @@ class DataLoader(object):
         return self.labels
 
     def __len__(self):
-        #return 50
         return len(self.data)
 
     def ready_base_batch(self, base_batch, batch_size):
@@ -178,47 +169,6 @@ class DataLoader(object):
                     sentence_lengths=readied_batch['sentence_lengths'])
         return readied_batch
 
-
-    # def __getitem__(self, key):
-    #     """ Get a batch with index. """
-    #     if not isinstance(key, int):
-    #         raise TypeError
-    #     if key < 0 or key >= len(self.data):
-    #         raise IndexError
-    #     batch = self.data[key]
-    #     batch_size = len(batch)
-    #     batch = list(zip(*batch))
-    #     assert len(batch) == 11
-    #
-    #     # sort all fields by lens for easy RNN operations
-    #     lens = [len(x) for x in batch[0]]
-    #     batch, orig_idx = sort_all(batch, lens)
-    #
-    #     # word dropout
-    #     if not self.eval:
-    #         words = [word_dropout(sent, self.opt['word_dropout']) for sent in batch[0]]
-    #     else:
-    #         words = batch[0]
-    #
-    #     # convert to tensors
-    #     words = get_long_tensor(words, batch_size)
-    #     masks = torch.eq(words, 0)
-    #     pos = get_long_tensor(batch[1], batch_size)
-    #     ner = get_long_tensor(batch[2], batch_size)
-    #     deprel = get_long_tensor(batch[3], batch_size)
-    #     subj_positions = get_long_tensor(batch[4], batch_size)
-    #     obj_positions = get_long_tensor(batch[5], batch_size)
-    #
-    #     subj_types = torch.LongTensor(batch[7])
-    #     obj_types = torch.LongTensor(batch[8])
-    #
-    #     subj_masks = get_long_tensor(batch[-2], batch_size)
-    #     obj_masks = get_long_tensor(batch[-1], batch_size)
-    #
-    #     rels = torch.LongTensor(batch[6])
-    #
-    #     return (words, masks, pos, ner, deprel, subj_positions, obj_positions, rels,
-    #             orig_idx, subj_types, obj_types, subj_masks, obj_masks)
     def __getitem__(self, key):
         """ Get a batch with index. """
         if not isinstance(key, int):
