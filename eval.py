@@ -44,6 +44,10 @@ model.load(model_file)
 # load vocab
 vocab_file = args.model_dir + '/vocab.pkl'
 vocab = Vocab(vocab_file, load=True)
+print('config vocab size: {} | actual size: {}'.format(
+    opt['vocab_size'], vocab.size
+))
+print('config: {}'.format(opt))
 assert opt['vocab_size'] == vocab.size, "Vocab size must match that in the saved model."
 
 # load data
