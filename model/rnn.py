@@ -40,10 +40,8 @@ class RelationModel(object):
             self.criterion.cuda()
         self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
 
-        self.reg_params = opt.get('reg_params', None)
-        if self.reg_params is not None and self.reg_params['type'] == 'fact_checking':
-
-            self.fact_checker = choose_fact_checker(self.reg_params)
+        if self.opt['kg_loss'] is not None:
+            self.fact_checker = choose_fact_checker(self.opt['kg_loss']['model'])
 
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
@@ -58,31 +56,14 @@ class RelationModel(object):
         batch['base'] = base_batch
         return batch, labels, orig_idx
 
-    def apply_fact_checking_regularization(self, inputs, sentence_encs, token_encs):
-        subj_masks, obj_masks = inputs['supplemental']['entity_masks']
-        masks = inputs['base'][1]
-        batch_size, num_tokens = subj_masks.shape
-        # remove mask out subjects and objects in sentence masks
-        non_entity_masks = masks.eq(constant.PAD_ID)
-        non_entity_masks.masked_fill_(subj_masks.bool(), constant.PAD_ID)
-        non_entity_masks.masked_fill_(obj_masks.bool(), constant.PAD_ID)
-        # extract subject and object representations
-        # [B, T, E], [B, T, E] --> [B, S, E], [B, O, E] --> [B, E], [B, E]
-        # subj_outputs = token_encs.masked_fill((1 - subj_masks).view(batch_size, -1, 1).bool(), float('-inf'))
-        subj_outputs = (token_encs + (subj_masks.view(batch_size, -1, 1) + 1e-45).log())
-        # outputs * subj_masks.unsqueeze(-1)
-        # obj_outputs = token_encs.masked_fill((1 - obj_masks).view(batch_size, -1, 1).bool(), float('-inf'))
-        obj_outputs = (token_encs + (obj_masks.view(batch_size, -1, 1) + 1e-45).log())
-        # obj_outputs = outputs * obj_masks.unsqueeze(-1)
-        subj_outputs = subj_outputs.max(1, keepdim=True)[0]
-        obj_outputs = obj_outputs.max(1, keepdim=True)[0]
-        # reshape sentence encoding for compatibility with fact checker
-        sentence_encs = sentence_encs.view(batch_size, 1, -1)
-        closeness = self.fact_checker(subj_outputs, sentence_encs, obj_outputs)
-        closeness = closeness.reshape(-1)
-        closeness = F.logsigmoid(closeness)
-        return - closeness
-
+    def kg_criterion(self, batch_inputs, relations):
+        supplemental_inputs = batch_inputs['supplemental']
+        subjects, labels = supplemental_inputs['knowledge_graph']
+        label_smoothing = self.opt['kg_loss']['label_smoothing']
+        labels =  ((1.0 - label_smoothing) * labels) + (1.0 / labels.size(1))
+        predicted_objects = self.fact_checker.forward(subjects, relations)
+        loss = self.fact_checker.loss(predicted_objects, labels)
+        return loss
 
     def update(self, batch):
         """ Run a step of forward and backward model update. """
@@ -92,13 +73,9 @@ class RelationModel(object):
         self.optimizer.zero_grad()
         logits, sentence_encs, token_encs = self.model(inputs)
         loss = self.criterion(logits, labels)
-
-        if self.reg_params is not None and self.reg_params['type'] == 'fact_checking':
-            regularization_measure = self.apply_fact_checking_regularization(inputs=inputs,
-                                                                             sentence_encs=sentence_encs,
-                                                                             token_encs=token_encs)
-            loss += self.reg_params['lambda'] * regularization_measure.sum()
-
+        if self.opt['kg_loss'] is not None:
+            kg_loss = self.kg_criterion(batch_inputs=inputs, relations=sentence_encs)
+            loss += self.opt['kg_loss']['lambda'] * kg_loss.sum()
 
         # backward
         loss.backward()
@@ -165,8 +142,6 @@ class PositionAwareRNN(nn.Module):
         if opt['ner_dim'] > 0:
             self.ner_emb = nn.Embedding(len(constant.NER_TO_ID), opt['ner_dim'],
                     padding_idx=constant.PAD_ID)
-        #
-        
         input_size = opt['emb_dim'] + opt['pos_dim'] + opt['ner_dim']
 
         self.rnn = nn.LSTM(input_size, opt['hidden_dim'], opt['num_layers'], batch_first=True,
@@ -175,24 +150,9 @@ class PositionAwareRNN(nn.Module):
         if opt['attn']:
             self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
-            self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
-        elif opt['fact_checking_attn']:
-            self.fact_checker = choose_fact_checker(opt['fact_checker_params'])
-            # Condense outputs to fit fact checker dimensions
-            embedding_dim = self.fact_checker.embedding_dim
-            if embedding_dim != opt['encoding_dim']:
-                self.token_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
-                self.subj_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
-                self.obj_encoder = nn.Linear(opt['encoding_dim'], embedding_dim)
-                self.linear = nn.Linear(embedding_dim, opt['num_class'])
-                self.encode_fact_check_inputs = True
-            else:
-                self.encode_fact_check_inputs = False
-                self.linear = nn.Linear(embedding_dim, opt['num_class'])
-
-        # self.linear = nn.Linear(self.encoding_dim, opt['num_class'])
+        self.linear = nn.Linear(self.encoding_dim, opt['num_class'], bias=False)
 
         self.opt = opt
         self.topn = float(self.opt.get('topn', 1e10))
@@ -200,23 +160,30 @@ class PositionAwareRNN(nn.Module):
         self.emb_matrix = emb_matrix
         self.init_weights()
 
+    def load_decoder(self, model_path):
+        state_dict = torch.load(model_path)
+        relation_embs = state_dict['emb_rel.weight']
+        self.linear.weight.data.copy_(relation_embs)
+        self.linear.weight.requires_grad = False
+
     def init_weights(self):
         if self.emb_matrix is None:
             self.emb.weight.data[1:,:].uniform_(-1.0, 1.0) # keep padding dimension to be 0
         else:
             self.emb_matrix = torch.from_numpy(self.emb_matrix)
-            self.emb.weight.data[:-2].copy_(self.emb_matrix)
+            self.emb.weight.data.copy_(self.emb_matrix)
 
         if self.opt['pos_dim'] > 0:
             self.pos_emb.weight.data[1:,:].uniform_(-1.0, 1.0)
         if self.opt['ner_dim'] > 0:
             self.ner_emb.weight.data[1:,:].uniform_(-1.0, 1.0)
 
-        self.linear.bias.data.fill_(0)
+        # self.linear.bias.data.fill_(0)
         init.xavier_uniform_(self.linear.weight, gain=1) # initialize linear layer
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
-
+        if self.opt['kg_loss'] is not None:
+            self.load_decoder(self.opt['kg_loss']['model']['load_path'])
         # decide finetuning
         if self.topn <= 0:
             print("Do not finetune word embedding layer.")
@@ -243,8 +210,6 @@ class PositionAwareRNN(nn.Module):
     def forward(self, inputs):
         base_inputs, supplemental_inputs = inputs['base'], inputs['supplemental']
         words, masks, pos, ner, deprel, subj_pos, obj_pos = base_inputs
-        if self.opt['fact_checking_attn']:
-            subj_masks, obj_masks = inputs['supplemental']['entity_masks']
         seq_lens = list(masks.data.eq(constant.PAD_ID).long().sum(1).squeeze())
         batch_size = words.size()[0]
         
@@ -272,36 +237,7 @@ class PositionAwareRNN(nn.Module):
             subj_pe_inputs = self.pe_emb(subj_pos + constant.MAX_LEN)
             obj_pe_inputs = self.pe_emb(obj_pos + constant.MAX_LEN)
             pe_features = torch.cat((subj_pe_inputs, obj_pe_inputs), dim=2)
-
-
             final_hidden = self.attn_layer(outputs, masks, hidden, pe_features)
-
-        elif self.opt['fact_checking_attn']:
-            # remove mask out subjects and objects in sentence masks
-            non_entity_masks = masks.eq(constant.PAD_ID)
-            non_entity_masks.masked_fill_(subj_masks.bool(), constant.PAD_ID)
-            non_entity_masks.masked_fill_(obj_masks.bool(), constant.PAD_ID)
-            # extract subject and object representations
-            # [B, T, E], [B, T, E] --> [B, S, E], [B, O, E] --> [B, E], [B, E]
-            subj_outputs = outputs.masked_fill((1 - subj_masks).view(batch_size, -1, 1).bool(), float('-inf'))
-                # outputs * subj_masks.unsqueeze(-1)
-            obj_outputs = outputs.masked_fill((1 - obj_masks).view(batch_size, -1, 1).bool(), float('-inf'))
-            # obj_outputs = outputs * obj_masks.unsqueeze(-1)
-            subj_outputs = subj_outputs.max(1, keepdim=True)[0]
-            obj_outputs = obj_outputs.max(1, keepdim=True)[0]
-            # Encode inputs to fact checker if needed
-            if self.encode_fact_check_inputs:
-                outputs = self.token_encoder(outputs)
-                subj_outputs = self.subj_encoder(subj_outputs)
-                obj_outputs = self.obj_encoder(obj_outputs)
-
-            representation_relevances = self.fact_checker(subj_outputs, outputs, obj_outputs)
-            # remove subject and object representations
-            masked_elements = non_entity_masks.view(batch_size, -1, 1)
-            representation_relevances = representation_relevances + (masked_elements + 1e-45).log()
-            indicator_weights = F.softmax(representation_relevances, dim=1)
-
-            final_hidden = (indicator_weights * outputs).sum(dim=1)
         else:
             final_hidden = hidden
         logits = self.linear(final_hidden)

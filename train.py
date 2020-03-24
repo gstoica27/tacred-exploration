@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from data.loader import DataLoader
+from utils.kg_vocab import KGVocab
 from model.rnn import RelationModel
 from utils import scorer, constant, helper
 from utils.vocab import Vocab
@@ -26,30 +27,14 @@ from configs.dict_with_attributes import AttributeDict
 def str2bool(v):
     return v.lower() in ('true')
 
-def add_fact_checking_params(cfg_dict):
+def add_kg_model_params(cfg_dict):
     fact_checking_config = os.path.join(cwd, 'configs', 'fact_checking_configs.yaml')
     with open(fact_checking_config, 'r') as file:
         fact_checking_config_dict = yaml.load(file)
-    fact_checking_model = cfg_dict['fact_checking_model']
+    fact_checking_model = cfg_dict['kg_loss']['model']
     params = fact_checking_config_dict[fact_checking_model]
     params['name'] = fact_checking_model
     return params
-
-def add_reg_params(cfg_dict):
-    if cfg_dict['reg_params'] != 'None':
-        reg_config = os.path.join(cwd, 'configs', 'regularization_config.yaml')
-        with open(reg_config, 'r') as file:
-            reg_config = yaml.load(file)
-            reg_type = cfg_dict['reg_params']
-            cfg_dict['reg_params'] = reg_config[reg_type]
-            cfg_dict['reg_params'].update(add_fact_checking_params(reg_config[reg_type]))
-            cfg_dict['reg_params']['type'] = reg_type
-            if cfg_dict['reg_params']['load_path'] == 'None':
-                cfg_dict['reg_params']['embedding_dim'] = cfg_dict['encoding_dim']
-            else:
-                cfg_dict['reg_params']['embedding_dim'] = 200
-    else:
-        cfg_dict['reg_params'] = None
 
 def add_encoding_config(cfg_dict):
     if cfg_dict['encoding_type'] == 'BiLSTM':
@@ -68,15 +53,16 @@ config_path = os.path.join(cwd, 'configs', f'model_config{"_server" if on_server
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 
-add_encoding_config(cfg_dict)
-if cfg_dict['fact_checking_attn']:
-    cfg_dict['fact_checker_params'] = add_fact_checking_params(cfg_dict)
-    if cfg_dict['fact_checker_params']['load_path'] == 'None':
-        cfg_dict['fact_checker_params']['embedding_dim'] = cfg_dict['encoding_dim']
-    else:
-        cfg_dict['fact_checker_params']['embedding_dim'] = 200
+if cfg_dict['kg_loss'] is not None:
+    kg_vocab = KGVocab(cfg_dict['kg_loss']['vocab_path'])
+else:
+    kg_vocab = None
 
-add_reg_params(cfg_dict)
+add_encoding_config(cfg_dict)
+if cfg_dict['kg_loss'] is not None:
+    cfg_dict['kg_loss']['model'] = add_kg_model_params(cfg_dict)
+    cfg_dict['kg_loss']['model']['num_entities'] = kg_vocab.return_num_ent()
+    cfg_dict['kg_loss']['model']['num_relations'] = kg_vocab.return_num_rel()
 
 print(cfg_dict)
 opt = cfg_dict#AttributeDict(cfg_dict)
@@ -99,7 +85,7 @@ vocab = Vocab(vocab_file, load=True)
 opt['vocab_size'] = vocab.size
 emb_file = opt['vocab_dir'] + '/embedding.npy'
 emb_matrix = np.load(emb_file)
-assert emb_matrix.shape[0] == vocab.size - 2
+assert emb_matrix.shape[0] == vocab.size
 assert emb_matrix.shape[1] == opt['emb_dim']
 
 opt['subj_idxs'] = vocab.subj_idxs
@@ -107,9 +93,9 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'], opt, vocab, evaluation=False)
-dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vocab, evaluation=True)
-test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'], opt, vocab, evaluation=True)
+train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'], opt, vocab, evaluation=False, kg_vocab=kg_vocab)
+dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)

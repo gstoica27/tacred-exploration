@@ -74,6 +74,11 @@ class DistMult(torch.nn.Module):
 class ConvE(torch.nn.Module):
     def __init__(self, args):
         super(ConvE, self).__init__()
+        self.emb_e = torch.nn.Embedding(args['num_entities'],
+                                        args['embedding_dim'])
+        self.emb_rel = torch.nn.Embedding(args['num_relations'],
+                                          args['embedding_dim'])
+
         self.inp_drop = torch.nn.Dropout(args['input_drop'])
         self.hidden_drop = torch.nn.Dropout(args['hidden_drop'])
         self.feature_map_drop = torch.nn.Dropout2d(args['feat_drop'])
@@ -93,7 +98,7 @@ class ConvE(torch.nn.Module):
         self.bn0 = torch.nn.BatchNorm2d(1)
         self.bn1 = torch.nn.BatchNorm2d(32)
         self.bn2 = torch.nn.BatchNorm1d(args['embedding_dim'])
-        # self.register_parameter('b', Parameter(torch.zeros(num_entities)))
+        self.register_parameter('b', Parameter(torch.zeros((args['num_entities']))))
         self.fc = torch.nn.Linear(output_size,args['embedding_dim'])
         # load model if exists
         if args['load_path'] != 'None':
@@ -103,16 +108,11 @@ class ConvE(torch.nn.Module):
             self.is_pretrained = False
 
 
-    def forward(self, e1, rel, e2):
-        # e1_embedded= self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
+    def forward(self, e1, rel):
+        e1_embedded = self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # rel_embedded = self.emb_rel(rel).view(-1, 1, self.emb_dim1, self.emb_dim2)
-        batch_size, num_tokens = rel.shape[:2]
-
-        # [B, T, E] --> [B*T, 1, H, W]
-        e1_embedded = e1.repeat(1, num_tokens, 1).view(-1, 1, self.emb_dim1, self.emb_dim2)
-        # [B, 1, E] --> [B, T, E] --> [B*T, 1, H, W]
-        rel_embedded = rel.reshape(-1, 1, self.emb_dim1, self.emb_dim2)
-
+        # Assume relation is already encoded form RE model
+        rel_embedded = rel.view(-1, 1, self.emb_dim1, self.emb_dim2)
         stacked_inputs = torch.cat([e1_embedded, rel_embedded], 2)
 
         stacked_inputs = self.bn0(stacked_inputs)
@@ -126,16 +126,18 @@ class ConvE(torch.nn.Module):
         x = self.hidden_drop(x)
         x = self.bn2(x)
         x = F.relu(x)
-        x = x.view(batch_size, num_tokens, -1)
-        # [B, T, E] x [B, E, 1] --> [B, T, 1]
-        pred = torch.bmm(x, e2.transpose(2, 1))
-        # x = torch.mm(x, self.emb_e.weight.transpose(1,0))
-        # x += self.b.expand_as(x)
-        # pred = torch.sigmoid(x)
+        x = torch.mm(x, self.emb_e.weight.transpose(1, 0))
+        x += self.b.expand_as(x)
+        pred = torch.sigmoid(x)
 
         return pred
 
     def load_model(self, model_path):
         state_dict = torch.load(model_path)
-        relevant_state_dict = dict([(k,v) for k,v in state_dict.items() if 'emb' not in k and k != 'b'])
-        self.load_state_dict(relevant_state_dict)
+        # relevant_state_dict = dict([(k,v) for k,v in state_dict.items() if 'emb' not in k and k != 'b'])
+        self.load_state_dict(state_dict)
+        # Only non-entity model parameters can be trained. This forces learned sentence encoding to
+        # align with pre-trained relation embeddings, which are already used to evaluate the RE model's
+        # loss through the decoder matching layer
+        self.emb_e.weight.requires_grad = False
+        self.emb_rel.weight.requires_grad = False

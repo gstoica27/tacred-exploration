@@ -9,22 +9,25 @@ import numpy as np
 
 from utils import constant, helper, vocab
 from collections import defaultdict
+import os
 
 class DataLoader(object):
     """
     Load data from json files, preprocess and prepare batches.
     """
-    def __init__(self, filename, batch_size, opt, vocab, evaluation=False):
+    def __init__(self, filename, batch_size, opt, vocab, evaluation=False, kg_vocab=None):
         self.batch_size = batch_size
         self.opt = opt
         self.vocab = vocab
+        # Knowledge graph vocabulary (optional)
+        self.kg_vocab = kg_vocab
+        if self.kg_vocab is not None:
+            # Extract file name without path or extension
+            self.partition_name = os.path.splitext(os.path.basename(filename))[0]
+            # load partition KG
+            self.create_kg()
         self.eval = evaluation
         self.remove_entity_types = opt['remove_entity_types']
-        # Check if there is fact checking data is needed to be processed & loaded
-        reg_params = opt.get('reg_params', None)
-        fact_checking_reg = reg_params is not None and reg_params['type'] == 'fact_checking'
-        fact_checking_component = opt['fact_checking_attn'] or fact_checking_reg
-        self.fact_checking_component = fact_checking_component
 
         with open(filename) as infile:
             data = json.load(infile)
@@ -40,6 +43,9 @@ class DataLoader(object):
         data = self.create_batches(data=data, batch_size=batch_size)
         self.data = data
         print("{} batches created for {}".format(len(data), filename))
+
+    def create_kg(self):
+        self.kg = self.kg_vocab.load_graph(partition_name=self.partition_name)
 
     def create_batches(self, data, batch_size):
         batched_data = []
@@ -102,9 +108,17 @@ class DataLoader(object):
             relation = constant.LABEL_TO_ID[d['relation']]
 
             base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
-            if self.fact_checking_component:
-                entity_masks = self.add_entity_masks(length=len(tokens), subj_span=(ss, se), obj_span=(os, oe))
-                supplemental_components['entity_masks'] += [entity_masks]
+            # Use KG component
+            if self.kg_vocab is not None:
+                subject_type = 'SUBJ-' + d['subj_type']
+                # object_type = 'OBJ-' + d['obj_type']
+                # Encode subject via KG mapping
+                ent2id = self.kg_vocab.return_ent2id()
+                subject_id = ent2id[subject_type]
+                # object_id = ent2id[object_type]
+                # Extract all known answers for subject type, relation pair in KG
+                known_object_types = self.kg[(subject_id, relation)]
+                supplemental_components['knowledge_graph'] += [(subject_id, known_object_types)]
 
         # transform to arrays for easier manipulations
         for name in supplemental_components.keys():
@@ -156,6 +170,21 @@ class DataLoader(object):
         merged_components = (subj_masks, obj_masks)
         return merged_components
 
+    def ready_knowledge_graph_batch(self, kg_batch, sentence_lengths):
+        num_ent = self.kg_vocab.return_num_ent()
+        batch = list(zip(*kg_batch))
+        batch, _ = sort_all(batch, sentence_lengths)
+        subjects = torch.LongTensor(batch[0])
+        labels = []
+        for sample_labels in batch[1]:
+            binary_labels = np.zeros(num_ent, dtype=np.float32)
+            binary_labels[list(sample_labels)] = 1.
+            labels.append(binary_labels)
+        labels = np.stack(labels, axis=0)
+        labels = torch.FloatTensor(labels)
+        merged_components = (subjects, labels)
+        return merged_components
+
     def ready_data_batch(self, batch):
         batch_size = len(batch['base'])
         readied_batch = self.ready_base_batch(batch['base'], batch_size)
@@ -166,6 +195,10 @@ class DataLoader(object):
                 readied_supplemental[name] = self.ready_masks_batch(
                     masks_batch=supplemental_batch,
                     batch_size=batch_size,
+                    sentence_lengths=readied_batch['sentence_lengths'])
+            elif name == 'knowledge_graph':
+                readied_supplemental[name] = self.ready_knowledge_graph_batch(
+                    kg_batch=supplemental_batch,
                     sentence_lengths=readied_batch['sentence_lengths'])
         return readied_batch
 
