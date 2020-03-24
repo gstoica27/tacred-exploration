@@ -69,6 +69,7 @@ class RelationModel(object):
         return loss
 
     def update(self, batch):
+        losses = {}
         """ Run a step of forward and backward model update. """
         inputs, labels, _ = self.maybe_place_batch_on_cuda(batch)
         # step forward
@@ -76,16 +77,18 @@ class RelationModel(object):
         self.optimizer.zero_grad()
         logits, sentence_encs, token_encs = self.model(inputs)
         loss = self.criterion(logits, labels)
+        losses['main'] = loss
         if self.opt['kg_loss'] is not None:
             kg_loss = self.kg_criterion(batch_inputs=inputs, relations=sentence_encs)
             loss += self.opt['kg_loss']['lambda'] * kg_loss.sum()
-
+            losses['kg'] = kg_loss
         # backward
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
         self.optimizer.step()
-        loss_val = loss.data.item()
-        return loss_val
+        cumulative_loss = loss.data.item()
+        losses['cumulative'] = cumulative_loss
+        return losses
 
     def predict(self, batch, unsort=True):
         """ Run forward prediction. If unsort is True, recover the original order of the batch. """
