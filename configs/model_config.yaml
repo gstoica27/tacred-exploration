@@ -25,7 +25,7 @@ id: 'joint-re-lp'  # Model ID under which to save models.
 info: ''  # Optional info for the experiment.
 seed: 1234  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
-cuda: True
+cuda: False
 cpu: True # Ignore CUDA.
 attn: False # Use attention layer.
 attn_dim: 200 # Attention size.
