@@ -143,7 +143,7 @@ for epoch in range(1, opt['num_epoch']+1):
             print_info = format_str.format(datetime.now(), global_step, max_steps, epoch,\
                     opt['num_epoch'], duration, current_lr)
             loss_prints = ''
-            for loss_type, loss in losses:
+            for loss_type, loss in losses.items():
                 loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
             print(print_info + loss_prints)
     print("Evaluating on train set...")
