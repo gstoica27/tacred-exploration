@@ -42,7 +42,8 @@ class RelationModel(object):
 
         if self.opt['kg_loss'] is not None:
             self.fact_checker = choose_fact_checker(self.opt['kg_loss']['model'])
-
+            if opt['cuda']:
+                self.fact_checker.cuda()
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
         labels = batch['base'][7]
@@ -61,6 +62,8 @@ class RelationModel(object):
         subjects, labels = supplemental_inputs['knowledge_graph']
         label_smoothing = self.opt['kg_loss']['label_smoothing']
         labels =  ((1.0 - label_smoothing) * labels) + (1.0 / labels.size(1))
+        #print('subjects on cuda? {}'.format(subjects.is_cuda))
+        #print('relations on cuda? {}'.format(labels.is_cuda))
         predicted_objects = self.fact_checker.forward(subjects, relations)
         loss = self.fact_checker.loss(predicted_objects, labels)
         return loss

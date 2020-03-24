@@ -109,6 +109,7 @@ class ConvE(torch.nn.Module):
 
 
     def forward(self, e1, rel):
+        #print('Are cuda? | e1: {} | emb_e: {} | rel: {}'.format(e1.is_cuda, self.emb_e.weight.is_cuda, rel.is_cuda))
         e1_embedded = self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # rel_embedded = self.emb_rel(rel).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # Assume relation is already encoded form RE model
