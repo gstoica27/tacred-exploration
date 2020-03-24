@@ -12,16 +12,16 @@ dropout: .5 # Input and RNN dropout rate.
 word_dropout: .04 # The rate at which randomly set a word to UNK.
 topn: 1e10  # Only finetune top N embeddings.
 lower: False  # Lowercase all words.
-lr: .5 # Applies to SGD and Adagrad
+lr: 1.0 # Applies to SGD and Adagrad
 lr_decay: 0.9
 optim: 'sgd'  # sgd, adagrad, adam or adamax.
-num_epoch: 60 # number of epochs
+num_epoch: 30 # number of epochs
 batch_size: 50
 max_grad_norm: 5.0  # Gradient Clipping.
-log_step: 20  # Print log every k steps.
+log_step: 1  # Print log every k steps.
 log:  'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
-id: 'LSTM-ConvE-PreTrained-lr_.5'  # Model ID under which to save models.
+id: 'joint-re-lp'  # Model ID under which to save models.
 info: ''  # Optional info for the experiment.
 seed: 1234  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
@@ -30,6 +30,8 @@ cpu: True # Ignore CUDA.
 attn: False # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
-fact_checking_attn: True  # Whether to apply link prediction fact checking attention.
-fact_checking_model: 'DistMult'
-reg_params: 'None'
+kg_loss:
+  model: 'ConvE'
+  label_smoothing: .1
+  lambda: 1.
+  vocab_path: '/Volumes/External HDD/dataset/tacred/data/json'
