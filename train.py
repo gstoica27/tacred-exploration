@@ -124,7 +124,7 @@ current_lr = opt['lr']
 
 global_step = 0
 global_start_time = time.time()
-format_str = '{}: step {}/{} (epoch {}/{}), loss = {:.6f} ({:.3f} sec/batch), lr: {:.6f}'
+format_str = '{}: step {}/{} (epoch {}/{}), ({:.3f} sec/batch), lr: {:.6f}'
 max_steps = len(train_batch) * opt['num_epoch']
 best_dev_metrics = defaultdict(lambda: -np.inf)
 test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
@@ -136,13 +136,16 @@ for epoch in range(1, opt['num_epoch']+1):
     # for i in range(0):
         start_time = time.time()
         global_step += 1
-        loss = model.update(batch)
-        train_loss += loss
+        losses = model.update(batch)
+        train_loss += losses['cumulative']
         if global_step % opt['log_step'] == 0:
             duration = time.time() - start_time
-            print(format_str.format(datetime.now(), global_step, max_steps, epoch,\
-                    opt['num_epoch'], loss, duration, current_lr))
-
+            print_info = format_str.format(datetime.now(), global_step, max_steps, epoch,\
+                    opt['num_epoch'], duration, current_lr)
+            loss_prints = ''
+            for loss_type, loss in losses:
+                loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
+            print(print_info + loss_prints)
     print("Evaluating on train set...")
     predictions = []
     train_eval_loss = 0
