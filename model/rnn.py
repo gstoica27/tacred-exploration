@@ -34,16 +34,23 @@ class RelationModel(object):
         self.opt = opt
         self.model = PositionAwareRNN(opt, emb_matrix)
         self.criterion = nn.CrossEntropyLoss()
-        self.parameters = [p for p in self.model.parameters() if p.requires_grad]
+        main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
+        self.parameters = main_model_parameters
+        # self.parameters = [p for p in self.model.parameters() if p.requires_grad]
         if opt['cuda']:
             self.model.cuda()
             self.criterion.cuda()
-        self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
+
 
         if self.opt['kg_loss'] is not None:
             self.fact_checker = choose_fact_checker(self.opt['kg_loss']['model'])
+            fact_checker_params = [p for p in self.fact_checker.parameters() if p.requires_grad]
+            self.parameters += fact_checker_params
             if opt['cuda']:
                 self.fact_checker.cuda()
+
+        self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
+
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
         labels = batch['base'][7]
@@ -85,9 +92,9 @@ class RelationModel(object):
             losses['kg'] = kg_loss.data.item()
         # backward
         # Remove this!!! Loss should be over joint models!!
-        kg_loss.backward()
-        #cumulative_loss.backward()
-        #torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
+        # kg_loss.backward()
+        cumulative_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
         if self.opt['kg_loss'] is not None:
             torch.nn.utils.clip_grad_norm_(self.fact_checker.parameters(), self.opt['max_grad_norm'])
         self.optimizer.step()
