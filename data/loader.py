@@ -85,6 +85,8 @@ class DataLoader(object):
         base_processed = []
         supplemental_components = defaultdict(list)
         for d in data:
+            # TODO: Remove this!!!
+            #if 'no_relation' in d['relation']: continue
             tokens = d['token']
             if opt['lower']:
                 tokens = [t.lower() for t in tokens]

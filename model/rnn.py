@@ -182,7 +182,7 @@ class PositionAwareRNN(nn.Module):
         state_dict = torch.load(model_path)
         relation_embs = state_dict['emb_rel.weight']
         self.linear.weight.data.copy_(relation_embs)
-        self.linear.weight.requires_grad = False
+        #self.linear.weight.requires_grad = False
 
     def init_weights(self):
         if self.emb_matrix is None:

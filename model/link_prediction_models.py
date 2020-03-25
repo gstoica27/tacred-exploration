@@ -140,5 +140,5 @@ class ConvE(torch.nn.Module):
         # Only non-entity model parameters can be trained. This forces learned sentence encoding to
         # align with pre-trained relation embeddings, which are already used to evaluate the RE model's
         # loss through the decoder matching layer
-        self.emb_e.weight.requires_grad = False
-        self.emb_rel.weight.requires_grad = False
+        #self.emb_e.weight.requires_grad = False
+        #self.emb_rel.weight.requires_grad = False
