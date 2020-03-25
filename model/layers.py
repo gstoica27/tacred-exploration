@@ -84,11 +84,20 @@ class PositionAwareAttention(nn.Module):
         if self.wlinear is not None:
             f_proj = self.wlinear(f.view(-1, self.feature_size)).contiguous().view(
                 batch_size, seq_len, self.attn_size)
+            # projs = torch.cat([x_proj, q_proj, f_proj], )
             projs = [x_proj, q_proj, f_proj]
+            # projs = torch.cat([x_proj.unsqueeze(0),
+            #                    q_proj.unsqueeze(0),
+            #                    f_proj.unsqueeze(0)],
+            #                   dim=0)
         else:
             projs = [x_proj, q_proj]
-        scores = self.tlinear(torch.tanh(sum(projs)).view(-1, self.attn_size)).view(
-            batch_size, seq_len)
+            # projs = torch.cat([x_proj.unsqueeze(0),
+            #                    q_proj.unsqueeze(0)],
+            #                   dim=0)
+        # projs_summed = projs.sum(0)
+        # scores = self.tlinear(torch.tanh(projs_summed).view(-1, self.attn_size)).view(batch_size, seq_len)
+        scores = self.tlinear(torch.tanh(sum(projs)).view(-1, self.attn_size)).view(batch_size, seq_len)
 
         # mask padding
         scores.data.masked_fill_(x_mask.data, -float('inf'))
