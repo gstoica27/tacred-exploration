@@ -63,6 +63,7 @@ if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model'] = add_kg_model_params(cfg_dict)
     cfg_dict['kg_loss']['model']['num_entities'] = kg_vocab.return_num_ent()
     cfg_dict['kg_loss']['model']['num_relations'] = kg_vocab.return_num_rel()
+    cfg_dict['kg_loss']['model']['freeze_embeddings'] = cfg_dict['kg_loss']['freeze_embeddings']
 
 print(cfg_dict)
 opt = cfg_dict#AttributeDict(cfg_dict)

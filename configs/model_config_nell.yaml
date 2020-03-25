@@ -35,3 +35,4 @@ kg_loss:
   label_smoothing: .1
   lambda: .1
   vocab_path: '/usr0/home/gis/data/tacred/data/json'
+  freeze_embeddings: False

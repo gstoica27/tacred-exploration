@@ -69,8 +69,6 @@ class RelationModel(object):
         subjects, labels = supplemental_inputs['knowledge_graph']
         label_smoothing = self.opt['kg_loss']['label_smoothing']
         labels =  ((1.0 - label_smoothing) * labels) + (1.0 / labels.size(1))
-        #print('subjects on cuda? {}'.format(subjects.is_cuda))
-        #print('relations on cuda? {}'.format(labels.is_cuda))
         predicted_objects = self.fact_checker.forward(subjects, relations)
         loss = self.fact_checker.loss(predicted_objects, labels)
         return loss
@@ -182,7 +180,8 @@ class PositionAwareRNN(nn.Module):
         state_dict = torch.load(model_path)
         relation_embs = state_dict['emb_rel.weight']
         self.linear.weight.data.copy_(relation_embs)
-        #self.linear.weight.requires_grad = False
+        if self.opt['kg_loss']['freeze_embeddings']:
+            self.linear.weight.requires_grad = False
 
     def init_weights(self):
         if self.emb_matrix is None:
@@ -201,7 +200,9 @@ class PositionAwareRNN(nn.Module):
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
         if self.opt['kg_loss'] is not None:
-            self.load_decoder(self.opt['kg_loss']['model']['load_path'])
+            load_path = self.opt['kg_loss']['model']['load_path']
+            if load_path is not None:
+                self.load_decoder(load_path)
         # decide finetuning
         if self.topn <= 0:
             print("Do not finetune word embedding layer.")

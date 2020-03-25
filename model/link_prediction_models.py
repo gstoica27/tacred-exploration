@@ -101,12 +101,11 @@ class ConvE(torch.nn.Module):
         self.register_parameter('b', Parameter(torch.zeros((args['num_entities']))))
         self.fc = torch.nn.Linear(output_size,args['embedding_dim'])
         # load model if exists
-        if args['load_path'] != 'None':
+        if args['load_path'] is not None:
             self.load_model(args['load_path'])
             self.is_pretrained = True
         else:
             self.is_pretrained = False
-
 
     def forward(self, e1, rel):
         #print('Are cuda? | e1: {} | emb_e: {} | rel: {}'.format(e1.is_cuda, self.emb_e.weight.is_cuda, rel.is_cuda))
@@ -140,5 +139,6 @@ class ConvE(torch.nn.Module):
         # Only non-entity model parameters can be trained. This forces learned sentence encoding to
         # align with pre-trained relation embeddings, which are already used to evaluate the RE model's
         # loss through the decoder matching layer
-        #self.emb_e.weight.requires_grad = False
-        #self.emb_rel.weight.requires_grad = False
+        if self.opt['freeze_embeddings']:
+            self.emb_e.weight.requires_grad = False
+            self.emb_rel.weight.requires_grad = False
