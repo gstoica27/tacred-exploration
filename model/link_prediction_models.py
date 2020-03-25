@@ -76,8 +76,8 @@ class ConvE(torch.nn.Module):
         super(ConvE, self).__init__()
         self.emb_e = torch.nn.Embedding(args['num_entities'],
                                         args['embedding_dim'])
-        self.emb_rel = torch.nn.Embedding(args['num_relations'],
-                                          args['embedding_dim'])
+        # self.emb_rel = torch.nn.Embedding(args['num_relations'],
+        #                                   args['embedding_dim'])
 
         self.inp_drop = torch.nn.Dropout(args['input_drop'])
         self.hidden_drop = torch.nn.Dropout(args['hidden_drop'])
@@ -98,18 +98,20 @@ class ConvE(torch.nn.Module):
         self.bn0 = torch.nn.BatchNorm2d(1)
         self.bn1 = torch.nn.BatchNorm2d(32)
         self.bn2 = torch.nn.BatchNorm1d(args['embedding_dim'])
-        self.register_parameter('b', Parameter(torch.zeros((args['num_entities']))))
+        # offset b/c we don't include subjects in calculation
+        self.register_parameter('b', Parameter(torch.zeros((args['num_entities'] - 2))))
         self.fc = torch.nn.Linear(output_size,args['embedding_dim'])
         # load model if exists
-        if args['load_path'] is not None:
-            self.load_model(args['load_path'])
-            self.is_pretrained = True
-        else:
-            self.is_pretrained = False
+        # if args['load_path'] is not None:
+        #     self.load_model(args['load_path'])
+        #     self.is_pretrained = True
+        # else:
+        #     self.is_pretrained = False
 
-    def forward(self, e1, rel):
+    def forward(self, e1, rel, e2s):
         #print('Are cuda? | e1: {} | emb_e: {} | rel: {}'.format(e1.is_cuda, self.emb_e.weight.is_cuda, rel.is_cuda))
-        e1_embedded = self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
+        # e1_embedded = self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
+        e1_embedded = e1.view(-1, 1, self.emb_dim1, self.emb_dim2)
         # rel_embedded = self.emb_rel(rel).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # Assume relation is already encoded form RE model
         rel_embedded = rel.view(-1, 1, self.emb_dim1, self.emb_dim2)
@@ -126,19 +128,20 @@ class ConvE(torch.nn.Module):
         x = self.hidden_drop(x)
         x = self.bn2(x)
         x = F.relu(x)
-        x = torch.mm(x, self.emb_e.weight.transpose(1, 0))
+        # x = torch.mm(x, self.emb_e.weight.transpose(1, 0))
+        x = torch.mm(x, e2s.transpose(1, 0))
         x += self.b.expand_as(x)
         pred = torch.sigmoid(x)
 
         return pred
 
-    def load_model(self, model_path):
-        state_dict = torch.load(model_path)
-        # relevant_state_dict = dict([(k,v) for k,v in state_dict.items() if 'emb' not in k and k != 'b'])
-        self.load_state_dict(state_dict)
-        # Only non-entity model parameters can be trained. This forces learned sentence encoding to
-        # align with pre-trained relation embeddings, which are already used to evaluate the RE model's
-        # loss through the decoder matching layer
-        if self.opt['freeze_embeddings']:
-            self.emb_e.weight.requires_grad = False
-            self.emb_rel.weight.requires_grad = False
+    # def load_model(self, model_path):
+    #     state_dict = torch.load(model_path)
+    #     # relevant_state_dict = dict([(k,v) for k,v in state_dict.items() if 'emb' not in k and k != 'b'])
+    #     self.load_state_dict(state_dict)
+    #     # Only non-entity model parameters can be trained. This forces learned sentence encoding to
+    #     # align with pre-trained relation embeddings, which are already used to evaluate the RE model's
+    #     # loss through the decoder matching layer
+    #     if self.opt['freeze_embeddings']:
+    #         self.emb_e.weight.requires_grad = False
+    #         self.emb_rel.weight.requires_grad = False

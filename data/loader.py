@@ -84,9 +84,9 @@ class DataLoader(object):
         """ Preprocess the data and convert to ids. """
         base_processed = []
         supplemental_components = defaultdict(list)
+        if self.kg_vocab is not None:
+            graph = defaultdict(lambda: set())
         for d in data:
-            # TODO: Remove this!!!
-            #if 'no_relation' in d['relation']: continue
             tokens = d['token']
             if opt['lower']:
                 tokens = [t.lower() for t in tokens]
@@ -113,14 +113,27 @@ class DataLoader(object):
             # Use KG component
             if self.kg_vocab is not None:
                 subject_type = 'SUBJ-' + d['subj_type']
-                # object_type = 'OBJ-' + d['obj_type']
-                # Encode subject via KG mapping
-                ent2id = self.kg_vocab.return_ent2id()
-                subject_id = ent2id[subject_type]
-                # object_id = ent2id[object_type]
+                object_type = 'OBJ-' + d['obj_type']
+                # Subtract offsets where needed. The way this works is that to find the corresponding subject or
+                # object embedding from the tokens, an embedding lookup is performed on the pretrained word2vec
+                # embedding matrix. The lookup only involves the subject, so the corresponding mapping utilizes
+                # the original subject token position in the vocab. However, the object ids will yield binary
+                # labels indicating whether a respective object is a valid answer to the (subj, rel) pair. Thus,
+                # We offset the object id so that it results in a zero-indexed binary labeling downstream. Note,
+                # the offset is 4 because the vocab order is: ['PAD', 'UNK', 'SUBJ-_', 'SUBJ-_', 'OBJ-*']. So
+                # objects are at index 4 onwards.
+                subject_id = vocab.word2id[subject_type]
+                object_id = vocab.word2id[object_type] - 4
+                graph[(subject_id, relation)].add(object_id)
+                supplemental_components['knowledge_graph'] += [(subject_id, relation, object_id)]
                 # Extract all known answers for subject type, relation pair in KG
-                known_object_types = self.kg[(subject_id, relation)]
-                supplemental_components['knowledge_graph'] += [(subject_id, known_object_types)]
+                # supplemental_components['knowledge_graph'] += [(subject_id, known_object_types)]
+        if self.kg_vocab is not None:
+            component_data = supplemental_components['knowledge_graph']
+            for idx in range(len(component_data)):
+                instance_subj, instance_rel, instance_obj = component_data[idx]
+                known_objects = graph[(instance_subj, instance_rel)]
+                component_data[idx] = (instance_subj, instance_rel, known_objects)
 
         # transform to arrays for easier manipulations
         for name in supplemental_components.keys():
@@ -173,18 +186,21 @@ class DataLoader(object):
         return merged_components
 
     def ready_knowledge_graph_batch(self, kg_batch, sentence_lengths):
-        num_ent = self.kg_vocab.return_num_ent()
+        # Offset because we don't include the 2 subject entities
+        num_ent = self.kg_vocab.return_num_ent() - 2
         batch = list(zip(*kg_batch))
         batch, _ = sort_all(batch, sentence_lengths)
-        subjects = torch.LongTensor(batch[0])
+        subjects, relations, known_objects = batch
+        subjects = torch.LongTensor(subjects)
+        relations = torch.LongTensor(relations)
         labels = []
-        for sample_labels in batch[1]:
+        for sample_labels in known_objects:
             binary_labels = np.zeros(num_ent, dtype=np.float32)
             binary_labels[list(sample_labels)] = 1.
             labels.append(binary_labels)
         labels = np.stack(labels, axis=0)
         labels = torch.FloatTensor(labels)
-        merged_components = (subjects, labels)
+        merged_components = (subjects, relations, labels)
         return merged_components
 
     def ready_data_batch(self, batch):

@@ -91,6 +91,7 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 
 opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
+# opt['kg_e2_idxs'] = opt['subj_idxs'] + opt['obj_idxs']
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
