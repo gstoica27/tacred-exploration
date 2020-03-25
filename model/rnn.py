@@ -183,6 +183,7 @@ class PositionAwareRNN(nn.Module):
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
         self.linear = nn.Linear(self.encoding_dim, opt['num_class'], bias=False)
+        self.register_parameter('class_bias', torch.nn.Parameter(torch.zeros((opt['num_class']))))
 
         self.opt = opt
         self.topn = float(self.opt.get('topn', 1e10))
@@ -290,6 +291,7 @@ class PositionAwareRNN(nn.Module):
             sentence_kg_preds = self.kg_model.loss(sentence_kg_preds, labels)
             supplemental_losses = {'relation':relation_kg_loss, 'sentence': sentence_kg_preds}
             logits = torch.mm(final_hidden, self.rel_emb.weight.transpose(1, 0))
+            logits += self.class_bias
         else:
             supplemental_losses = {}
             logits = self.linear(final_hidden)
