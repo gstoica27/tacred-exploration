@@ -84,8 +84,12 @@ class RelationModel(object):
             cumulative_loss += self.opt['kg_loss']['lambda'] * kg_loss.sum()
             losses['kg'] = kg_loss.data.item()
         # backward
-        cumulative_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
+        # Remove this!!! Loss should be over joint models!!
+        kg_loss.backward()
+        #cumulative_loss.backward()
+        #torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
+        if self.opt['kg_loss'] is not None:
+            torch.nn.utils.clip_grad_norm_(self.fact_checker.parameters(), self.opt['max_grad_norm'])
         self.optimizer.step()
         cumulative_loss = cumulative_loss.data.item()
         losses['cumulative'] = cumulative_loss
