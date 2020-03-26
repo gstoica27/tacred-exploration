@@ -290,7 +290,8 @@ class PositionAwareRNN(nn.Module):
             relation_kg_loss = self.kg_model.loss(relation_kg_preds, labels)
             sentence_kg_preds = self.kg_model.loss(sentence_kg_preds, labels)
             supplemental_losses = {'relation':relation_kg_loss, 'sentence': sentence_kg_preds}
-            logits = torch.mm(final_hidden, self.rel_emb.weight.transpose(1, 0))
+            # Remove gradient from flowing to the relation embeddings in the main loss calculation
+            logits = torch.mm(final_hidden, self.rel_emb.weight.transpose(1, 0).detach())
             #logits += self.class_bias
         else:
             supplemental_losses = {}
