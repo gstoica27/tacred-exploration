@@ -15,7 +15,8 @@ class DataLoader(object):
     """
     Load data from json files, preprocess and prepare batches.
     """
-    def __init__(self, filename, batch_size, opt, vocab, evaluation=False, kg_vocab=None):
+    def __init__(self, filename, batch_size, opt, vocab, evaluation=False, kg_vocab=None,
+                 kg_graph=None, rel_graph=None):
         self.batch_size = batch_size
         self.opt = opt
         self.vocab = vocab
@@ -24,8 +25,26 @@ class DataLoader(object):
         if self.kg_vocab is not None:
             # Extract file name without path or extension
             self.partition_name = os.path.splitext(os.path.basename(filename))[0]
+            if kg_graph is not None:
+                self.kg_graph = kg_graph
+            else:
+                self.kg_graph = defaultdict(lambda: set())
             # load partition KG
             self.create_kg()
+        else:
+            self.kg_graph = None
+
+        if self.opt['relation_masking']:
+            # Graph already created in training dataset. Don't create new one b/c it wouldn't be correct.
+            if rel_graph is not None:
+                self.e1e2_to_rel = rel_graph
+                self.rel_graph_pre_exists = True
+            else:
+                self.e1e2_to_rel = defaultdict(lambda: set())
+                self.rel_graph_pre_exists = False
+        else:
+            self.e1e2_to_rel = None
+
         self.eval = evaluation
         self.remove_entity_types = opt['remove_entity_types']
 
@@ -84,10 +103,7 @@ class DataLoader(object):
         """ Preprocess the data and convert to ids. """
         base_processed = []
         supplemental_components = defaultdict(list)
-        if self.kg_vocab is not None:
-            graph = defaultdict(lambda: set())
-        if self.opt['relation_masking']:
-            e1e2_to_rel = defaultdict(lambda: set())
+
         for d in data:
             tokens = d['token']
             if opt['lower']:
@@ -126,7 +142,7 @@ class DataLoader(object):
                 # objects are at index 4 onwards.
                 subject_id = vocab.word2id[subject_type]
                 object_id = vocab.word2id[object_type] - 4
-                graph[(subject_id, relation)].add(object_id)
+                self.kg_graph[(subject_id, relation)].add(object_id)
                 supplemental_components['knowledge_graph'] += [(subject_id, relation, object_id)]
                 # Extract all known answers for subject type, relation pair in KG
                 # supplemental_components['knowledge_graph'] += [(subject_id, known_object_types)]
@@ -136,21 +152,23 @@ class DataLoader(object):
                 object_type = 'OBJ-' + d['obj_type']
                 subject_id = vocab.word2id[subject_type]
                 object_id = vocab.word2id[object_type] - 4
-                e1e2_to_rel[(subject_id, object_id)].add(relation)
+                # Relation Graph doesn't exist yet. Complete it
+                if not self.rel_graph_pre_exists:
+                    self.e1e2_to_rel[(subject_id, object_id)].add(relation)
                 supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
 
         if self.kg_vocab is not None:
             component_data = supplemental_components['knowledge_graph']
             for idx in range(len(component_data)):
                 instance_subj, instance_rel, instance_obj = component_data[idx]
-                known_objects = graph[(instance_subj, instance_rel)]
+                known_objects = self.kg_graph[(instance_subj, instance_rel)]
                 component_data[idx] = (instance_subj, instance_rel, known_objects)
 
         if self.opt['relation_masking']:
             component_data = supplemental_components['relation_masks']
             for idx in range(len(component_data)):
                 instance_subj, instance_rel, instance_obj = component_data[idx]
-                known_relations = e1e2_to_rel[(instance_subj, instance_obj)]
+                known_relations = self.e1e2_to_rel[(instance_subj, instance_obj)]
                 component_data[idx] = (known_relations,)
         # transform to arrays for easier manipulations
         for name in supplemental_components.keys():

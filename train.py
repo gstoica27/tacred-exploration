@@ -98,9 +98,11 @@ print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['
 train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'],
                          opt, vocab, evaluation=False, kg_vocab=kg_vocab)
 dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'],
-                       opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+                       opt, vocab, evaluation=True, kg_vocab=kg_vocab,
+                       kg_graph=train_batch.kg_graph, rel_graph=train_batch.e1e2_to_rel)
 test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'],
-                        opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+                        opt, vocab, evaluation=True, kg_vocab=kg_vocab,
+                        kg_graph=train_batch.kg_graph, rel_graph=train_batch.e1e2_to_rel)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)

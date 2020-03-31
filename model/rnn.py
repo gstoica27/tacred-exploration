@@ -115,13 +115,13 @@ class RelationModel(object):
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
 
         if self.opt['relation_masking']:
-            desired_relation_logits = logits[labels]
+            desired_relation_logits = logits[:, labels]
             # Need to negate mask because masked_fill replaces values where mask=1 with substitute.
             # In our case, mask=1 -> known relation, mask=0 -> distraction relation (to be removed)
             relation_masks = inputs['supplemental']['relation_masks'][0].eq(0)
             logits = logits.masked_fill(relation_masks, -np.inf)
             # Place correct relation probs back into probability matrix
-            logits[labels] = desired_relation_logits
+            logits[:, labels] = desired_relation_logits
 
         predictions = np.argmax(logits.data.cpu().numpy(), axis=1).tolist()
         if unsort:
