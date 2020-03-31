@@ -232,7 +232,7 @@ class DataLoader(object):
             labels.append(binary_labels)
         labels = np.stack(labels, axis=0)
         labels = torch.FloatTensor(labels)
-        return labels
+        return (labels,)
 
     def ready_data_batch(self, batch):
         batch_size = len(batch['base'])
