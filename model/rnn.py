@@ -121,7 +121,6 @@ class RelationModel(object):
             target_values = logits[np.arange(0, len(logits)), labels]
             logits[relation_masks == 1] = -np.inf
 
-            import pdb; pdb.set_trace()
             logits[np.arange(0, len(logits)), labels] = target_values
 
         predictions = np.argmax(logits, axis=1).tolist()
