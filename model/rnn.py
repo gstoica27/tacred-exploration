@@ -113,15 +113,11 @@ class RelationModel(object):
         logits, _, _, _ = self.model(inputs)
         loss = self.criterion(logits, labels)
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
+        logits = logits.data.cpu().numpy()
 
         if self.opt['relation_masking']:
             relation_masks = inputs['supplemental']['relation_masks'][0].data.cpu().numpy()
-            logits = logits.data.cpu().numpy()
-            labels = labels.data.cpu().numpy()
-            target_values = logits[np.arange(0, len(logits)), labels]
             logits[relation_masks == 0] = -np.inf
-
-            logits[np.arange(0, len(logits)), labels] = target_values
 
         predictions = np.argmax(logits, axis=1).tolist()
         if unsort:
