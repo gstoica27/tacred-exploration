@@ -154,6 +154,11 @@ for epoch in range(1, opt['num_epoch']+1):
             for loss_type, loss in losses.items():
                 loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
             print(print_info + loss_prints)
+
+    # update lambda if needed
+    if epoch % opt['kg_loss']['lambda_update_gap'] == 0:
+        model.update_lambda_term()
+
     print("Evaluating on train set...")
     predictions = []
     train_eval_loss = 0

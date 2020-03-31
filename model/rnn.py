@@ -40,7 +40,9 @@ class RelationModel(object):
         if opt['cuda']:
             self.model.cuda()
             self.criterion.cuda()
-
+        if self.opt['kg_loss'] is not None:
+            self.lambda_term = self.opt['kg_loss']['lambda']
+            self.lambda_decay = self.opt['kg_loss'].get('lambda_decay', 1.0)
 
         # if self.opt['kg_loss'] is not None:
         #     self.fact_checker = choose_fact_checker(self.opt['kg_loss']['model'])
@@ -50,6 +52,9 @@ class RelationModel(object):
         #         self.fact_checker.cuda()
 
         self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
+
+    def update_lambda_term(self):
+        self.lambda_term *= self.lambda_decay
 
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
@@ -87,7 +92,7 @@ class RelationModel(object):
         if self.opt['kg_loss'] is not None:
             relation_kg_loss = supplemental_losses['relation']
             sentence_kg_loss = supplemental_losses['sentence']
-            cumulative_loss += (relation_kg_loss + sentence_kg_loss) * self.opt['kg_loss']['lambda']
+            cumulative_loss += (relation_kg_loss + sentence_kg_loss) * self.lambda_term
             # losses.update(supplemental_losses)
             relation_kg_loss_value = relation_kg_loss.data.item()
             sentence_kg_loss_value = sentence_kg_loss.data.item()
