@@ -119,6 +119,7 @@ class RelationModel(object):
             logits = logits.data.cpu().numpy()
             target_values = logits[np.arange(0, len(logits)), labels]
             logits[relation_masks == 1] = -np.inf
+            labels = labels.data.cpu().numpy()
             logits[np.arange(0, len(logits)), labels] = target_values
 
         predictions = np.argmax(logits, axis=1).tolist()
