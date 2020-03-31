@@ -86,6 +86,8 @@ class DataLoader(object):
         supplemental_components = defaultdict(list)
         if self.kg_vocab is not None:
             graph = defaultdict(lambda: set())
+        if self.opt['relation_masking']:
+            e1e2_to_rel = defaultdict(lambda: set())
         for d in data:
             tokens = d['token']
             if opt['lower']:
@@ -128,6 +130,15 @@ class DataLoader(object):
                 supplemental_components['knowledge_graph'] += [(subject_id, relation, object_id)]
                 # Extract all known answers for subject type, relation pair in KG
                 # supplemental_components['knowledge_graph'] += [(subject_id, known_object_types)]
+            if self.opt['relation_masking']:
+                # Find all possible correct relations, and mask out those which do not appear in training set
+                subject_type = 'SUBJ-' + d['subj_type']
+                object_type = 'OBJ-' + d['obj_type']
+                subject_id = vocab.word2id[subject_type]
+                object_id = vocab.word2id[object_type] - 4
+                e1e2_to_rel[(subject_id, object_id)].add(relation)
+                supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
+
         if self.kg_vocab is not None:
             component_data = supplemental_components['knowledge_graph']
             for idx in range(len(component_data)):
@@ -135,9 +146,16 @@ class DataLoader(object):
                 known_objects = graph[(instance_subj, instance_rel)]
                 component_data[idx] = (instance_subj, instance_rel, known_objects)
 
+        if self.opt['relation_masking']:
+            component_data = supplemental_components['relation_masks']
+            for idx in range(len(component_data)):
+                instance_subj, instance_rel, instance_obj = component_data[idx]
+                known_relations = e1e2_to_rel[(instance_subj, instance_obj)]
+                component_data[idx] = (known_relations,)
         # transform to arrays for easier manipulations
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
+
         return {'base': np.array(base_processed), 'supplemental': supplemental_components}
 
     def gold(self):
@@ -203,6 +221,19 @@ class DataLoader(object):
         merged_components = (subjects, relations, labels)
         return merged_components
 
+    def ready_relation_masks_batch(self, mask_batch, sentence_lengths):
+        num_rel = 42
+        batch = list(zip(*mask_batch))
+        known_relations, _ = sort_all(batch, sentence_lengths)
+        labels = []
+        for sample_labels in known_relations[0]:
+            binary_labels = np.zeros(num_rel, dtype=np.float32)
+            binary_labels[list(sample_labels)] = 1.
+            labels.append(binary_labels)
+        labels = np.stack(labels, axis=0)
+        labels = torch.FloatTensor(labels)
+        return labels
+
     def ready_data_batch(self, batch):
         batch_size = len(batch['base'])
         readied_batch = self.ready_base_batch(batch['base'], batch_size)
@@ -217,6 +248,10 @@ class DataLoader(object):
             elif name == 'knowledge_graph':
                 readied_supplemental[name] = self.ready_knowledge_graph_batch(
                     kg_batch=supplemental_batch,
+                    sentence_lengths=readied_batch['sentence_lengths'])
+            elif name == 'relation_masks':
+                readied_supplemental[name] = self.ready_relation_masks_batch(
+                    mask_batch=supplemental_batch,
                     sentence_lengths=readied_batch['sentence_lengths'])
         return readied_batch
 

@@ -95,9 +95,12 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'], opt, vocab, evaluation=False, kg_vocab=kg_vocab)
-dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
-test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'],
+                         opt, vocab, evaluation=False, kg_vocab=kg_vocab)
+dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'],
+                       opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'],
+                        opt, vocab, evaluation=True, kg_vocab=kg_vocab)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)
@@ -107,7 +110,8 @@ helper.ensure_dir(model_save_dir, verbose=True)
 # save config
 helper.save_config(opt, model_save_dir + '/config.json', verbose=True)
 vocab.save(model_save_dir + '/vocab.pkl')
-file_logger = helper.FileLogger(model_save_dir + '/' + opt['log'], header="# epoch\ttrain_loss\tdev_loss\tdev_f1")
+file_logger = helper.FileLogger(model_save_dir + '/' + opt['log'],
+                    header="# epoch\ttrain_loss\tdev_loss\tdev_f1")
 
 
 test_save_dir = os.path.join(opt['test_save_dir'], opt['id'])
