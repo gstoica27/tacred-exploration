@@ -94,15 +94,6 @@ def create_TACRED_kg(data_dir):
                 triple2data[(subject, relation, object)].append(instance)
     return graph, triple2data
 
-def extract_triples(data):
-    triples = []
-    for instance in data:
-        subject = instance['subj_type']
-        object = instance['obj_type']
-        relation = instance['relation']
-        triples.append((subject, relation, object))
-    return triples
-
 def group_by_e1e2(graph):
     e1e2_rel = defaultdict(lambda: set())
     for idx, e1rele2 in enumerate(graph):
@@ -118,7 +109,7 @@ def group_by_e1rel(e1e2_rel):
             e1rel_e2[(e1, rel)].add(e2)
     return e1rel_e2
 
-def partition_data(nested_dict, max_elems, keep_prob=.1, move_prop=.3):
+def partition_data(nested_dict, max_elems, keep_prob=.1, move_prob=.3):
     partition_1 = defaultdict(lambda: set())
     partition_2 = defaultdict(lambda: set())
     toplevel_shuffled = list(nested_dict.keys())
@@ -127,7 +118,7 @@ def partition_data(nested_dict, max_elems, keep_prob=.1, move_prop=.3):
         values = np.array(list(nested_dict[toplevel_key]))
         if max_elems > 0:
             if np.random.random() < keep_prob:
-                move_amount = int(len(values) * move_prop)
+                move_amount = int(len(values) * move_prob)
                 if move_amount == 0:
                     move_amount = len(values)
                 # Can move at most max elems
@@ -211,7 +202,15 @@ def create_new_TACRED(graph, e1e2_split, e1rel_split, e1rel_e2_split):
     # Revert partitions to standard format
     train_ds = convert_e1e2_rel_to_e1rele2(train_e1e2_rel)
     eval_ds = convert_e1e2_rel_to_e1rele2(eval_e1e2_rel)
-    return {'train': train_ds, 'eval': eval_ds}
+    # Randomly split the eval dataset into Validation and Test partitions.
+    # Create Test and Valid Partitions
+    eval_len = len(eval_ds)
+    eval_idxs = np.arange(eval_len)
+    test_idxs = np.random.choice(eval_idxs, int(eval_len * .5), replace=False)
+    test_ds = [item for idx, item in enumerate(eval_ds) if idx in test_idxs]
+    valid_ds = list(set(eval_ds) - set(test_ds))
+    return {'train': train_ds, 'valid': valid_ds, 'test': test_ds}
+    # return {'train': train_ds, 'eval': eval_ds}
 
 def transform_partition_graph(partition):
     data = defaultdict(lambda: defaultdict(lambda: set()))
@@ -254,33 +253,27 @@ if __name__ == '__main__':
     #     write_all_statistics(partition_1=graph['valid'], partition_2=graph['test'], name_1='valid', name_2='test')
     tacred_dir = '/Volumes/External HDD/dataset/tacred/data/json'
     e1e2_split = .12
-    e1rel_split = .12
+    e1rel_split = .1
     e1rel_e2_split = .5
     tacred_graph, triple2data = create_TACRED_kg(tacred_dir)
     tacred_ic = create_new_TACRED(tacred_graph, e1e2_split, e1rel_split, e1rel_e2_split)
 
-    train_dataset = map_graph_to_TACRED_examples(tacred_ic['train'], triple2data)
-    eval_dataset = map_graph_to_TACRED_examples(tacred_ic['eval'], triple2data)
-    np.random.shuffle(eval_dataset)
-    split_point = int(len(eval_dataset) * .5)
-    valid_dataset = eval_dataset[:split_point]
-    test_dataset = eval_dataset[split_point:]
-
-
     graph = {'train': transform_partition_graph(tacred_ic['train']),
-             'valid': transform_partition_graph(extract_triples(valid_dataset)),
-             'test': transform_partition_graph(extract_triples(test_dataset))
+             'valid': transform_partition_graph(tacred_ic['valid']),
+             'test': transform_partition_graph(tacred_ic['test'])
              }
     print('#' * 80)
     print(f'Dataset: TACRED IC')
     write_all_statistics(partition_1=graph['train'], partition_2=graph['valid'], name_1='train', name_2='valid')
     write_all_statistics(partition_1=graph['train'], partition_2=graph['test'], name_1='train', name_2='test')
     write_all_statistics(partition_1=graph['valid'], partition_2=graph['test'], name_1='valid', name_2='test')
-    train_size = len(train_dataset)
-    dev_size = len(valid_dataset)
-    test_size = len(test_dataset)
+    train_size = compute_partition_size(tacred_ic['train'], tacred_graph)
+    dev_size = compute_partition_size(tacred_ic['valid'], tacred_graph)
+    test_size = compute_partition_size(tacred_ic['test'], tacred_graph)
     print('Train: {} | Dev: {} | Test: {}'.format(train_size, dev_size, test_size))
-
+    train_dataset = map_graph_to_TACRED_examples(tacred_ic['train'], triple2data)
+    valid_dataset = map_graph_to_TACRED_examples(tacred_ic['valid'], triple2data)
+    test_dataset = map_graph_to_TACRED_examples(tacred_ic['test'], triple2data)
     save_dataset(train_dataset, os.path.join(tacred_dir, 'train_ic.json'))
     save_dataset(test_dataset, os.path.join(tacred_dir, 'test_ic.json'))
     save_dataset(valid_dataset, os.path.join(tacred_dir, 'dev_ic.json'))
