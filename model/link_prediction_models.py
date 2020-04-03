@@ -108,7 +108,7 @@ class ConvE(torch.nn.Module):
         # else:
         #     self.is_pretrained = False
 
-    def forward(self, e1, rel, e2s):
+    def forward(self, e1, rel, e2s, lookup_idxs=None):
         #print('Are cuda? | e1: {} | emb_e: {} | rel: {}'.format(e1.is_cuda, self.emb_e.weight.is_cuda, rel.is_cuda))
         # e1_embedded = self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
         e1_embedded = e1.view(-1, 1, self.emb_dim1, self.emb_dim2)
@@ -129,8 +129,12 @@ class ConvE(torch.nn.Module):
         x = self.bn2(x)
         x = F.relu(x)
         # x = torch.mm(x, self.emb_e.weight.transpose(1, 0))
-        x = torch.mm(x, e2s.transpose(1, 0))
-        x += self.b.expand_as(x)
+        if len(e2s.shape) == 3:
+            x = torch.einsum('ij,ijk->ik', [x, e2s.permute(0, 2, 1)])
+            x += self.b[lookup_idxs].expand_as(x)
+        else:
+            x = torch.mm(x, e2s.transpose(1, 0))
+            x += self.b.expand_as(x)
         pred = torch.sigmoid(x)
 
         return pred
