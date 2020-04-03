@@ -95,12 +95,12 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'],
+train_batch = DataLoader(opt['data_dir'] + '/train_ic.json', opt['batch_size'],
                          opt, vocab, evaluation=False, kg_vocab=kg_vocab)
-dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'],
+dev_batch = DataLoader(opt['data_dir'] + '/dev_ic.json', opt['batch_size'],
                        opt, vocab, evaluation=True, kg_vocab=kg_vocab,
                        kg_graph=train_batch.kg_graph, rel_graph=train_batch.e1e2_to_rel)
-test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'],
+test_batch = DataLoader(opt['data_dir'] + '/test_ic.json', opt['batch_size'],
                         opt, vocab, evaluation=True, kg_vocab=kg_vocab,
                         kg_graph=train_batch.kg_graph, rel_graph=train_batch.e1e2_to_rel)
 
