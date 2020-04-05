@@ -29,6 +29,11 @@ class DataLoader(object):
             self.partition_name = os.path.splitext(os.path.basename(filename))[0]
             if kg_graph is not None:
                 self.kg_graph = deepcopy(kg_graph)
+                # Add entities and relations to data partition
+                for (e1, rel), e2s in self.kg_graph.items():
+                    self.entities.add(-e1)
+                    self.entities = self.entities.union(e2s)
+                    self.relations.add(rel)
             else:
                 self.kg_graph = defaultdict(lambda: set())
         else:
@@ -130,9 +135,10 @@ class DataLoader(object):
             if self.opt['kg_loss'] is not None:
                 subject_type = 'SUBJ-' + d['subj_type']
                 object_type = 'OBJ-' + d['obj_type']
-                self.entities.add(subject_type)
-                self.entities.add(object_type)
-                self.relations.add(relation)
+                if not self.eval:
+                    self.entities.add(subject_type)
+                    self.entities.add(object_type)
+                    self.relations.add(relation)
                 # Subtract offsets where needed. The way this works is that to find the corresponding subject or
                 # object embedding from the tokens, an embedding lookup is performed on the pretrained word2vec
                 # embedding matrix. The lookup only involves the subject, so the corresponding mapping utilizes

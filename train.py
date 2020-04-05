@@ -148,8 +148,8 @@ test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
 # start training
 for epoch in range(1, opt['num_epoch']+1):
     train_loss = 0
-    for i, batch in enumerate(train_batch):
-    # for i in range(0):
+    # for i, batch in enumerate(train_batch):
+    for i in range(0):
         start_time = time.time()
         global_step += 1
         losses = model.update(batch)
@@ -170,20 +170,20 @@ for epoch in range(1, opt['num_epoch']+1):
     print("Evaluating on train set...")
     predictions = []
     train_eval_loss = 0
-    for i, batch in enumerate(train_batch):
-    # for i, _ in enumerate([]):
+    # for i, batch in enumerate(train_batch):
+    for i, _ in enumerate([]):
         preds, _, loss = model.predict(batch)
         predictions += preds
         train_eval_loss += loss
-    predictions = [id2label[p] for p in predictions]
-    train_p, train_r, train_f1 = scorer.score(train_batch.gold(), predictions)
+    # predictions = [id2label[p] for p in predictions]
+    # train_p, train_r, train_f1 = scorer.score(train_batch.gold(), predictions)
 
-    train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
-    train_eval_loss = train_eval_loss / train_batch.num_examples * opt['batch_size']
-    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,
-                                                                                     train_loss,
-                                                                                     train_eval_loss, train_f1))
-    file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_eval_loss, train_f1))
+    # train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
+    # train_eval_loss = train_eval_loss / train_batch.num_examples * opt['batch_size']
+    # print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,
+    #                                                                                  train_loss,
+    #                                                                                  train_eval_loss, train_f1))
+    # file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_eval_loss, train_f1))
 
     # eval on dev
     print("Evaluating on dev set...")
