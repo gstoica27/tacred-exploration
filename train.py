@@ -53,11 +53,6 @@ config_path = os.path.join(cwd, 'configs', f'model_config{"_nell" if on_server e
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 
-if cfg_dict['kg_loss'] is not None:
-    kg_vocab = KGVocab(cfg_dict['kg_loss']['vocab_path'])
-else:
-    kg_vocab = None
-
 add_encoding_config(cfg_dict)
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model'] = add_kg_model_params(cfg_dict)

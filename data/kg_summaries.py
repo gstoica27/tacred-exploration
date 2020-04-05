@@ -477,7 +477,7 @@ if __name__ == '__main__':
     #     write_all_statistics(partition_1=graph['train'], partition_2=graph['valid'], name_1='train', name_2='valid')
     #     write_all_statistics(partition_1=graph['train'], partition_2=graph['test'], name_1='train', name_2='test')
     #     write_all_statistics(partition_1=graph['valid'], partition_2=graph['test'], name_1='valid', name_2='test')
-    run_create_new_TACRED()
-    # run_obtain_partition_balances()
+    # run_create_new_TACRED()
+    run_obtain_partition_balances()
 
 
