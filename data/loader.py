@@ -16,22 +16,21 @@ class DataLoader(object):
     """
     Load data from json files, preprocess and prepare batches.
     """
-    def __init__(self, filename, batch_size, opt, vocab, evaluation=False, kg_vocab=None,
+    def __init__(self, filename, batch_size, opt, vocab, evaluation=False,
                  kg_graph=None, rel_graph=None):
         self.batch_size = batch_size
         self.opt = opt
         self.vocab = vocab
+        self.entities = set()
+        self.relations = set()
         # Knowledge graph vocabulary (optional)
-        self.kg_vocab = kg_vocab
-        if self.kg_vocab is not None:
+        if self.opt['kg_loss'] is not None:
             # Extract file name without path or extension
             self.partition_name = os.path.splitext(os.path.basename(filename))[0]
             if kg_graph is not None:
                 self.kg_graph = deepcopy(kg_graph)
             else:
                 self.kg_graph = defaultdict(lambda: set())
-            # load partition KG
-            self.create_kg()
         else:
             self.kg_graph = None
 
@@ -64,9 +63,6 @@ class DataLoader(object):
         data = self.create_batches(data=data, batch_size=batch_size)
         self.data = data
         print("{} batches created for {}".format(len(data), filename))
-
-    def create_kg(self):
-        self.kg = self.kg_vocab.load_graph(partition_name=self.partition_name)
 
     def create_batches(self, data, batch_size):
         batched_data = []
@@ -131,9 +127,12 @@ class DataLoader(object):
 
             base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
             # Use KG component
-            if self.kg_vocab is not None:
+            if self.opt['kg_loss'] is not None:
                 subject_type = 'SUBJ-' + d['subj_type']
                 object_type = 'OBJ-' + d['obj_type']
+                self.entities.add(subject_type)
+                self.entities.add(object_type)
+                self.relations.add(relation)
                 # Subtract offsets where needed. The way this works is that to find the corresponding subject or
                 # object embedding from the tokens, an embedding lookup is performed on the pretrained word2vec
                 # embedding matrix. The lookup only involves the subject, so the corresponding mapping utilizes
@@ -159,7 +158,7 @@ class DataLoader(object):
                     self.e1e2_to_rel[(subject_id, object_id)].add(relation)
                 supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
 
-        if self.kg_vocab is not None:
+        if self.opt['kg_loss'] is not None:
             component_data = supplemental_components['knowledge_graph']
             for idx in range(len(component_data)):
                 instance_subj, instance_rel, instance_obj = component_data[idx]
@@ -225,7 +224,7 @@ class DataLoader(object):
 
     def ready_knowledge_graph_batch(self, kg_batch, sentence_lengths):
         # Offset because we don't include the 2 subject entities
-        num_ent = self.kg_vocab.return_num_ent() - 2
+        num_ent = len(self.entities) - 2
         batch = list(zip(*kg_batch))
         batch, _ = sort_all(batch, sentence_lengths)
         subjects, relations, known_objects = batch

@@ -109,34 +109,91 @@ def group_by_e1rel(e1e2_rel):
             e1rel_e2[(e1, rel)].add(e2)
     return e1rel_e2
 
-def partition_data(nested_dict, max_elems, keep_prob=.1, move_prob=.3):
-    partition_1 = defaultdict(lambda: set())
+def partition_data(nested_dict, max_elems, keep_prob=.1, move_prop=.5):
     partition_2 = defaultdict(lambda: set())
     toplevel_shuffled = list(nested_dict.keys())
+    # Account for term frequency. This is used to ensure that partition1 retains all INDIVIDUAL
+    # information that is in partition2. Note, this doesn't consider pairwise information,
+    # which should be (partially) disjoint.
+    key0s = defaultdict(lambda: 0)
+    key1s = defaultdict(lambda: 0)
+    bottom_values = defaultdict(lambda: 0)
+    for (key0, key1), value_set in nested_dict.items():
+        key0s[key0] += 1
+        key1s[key1] += 1
+        for value in value_set:
+            bottom_values[value] += 1
+
     np.random.shuffle(toplevel_shuffled)
-    for toplevel_key in toplevel_shuffled:
+    while max_elems > 0:
+        sample_idx = np.random.choice(len(toplevel_shuffled), 1)[0]
+        toplevel_key = toplevel_shuffled[sample_idx]
+        key0, key1 = toplevel_key
         values = np.array(list(nested_dict[toplevel_key]))
-        if max_elems > 0:
-            if np.random.random() < keep_prob:
-                move_amount = int(len(values) * move_prob)
-                if move_amount == 0:
-                    move_amount = len(values)
+        # Can only partition values which we have an excess of in partition1.
+        available_values = []
+        for value in values:
+            if bottom_values[value] > 1:
+                available_values.append(value)
+
+        move_values = []
+        if np.random.random() < keep_prob:
+
+            move_amount = int(len(available_values) * move_prop)
+            if move_amount > 0:
                 # Can move at most max elems
                 move_amount = min(move_amount, max_elems)
-                move_values = set(np.random.choice(values, move_amount, replace=False))
-                keep_values = set(values) - move_values
-                partition_1[toplevel_key] = partition_1[toplevel_key].union(keep_values)
-                partition_2[toplevel_key] = partition_2[toplevel_key].union(move_values)
-            else:
-                move_amount = len(values)
-                move_values = set(np.random.choice(values, move_amount, replace=False))
-                partition_2[toplevel_key] = partition_2[toplevel_key].union(move_values)
-            max_elems -= move_amount
-            max_elems = max(0, max_elems)
+                move_values = set(np.random.choice(available_values, move_amount, replace=False))
+                # Ensure resultant partition is a subset of the grouped data
+                if len(nested_dict[toplevel_key] - partition_2[toplevel_key].union(move_values)) > 0:
+                    partition_2[toplevel_key] = partition_2[toplevel_key].union(move_values)
+        # Can only move example to second partition as long as ALL top level keys are
+        # seen individually in the first partition. This is equivalent to making sure
+        # that all entities and relations are observed in the training set in KGs.
+        elif not (key0s[key0] == 1 or key1s[key1] == 1 or len(available_values) < len(values)):
+            move_amount = len(available_values)
+            move_values = set(np.random.choice(available_values, move_amount, replace=False))
+            partition_2[toplevel_key] = partition_2[toplevel_key].union(move_values)
+            # Main partition as minus one mention of each toplevel component
+            key0s[key0] -= 1
+            key1s[key1] -= 1
         else:
-            partition_1[toplevel_key] = partition_1[toplevel_key].union(set(values))
+            move_amount = 0
+        max_elems -= move_amount
+        # Main partition as minus one mention of each bottom level value
+        for value in move_values:
+            bottom_values[value] -= 1
 
+    partition_1 = compute_dictionary_difference(nested_dict, partition_2)
+
+
+    assert len(set(list(map(lambda key: key[1], partition_1.keys())))) == len(key1s), \
+            'Partition1 must have 17 objects'
+    assert len(set(list(map(lambda key: key[0], partition_1.keys())))) == len(key0s), \
+            'Partition1 must have 2 subjects'
+    p1_values = set()
+    for values in partition_1.values():
+        p1_values = p1_values.union(values)
+    p2_values = set()
+    for values in partition_2.values():
+        p2_values = p2_values.union(values)
+
+    assert len(p1_values) == len(bottom_values), 'Partition1 must have 42 relations'
     return partition_1, partition_2
+
+def compute_dictionary_difference(dict1, dict2):
+    """This function computes the operation dict1 - dict2"""
+    difference_dict = {}
+    for key, values in dict1.items():
+        if key in dict2:
+            value_difference = dict1[key] - dict2[key]
+            if len(value_difference) > 0:
+                difference_dict[key] = value_difference
+        else:
+            value_difference = dict1[key]
+            difference_dict[key] = value_difference
+    print('key1: {} '.format(len(set(list(map(lambda key: key[1], difference_dict))))))
+    return difference_dict
 
 def convert_e1rel_to_e1rele2(e1rel_e2):
     triples = []
@@ -160,16 +217,36 @@ def ensure_disjoint_e1e2_partitions(e1e2_rel_1, e1e2_rel_2, swap_prob=.5):
     If there is any overlap in (e1, e2) pairs between the training and evaluation datasets,
     move the overlaps from the training to dev sets
     """
+    e1_counts = defaultdict(lambda: 0)
+    e2_counts = defaultdict(lambda: 0)
+    relation_counts = defaultdict(lambda: 0)
+    for (e1, e2), relations in e1e2_rel_1.items():
+        e1_counts[e1] += 1
+        e2_counts[e2] += 1
+        for relation in relations:
+            relation_counts[relation] += 1
+
     common_e1e2s = set(list(e1e2_rel_1.keys())).intersection(set(list(e1e2_rel_2.keys())))
     for common_e1e2 in common_e1e2s:
+        # Ensure that the sample can be removed from the first partition.
+        # This can only happen if it does not affect the partition's coverage.
+        e1, e2 = common_e1e2
+        e1_count = e1_counts[e1]
+        e2_count = e2_counts[e2]
+        relations = e1e2_rel_1[common_e1e2]
+        losable_pair = e1_count > 1 and e2_count > 1
+        for relation in relations:
+            if relation_counts[relation] == 1:
+                losable_pair = False
         # Transfer all relevant observations in eval dataset to train
-        if np.random.random() < swap_prob:
-            e1e2_rel_1[common_e1e2] = e1e2_rel_2[common_e1e2].union(e1e2_rel_1[common_e1e2])
-            del e1e2_rel_2[common_e1e2]
-        # Transfer all relevant observations in train dataset to eval
-        else:
+        if np.random.random() < swap_prob and losable_pair:
             e1e2_rel_2[common_e1e2] = e1e2_rel_2[common_e1e2].union(e1e2_rel_1[common_e1e2])
             del e1e2_rel_1[common_e1e2]
+        # Transfer all relevant observations in train dataset to eval
+        else:
+            e1e2_rel_1[common_e1e2] = e1e2_rel_2[common_e1e2].union(e1e2_rel_1[common_e1e2])
+            del e1e2_rel_2[common_e1e2]
+    print('')
 
 
 def create_new_TACRED(graph, e1e2_split, e1rel_split, e1rel_e2_split):
@@ -240,20 +317,131 @@ def save_dataset(dataset, save_path):
     with open(save_path, 'w') as handle:
         json.dump(dataset, handle)
 
-if __name__ == '__main__':
-    # root_dir = '/Users/georgestoica/Desktop/Research/tacred-exploration/temp'
-    # dataset_names = ['FB15k-237', 'kinship', 'nell-995', 'nell-995-test', 'umls', 'WN18RR']
-    # for dataset_name in dataset_names:
-    #     data_dir = os.path.join(root_dir, dataset_name, 'data', dataset_name, dataset_name)
-    #     graph = create_full_graph(data_dir)
-    #     print('#'*80)
-    #     print(f'Dataset: {dataset_name}')
-    #     write_all_statistics(partition_1=graph['train'], partition_2=graph['valid'], name_1='train', name_2='valid')
-    #     write_all_statistics(partition_1=graph['train'], partition_2=graph['test'], name_1='train', name_2='test')
-    #     write_all_statistics(partition_1=graph['valid'], partition_2=graph['test'], name_1='valid', name_2='test')
+def compute_sentence_partition_balance(partition):
+    subject_prop = defaultdict(lambda: 0)
+    object_prop = defaultdict(lambda: 0)
+    relation_prop = defaultdict(lambda: 0)
+    subject_relation_prop = defaultdict(lambda: 0)
+    relation_object_prop = defaultdict(lambda: 0)
+    subject_object_prop = defaultdict(lambda: 0)
+    triple_prop = defaultdict(lambda: 0)
+    for d in partition:
+        # Parse data
+        subject = d['subj_type']
+        object = d['obj_type']
+        relation = d['relation']
+        # Add Sentence Records
+        subject_prop[subject] += 1 / len(partition)
+        object_prop[object] += 1 / len(partition)
+        relation_prop[relation] += 1 / len(partition)
+        subject_relation_prop[f"({subject} | {relation})"] += 1 / len(partition)
+        relation_object_prop[f"({relation} | {object})"] += 1 / len(partition)
+        subject_object_prop[f"({subject} | {object})"] += 1 / len(partition)
+        triple_prop[f"({subject} | {relation} | {object})"] += 1 / len(partition)
+    return {'subject': subject_prop,
+            'object': object_prop,
+            'relation': relation_prop,
+            'subject_relation': subject_relation_prop,
+            'relation_object': relation_object_prop,
+            'subject_object': subject_object_prop,
+            'triple': triple_prop}
+
+def compute_graph_partition_balance(graph):
+    subject_prop = defaultdict(lambda: 0)
+    object_prop = defaultdict(lambda: 0)
+    relation_prop = defaultdict(lambda: 0)
+    subject_relation_prop = defaultdict(lambda: 0)
+    relation_object_prop = defaultdict(lambda: 0)
+    subject_object_prop = defaultdict(lambda: 0)
+    triple_prop = defaultdict(lambda: 0)
+    for triple in graph:
+        subject, relation, object = triple
+        # Add Sentence Records
+        subject_prop[subject] += 1 / len(graph)
+        object_prop[object] += 1 / len(graph)
+        relation_prop[relation] += 1 / len(graph)
+        subject_relation_prop[f"({subject} | {relation})"] += 1 / len(graph)
+        relation_object_prop[f"({relation} | {object})"] += 1 / len(graph)
+        subject_object_prop[f"({subject} | {object})"] += 1 / len(graph)
+        triple_prop[f"({subject} | {relation} | {object})"] += 1 / len(graph)
+
+    return {'subject': subject_prop,
+            'object': object_prop,
+            'relation': relation_prop,
+            'subject_relation': subject_relation_prop,
+            'relation_object': relation_object_prop,
+            'subject_object': subject_object_prop,
+            'triple': triple_prop}
+
+def group_balances(partition_dict, type='sentence'):
+    # Schema:
+    #   'Sentence':
+    #       Subject:
+    #           subjects: proportions
+    schema = defaultdict(                   # Sentence/KG
+                lambda: defaultdict(        # Subject/Object/Relation/etc...
+                    lambda: None))          # Array of [Element, Train Val, Dev Val, Test Val, Full Val]
+    # Choose arbitrary dict to iterate through
+    iter_dict = partition_dict['train_ic']
+    # Subject/object/relation/etc...
+    for component in iter_dict:
+        elements = iter_dict[component]
+        # SUBJ-/OBJ-/Rel/(SUBJ-, rel)/etc...
+        component_grouped = []
+        for element in elements:
+            train_value = round(partition_dict['train_ic'][component][element], 3)
+            dev_value = round(partition_dict['dev_ic'][component][element], 3)
+            test_value = round(partition_dict['test_ic'][component][element], 3)
+            full_value = round(partition_dict['full'][component][element], 3)
+            element_grouped = np.array([element, train_value, dev_value, test_value, full_value])
+            component_grouped.append(element_grouped)
+        component_grouped = np.stack(component_grouped, axis=0)
+        schema[type][component] = component_grouped
+        file_name = os.path.join(os.getcwd(), '{}_{}.csv'.format(type, component))
+        np.savetxt(file_name, component_grouped, fmt='%s', delimiter=',')
+
+    return schema
+
+def read_tacred_partition(file_path):
+    with open(file_path, 'r') as json_handle:
+        data = json.load(json_handle)
+    triples = set()
+    for d in data:
+        triple = (d['subj_type'], d['relation'], d['obj_type'])
+        triples.add(triple)
+    return data, triples
+
+def run_obtain_partition_balances():
     tacred_dir = '/Volumes/External HDD/dataset/tacred/data/json'
-    e1e2_split = .12
-    e1rel_split = .1
+    filenames = ['train_ic', 'dev_ic', 'test_ic']
+    full_data = []
+    full_graph = set()
+    sentence_balances = {}
+    graph_balances = {}
+    for filename in filenames:
+        file_path = os.path.join(tacred_dir, filename + '.json')
+        file_data, file_graph = read_tacred_partition(file_path)
+        full_data.append(file_data)
+        full_graph = full_graph.union(file_graph)
+        sentence_balance = compute_sentence_partition_balance(file_data)
+        graph_balance = compute_graph_partition_balance(file_graph)
+        sentence_balances[filename] = sentence_balance
+        graph_balances[filename] = graph_balance
+        print('Finished file: {}'.format(filename))
+
+    full_data = np.concatenate(full_data, axis=0)
+    sentence_balance = compute_sentence_partition_balance(full_data)
+    graph_balance = compute_graph_partition_balance(full_graph)
+    sentence_balances['full'] = sentence_balance
+    graph_balances['full'] = graph_balance
+    group_balances(sentence_balances, type='sentence')
+    group_balances(graph_balances, type='graph')
+    print('Finished...')
+
+def run_create_new_TACRED():
+    tacred_dir = '/Volumes/External HDD/dataset/tacred/data/json'
+    e1e2_split = .2
+    e1rel_split = .2
     e1rel_e2_split = .5
     tacred_graph, triple2data = create_TACRED_kg(tacred_dir)
     tacred_ic = create_new_TACRED(tacred_graph, e1e2_split, e1rel_split, e1rel_e2_split)
@@ -277,3 +465,19 @@ if __name__ == '__main__':
     save_dataset(train_dataset, os.path.join(tacred_dir, 'train_ic.json'))
     save_dataset(test_dataset, os.path.join(tacred_dir, 'test_ic.json'))
     save_dataset(valid_dataset, os.path.join(tacred_dir, 'dev_ic.json'))
+
+if __name__ == '__main__':
+    # root_dir = '/Users/georgestoica/Desktop/Research/tacred-exploration/temp'
+    # dataset_names = ['FB15k-237', 'kinship', 'nell-995', 'nell-995-test', 'umls', 'WN18RR']
+    # for dataset_name in dataset_names:
+    #     data_dir = os.path.join(root_dir, dataset_name, 'data', dataset_name, dataset_name)
+    #     graph = create_full_graph(data_dir)
+    #     print('#'*80)
+    #     print(f'Dataset: {dataset_name}')
+    #     write_all_statistics(partition_1=graph['train'], partition_2=graph['valid'], name_1='train', name_2='valid')
+    #     write_all_statistics(partition_1=graph['train'], partition_2=graph['test'], name_1='train', name_2='test')
+    #     write_all_statistics(partition_1=graph['valid'], partition_2=graph['test'], name_1='valid', name_2='test')
+    run_create_new_TACRED()
+    # run_obtain_partition_balances()
+
+

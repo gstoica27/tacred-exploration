@@ -61,11 +61,8 @@ else:
 add_encoding_config(cfg_dict)
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model'] = add_kg_model_params(cfg_dict)
-    cfg_dict['kg_loss']['model']['num_entities'] = kg_vocab.return_num_ent()
-    cfg_dict['kg_loss']['model']['num_relations'] = kg_vocab.return_num_rel()
     cfg_dict['kg_loss']['model']['freeze_embeddings'] = cfg_dict['kg_loss']['freeze_embeddings']
 
-print(cfg_dict)
 opt = cfg_dict#AttributeDict(cfg_dict)
 opt['cuda'] = torch.cuda.is_available()
 opt['cpu'] = not opt['cuda']
@@ -95,19 +92,35 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train_ic.json', opt['batch_size'],
-                         opt, vocab, evaluation=False, kg_vocab=kg_vocab)
-dev_batch = DataLoader(opt['data_dir'] + '/dev_ic.json', opt['batch_size'],
-                       opt, vocab, evaluation=True, kg_vocab=kg_vocab,
-                       kg_graph=train_batch.kg_graph, rel_graph=train_batch.e1e2_to_rel)
-test_batch = DataLoader(opt['data_dir'] + '/test_ic.json', opt['batch_size'],
-                        opt, vocab, evaluation=True, kg_vocab=kg_vocab,
-                        kg_graph=train_batch.kg_graph, rel_graph=train_batch.e1e2_to_rel)
+train_batch = DataLoader(opt['data_dir'] + '/train_ic.json',
+                         opt['batch_size'],
+                         opt,
+                         vocab,
+                         evaluation=False)
+dev_batch = DataLoader(opt['data_dir'] + '/dev_ic.json',
+                       opt['batch_size'],
+                       opt,
+                       vocab,
+                       evaluation=True,
+                       kg_graph=train_batch.kg_graph,
+                       rel_graph=train_batch.e1e2_to_rel)
+test_batch = DataLoader(opt['data_dir'] + '/test_ic.json',
+                        opt['batch_size'],
+                        opt,
+                        vocab,
+                        evaluation=True,
+                        kg_graph=train_batch.kg_graph,
+                        rel_graph=train_batch.e1e2_to_rel)
+if cfg_dict['kg_loss'] is not None:
+    cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
+    cfg_dict['kg_loss']['model']['num_relations'] = len(train_batch.relations)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)
 opt['model_save_dir'] = model_save_dir
 helper.ensure_dir(model_save_dir, verbose=True)
+
+print(cfg_dict)
 
 # save config
 helper.save_config(opt, model_save_dir + '/config.json', verbose=True)
