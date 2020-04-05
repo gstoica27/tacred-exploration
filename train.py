@@ -87,19 +87,19 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train_ic.json',
+train_batch = DataLoader(opt['data_dir'] + '/train.json',
                          opt['batch_size'],
                          opt,
                          vocab,
                          evaluation=False)
-dev_batch = DataLoader(opt['data_dir'] + '/dev_ic.json',
+dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
                        opt['batch_size'],
                        opt,
                        vocab,
                        evaluation=True,
                        kg_graph=train_batch.kg_graph,
                        rel_graph=train_batch.e1e2_to_rel)
-test_batch = DataLoader(opt['data_dir'] + '/test_ic.json',
+test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         opt['batch_size'],
                         opt,
                         vocab,
@@ -127,7 +127,8 @@ file_logger = helper.FileLogger(model_save_dir + '/' + opt['log'],
 test_save_dir = os.path.join(opt['test_save_dir'], opt['id'])
 os.makedirs(test_save_dir, exist_ok=True)
 test_save_file = os.path.join(test_save_dir, 'test_records.pkl')
-
+test_confusion_save_file = os.path.join(test_save_dir, 'test_confusion_matrix.pkl')
+dev_confusion_save_file = os.path.join(test_save_dir, 'dev_confusion_matrix.pkl')
 # print model info
 helper.print_config(opt)
 
@@ -193,8 +194,8 @@ for epoch in range(1, opt['num_epoch']+1):
         preds, _, loss = model.predict(batch)
         predictions += preds
         dev_loss += loss
-    predictions = [id2label[p] for p in predictions]
-    dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), predictions)
+    dev_predictions = [id2label[p] for p in predictions]
+    dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), dev_predictions)
     
     train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
     dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
@@ -216,12 +217,21 @@ for epoch in range(1, opt['num_epoch']+1):
     test_p, test_r, test_f1 = scorer.score(test_batch.gold(), predictions)
     test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r}
 
-    if best_dev_metrics['f1'] < current_dev_metrics['f1']:
+    if best_dev_metrics['f1'] <= current_dev_metrics['f1']:
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
+        # Compute Confusion Matrices
+        test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_batch.gold(),
+                                                                  predictions=predictions)
+        dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_batch.gold(),
+                                                                 predictions=dev_predictions)
         print("Saving test info...")
         with open(test_save_file, 'wb') as outfile:
             pickle.dump(test_preds, outfile)
+        with open(test_confusion_save_file, 'wb') as handle:
+            pickle.dump(test_confusion_matrix, handle)
+        with open(dev_confusion_save_file, 'wb') as handle:
+            pickle.dump(dev_confusion_matrix, handle)
 
     print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
         best_dev_metrics['f1'], best_dev_metrics['precision'], best_dev_metrics['recall']

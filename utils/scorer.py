@@ -7,6 +7,8 @@ Score the predictions with gold labels, using precision, recall and F1 metrics.
 import argparse
 import sys
 from collections import Counter
+import numpy as np
+from collections import defaultdict
 
 NO_RELATION = "no_relation"
 
@@ -94,6 +96,17 @@ def score(key, prediction, verbose=False):
     print( "   Recall (micro): {:.3%}".format(recall_micro) )
     print( "       F1 (micro): {:.3%}".format(f1_micro) )
     return prec_micro, recall_micro, f1_micro
+
+def compute_confusion_matrices(ground_truth, predictions):
+    confusion_matrix = {}
+    for correct, prediction in zip(ground_truth, predictions):
+        if correct not in confusion_matrix:
+            confusion_matrix[correct] = {}
+        if prediction not in confusion_matrix[correct]:
+            confusion_matrix[correct][prediction] = 0
+        confusion_matrix[correct][prediction] += 1
+    return confusion_matrix
+
 
 if __name__ == "__main__":
     # Parse the arguments from stdin
