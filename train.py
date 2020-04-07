@@ -15,7 +15,7 @@ import yaml
 import torch.nn as nn
 import torch.optim as optim
 
-from data.loader import DataLoader
+from data.loader import DataLoader, map_to_ids
 from utils.kg_vocab import KGVocab
 from model.rnn import RelationModel
 from utils import scorer, constant, helper
@@ -85,27 +85,38 @@ opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
 # opt['kg_e2_idxs'] = opt['subj_idxs'] + opt['obj_idxs']
 
+EXCLUDED_TRIPLES = {('PERSON', 'per:schools_attended', 'ORGANIZATION')}
+
+# EXCLUDED_TRIPLES = {('ORGANIZATION', 'org:city_of_headquarters', 'CITY'),
+#                     ('ORGANIZATION', 'org:country_of_headquarters', 'COUNTRY'),
+#                     ('PERSON', 'per:date_of_birth', 'DATE'),
+#                     ('ORGANIZATION', 'org:top_members/employees', 'PERSON'),
+#                     ('ORGANIZATION', 'org:subsidiaries', 'ORGANIZATION')}
+
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train_ilp.json',
+train_batch = DataLoader(opt['data_dir'] + '/train.json',
                          opt['batch_size'],
                          opt,
                          vocab,
-                         evaluation=False)
-dev_batch = DataLoader(opt['data_dir'] + '/dev_ilp.json',
+                         evaluation=False,
+                         exclude_triples=EXCLUDED_TRIPLES)
+dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
                        opt['batch_size'],
                        opt,
                        vocab,
                        evaluation=True,
                        kg_graph=train_batch.kg_graph,
-                       rel_graph=train_batch.e1e2_to_rel)
-test_batch = DataLoader(opt['data_dir'] + '/test_ilp.json',
+                       rel_graph=train_batch.e1e2_to_rel,
+                       exclude_triples=EXCLUDED_TRIPLES)
+test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         opt['batch_size'],
                         opt,
                         vocab,
                         evaluation=True,
                         kg_graph=train_batch.kg_graph,
-                        rel_graph=train_batch.e1e2_to_rel)
+                        rel_graph=train_batch.e1e2_to_rel,
+                        exclude_triples=EXCLUDED_TRIPLES)
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
     cfg_dict['kg_loss']['model']['num_relations'] = len(constant.LABEL_TO_ID)
@@ -196,7 +207,7 @@ for epoch in range(1, opt['num_epoch']+1):
         dev_loss += loss
     dev_predictions = [id2label[p] for p in predictions]
     dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), dev_predictions)
-    
+
     train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
     dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
     print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,\
@@ -220,11 +231,15 @@ for epoch in range(1, opt['num_epoch']+1):
     if best_dev_metrics['f1'] <= current_dev_metrics['f1']:
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
-        # Compute Confusion Matrices
-        test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_batch.gold(),
-                                                                  predictions=predictions)
-        dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_batch.gold(),
-                                                                 predictions=dev_predictions)
+        # Compute Confusion Matrices over triples excluded in Training
+        test_triple_preds = np.array(predictions)[test_batch.triple_idxs]
+        test_triple_gold = np.array(test_batch.gold())[test_batch.triple_idxs]
+        dev_triple_preds = np.array(dev_predictions)[dev_batch.triple_idxs]
+        dev_triple_gold = np.array(dev_batch.gold())[dev_batch.triple_idxs]
+        test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_triple_gold,
+                                                                  predictions=test_triple_preds)
+        dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_triple_gold,
+                                                                 predictions=dev_triple_preds)
         print("Saving test info...")
         with open(test_save_file, 'wb') as outfile:
             pickle.dump(test_preds, outfile)

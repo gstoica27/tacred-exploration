@@ -17,12 +17,14 @@ class DataLoader(object):
     Load data from json files, preprocess and prepare batches.
     """
     def __init__(self, filename, batch_size, opt, vocab, evaluation=False,
-                 kg_graph=None, rel_graph=None):
+                 kg_graph=None, rel_graph=None, exclude_triples=set()):
         self.batch_size = batch_size
         self.opt = opt
         self.vocab = vocab
         self.entities = set()
         self.relations = set()
+        # Triples to exclude for Triple isolation checking
+        self.exclude_triples = exclude_triples
         # Knowledge graph vocabulary (optional)
         if self.opt['kg_loss'] is not None:
             # Extract file name without path or extension
@@ -106,11 +108,20 @@ class DataLoader(object):
         """ Preprocess the data and convert to ids. """
         base_processed = []
         supplemental_components = defaultdict(list)
-
-        for d in data:
-            # Remove all no_relations
-            if 'no_relation' in d['relation']:
+        num_excluded = 0
+        self.triple_idxs = []
+        for idx, d in enumerate(data):
+            subject_type = d['subj_type']
+            object_type = d['obj_type']
+            relation = d['relation']
+            # Exclude triple occurrences
+            if (subject_type, relation, object_type) in self.exclude_triples and not self.eval:
+                num_excluded += 1
                 continue
+            # Store idxs corresponding to triples excluded in training, in eval.
+            elif (subject_type, relation, object_type) in self.exclude_triples and self.eval:
+                self.triple_idxs.append(idx)
+
 
             tokens = d['token']
             if opt['lower']:
