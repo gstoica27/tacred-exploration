@@ -108,6 +108,10 @@ class DataLoader(object):
         supplemental_components = defaultdict(list)
 
         for d in data:
+            # Remove all no_relations
+            if 'no_relation' in d['relation']:
+                continue
+
             tokens = d['token']
             if opt['lower']:
                 tokens = [t.lower() for t in tokens]
