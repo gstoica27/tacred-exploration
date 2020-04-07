@@ -110,6 +110,8 @@ class DataLoader(object):
         supplemental_components = defaultdict(list)
         num_excluded = 0
         self.triple_idxs = []
+        filtered_idxs = []
+        filtered_data = []
         for idx, d in enumerate(data):
             subject_type = d['subj_type']
             object_type = d['obj_type']
@@ -117,12 +119,14 @@ class DataLoader(object):
             # Exclude triple occurrences
             if (subject_type, relation, object_type) in self.exclude_triples and not self.eval:
                 num_excluded += 1
+                self.triple_idxs.append(idx)
                 continue
             # Store idxs corresponding to triples excluded in training, in eval.
             elif (subject_type, relation, object_type) in self.exclude_triples and self.eval:
                 self.triple_idxs.append(idx)
 
-
+            filtered_idxs.append(idx)
+            filtered_data.append(d)
             tokens = d['token']
             if opt['lower']:
                 tokens = [t.lower() for t in tokens]
