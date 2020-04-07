@@ -108,7 +108,7 @@ test_batch = DataLoader(opt['data_dir'] + '/test_ilp.json',
                         rel_graph=train_batch.e1e2_to_rel)
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
-    cfg_dict['kg_loss']['model']['num_relations'] = len(train_batch.relations)
+    cfg_dict['kg_loss']['model']['num_relations'] = len(constant.LABEL_TO_ID)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)

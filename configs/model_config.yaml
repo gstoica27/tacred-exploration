@@ -39,6 +39,5 @@ kg_loss:
   lambda: 1.
   lambda_decay: .9
   lambda_update_gap: 1 # number of epochs between lambda updates
-  vocab_path: '/Volumes/External HDD/dataset/tacred/data/json'
   freeze_embeddings: False
 relation_masking: False
