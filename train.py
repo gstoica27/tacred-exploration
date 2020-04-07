@@ -85,13 +85,13 @@ opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
 # opt['kg_e2_idxs'] = opt['subj_idxs'] + opt['obj_idxs']
 
-EXCLUDED_TRIPLES = {('PERSON', 'per:schools_attended', 'ORGANIZATION')}
+# EXCLUDED_TRIPLES = {('PERSON', 'per:schools_attended', 'ORGANIZATION')}
 
-# EXCLUDED_TRIPLES = {('ORGANIZATION', 'org:city_of_headquarters', 'CITY'),
-#                     ('ORGANIZATION', 'org:country_of_headquarters', 'COUNTRY'),
-#                     ('PERSON', 'per:date_of_birth', 'DATE'),
-#                     ('ORGANIZATION', 'org:top_members/employees', 'PERSON'),
-#                     ('ORGANIZATION', 'org:subsidiaries', 'ORGANIZATION')}
+EXCLUDED_TRIPLES = {('ORGANIZATION', 'org:city_of_headquarters', 'CITY'),
+                    ('ORGANIZATION', 'org:country_of_headquarters', 'COUNTRY'),
+                    ('PERSON', 'per:date_of_birth', 'DATE'),
+                    ('ORGANIZATION', 'org:top_members/employees', 'PERSON'),
+                    ('ORGANIZATION', 'org:subsidiaries', 'ORGANIZATION')}
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
