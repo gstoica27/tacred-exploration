@@ -70,7 +70,6 @@ elif opt['cuda']:
     torch.cuda.manual_seed(opt['seed'])
 
 # opt = vars(args)
-opt['num_class'] = len(constant.LABEL_TO_ID)
 
 # load vocab
 vocab_file = opt['vocab_dir'] + '/vocab.pkl'
@@ -106,14 +105,17 @@ dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
                        vocab,
                        evaluation=True,
                        kg_graph=train_batch.kg_graph,
-                       rel_graph=train_batch.e1e2_to_rel)
+                       rel_graph=train_batch.e1e2_to_rel,
+                       rel2id=train_batch.rel2id)
 test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         opt['batch_size'],
                         opt,
                         vocab,
                         evaluation=True,
                         kg_graph=train_batch.kg_graph,
-                        rel_graph=train_batch.e1e2_to_rel)
+                        rel_graph=train_batch.e1e2_to_rel,
+                        rel2id=train_batch.rel2id)
+
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
     cfg_dict['kg_loss']['model']['num_relations'] = len(constant.LABEL_TO_ID)
@@ -140,10 +142,16 @@ dev_confusion_save_file = os.path.join(test_save_dir, 'dev_confusion_matrix.pkl'
 # print model info
 helper.print_config(opt)
 
+if opt['typed_relations']:
+    id2label = dict([(v,k) for k,v in train_batch.rel2id.items()])
+    opt['num_class'] = len(id2label)
+else:
+    id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
+    opt['num_class'] = len(constant.LABEL_TO_ID)
+
 # model
 model = RelationModel(opt, emb_matrix=emb_matrix)
 
-id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
 dev_f1_history = []
 current_lr = opt['lr']
 
@@ -229,21 +237,21 @@ for epoch in range(1, opt['num_epoch']+1):
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
         # Compute Confusion Matrices over triples excluded in Training
-        test_triple_preds = np.array(predictions)[test_batch.triple_idxs]
-        test_triple_gold = np.array(test_batch.gold())[test_batch.triple_idxs]
-        dev_triple_preds = np.array(dev_predictions)[dev_batch.triple_idxs]
-        dev_triple_gold = np.array(dev_batch.gold())[dev_batch.triple_idxs]
-        test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_triple_gold,
-                                                                  predictions=test_triple_preds)
-        dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_triple_gold,
-                                                                 predictions=dev_triple_preds)
+        # test_triple_preds = np.array(predictions)[test_batch.triple_idxs]
+        # test_triple_gold = np.array(test_batch.gold())[test_batch.triple_idxs]
+        # dev_triple_preds = np.array(dev_predictions)[dev_batch.triple_idxs]
+        # dev_triple_gold = np.array(dev_batch.gold())[dev_batch.triple_idxs]
+        # test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_triple_gold,
+        #                                                           predictions=test_triple_preds)
+        # dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_triple_gold,
+        #                                                          predictions=dev_triple_preds)
         print("Saving test info...")
         with open(test_save_file, 'wb') as outfile:
             pickle.dump(test_preds, outfile)
-        with open(test_confusion_save_file, 'wb') as handle:
-            pickle.dump(test_confusion_matrix, handle)
-        with open(dev_confusion_save_file, 'wb') as handle:
-            pickle.dump(dev_confusion_matrix, handle)
+        # with open(test_confusion_save_file, 'wb') as handle:
+        #     pickle.dump(test_confusion_matrix, handle)
+        # with open(dev_confusion_save_file, 'wb') as handle:
+        #     pickle.dump(dev_confusion_matrix, handle)
 
     print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
         best_dev_metrics['f1'], best_dev_metrics['precision'], best_dev_metrics['recall']

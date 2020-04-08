@@ -17,10 +17,11 @@ class DataLoader(object):
     Load data from json files, preprocess and prepare batches.
     """
     def __init__(self, filename, batch_size, opt, vocab, evaluation=False,
-                 kg_graph=None, rel_graph=None, exclude_triples=set()):
+                 kg_graph=None, rel_graph=None, exclude_triples=set(), rel2id={}):
         self.batch_size = batch_size
         self.opt = opt
         self.vocab = vocab
+        self.eval = evaluation
         self.entities = set()
         self.relations = set()
         # Triples to exclude for Triple isolation checking
@@ -52,7 +53,12 @@ class DataLoader(object):
         else:
             self.e1e2_to_rel = None
 
-        self.eval = evaluation
+        if self.opt['typed_relations']:
+            if self.eval:
+                self.rel2id = rel2id
+            else:
+                self.rel2id = {}
+
         self.remove_entity_types = opt['remove_entity_types']
 
         with open(filename) as infile:
@@ -63,7 +69,10 @@ class DataLoader(object):
         if not evaluation:
             data = self.shuffle_data(data)
 
-        id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
+        if self.opt['typed_relations']:
+            id2label = dict([(v, k) for k, v in self.rel2id.items()])
+        else:
+            id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
         self.labels = [id2label[d[-1]] for d in data['base']]
         self.num_examples = len(data['base'])
         # chunk into batches
@@ -147,9 +156,21 @@ class DataLoader(object):
             l = len(tokens)
             subj_positions = get_positions(d['subj_start'], d['subj_end'], l)
             obj_positions = get_positions(d['obj_start'], d['obj_end'], l)
-            relation = constant.LABEL_TO_ID[d['relation']]
+            # Create typed "no_relation" relations
+            if self.opt['typed_relations']:
+                relation = d['relation']
+                if 'no_relation' in relation:
+                    relation = '{}:no_relation:{}'.format(d['subj_type'], d['obj_type'])
+                if relation not in self.rel2id:
+                    self.rel2id[relation] = len(self.rel2id)
+                relation = self.rel2id[relation]
+            else:
+               relation = constant.LABEL_TO_ID[d['relation']]
 
             base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
+
+
+
             # Use KG component
             if self.opt['kg_loss'] is not None:
                 subject_type = 'SUBJ-' + d['subj_type']
@@ -177,7 +198,7 @@ class DataLoader(object):
                 subject_type = 'SUBJ-' + d['subj_type']
                 object_type = 'OBJ-' + d['obj_type']
                 subject_id = vocab.word2id[subject_type]
-                object_id = vocab.word2id[object_type] - 4
+                object_id = vocab.word2id[object_type]
                 # Relation Graph doesn't exist yet. Complete it
                 if not self.rel_graph_pre_exists:
                     self.e1e2_to_rel[(subject_id, object_id)].add(relation)
@@ -307,7 +328,10 @@ class DataLoader(object):
         return merged_components
 
     def ready_relation_masks_batch(self, mask_batch, sentence_lengths):
-        num_rel = 42
+        if self.opt['typed_relations']:
+            num_rel = len(self.rel2id)
+        else:
+            num_rel = len(constant.LABEL_TO_ID)
         batch = list(zip(*mask_batch))
         known_relations, _ = sort_all(batch, sentence_lengths)
         labels = []
