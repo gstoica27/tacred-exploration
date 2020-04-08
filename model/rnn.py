@@ -123,6 +123,9 @@ class RelationModel(object):
         if self.opt['relation_masking']:
             relation_masks = inputs['supplemental']['relation_masks'][0].data.cpu().numpy()
             logits[relation_masks == 0] = -np.inf
+        # If the correct prediction is not no relation, "mask out" no relation
+        if self.opt['no_relation_masking']:
+            logits[labels != 0, 0] = -np.inf
 
         predictions = np.argmax(logits, axis=1).tolist()
         if unsort:
