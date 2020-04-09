@@ -53,11 +53,11 @@ class DataLoader(object):
         else:
             self.e1e2_to_rel = None
 
-        if self.opt['typed_relations']:
-            if self.eval:
-                self.rel2id = rel2id
-            else:
-                self.rel2id = {}
+        # if self.opt['typed_relations']:
+        if self.eval:
+            self.rel2id = rel2id
+        else:
+            self.rel2id = {}
 
         self.remove_entity_types = opt['remove_entity_types']
 
@@ -69,10 +69,10 @@ class DataLoader(object):
         if not evaluation:
             data = self.shuffle_data(data)
 
-        if self.opt['typed_relations']:
-            id2label = dict([(v, k) for k, v in self.rel2id.items()])
-        else:
-            id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
+        # if self.opt['typed_relations']:
+        id2label = dict([(v, k) for k, v in self.rel2id.items()])
+        # else:
+        #     id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
         self.labels = [id2label[d[-1]] for d in data['base']]
         self.num_examples = len(data['base'])
         # chunk into batches
@@ -124,14 +124,14 @@ class DataLoader(object):
         for idx, d in enumerate(data):
             subject_type = d['subj_type']
             object_type = d['obj_type']
-            relation = d['relation']
+            relation_name = d['relation']
             # Exclude triple occurrences
-            if (subject_type, relation, object_type) in self.exclude_triples and not self.eval:
+            if (subject_type, relation_name, object_type) in self.exclude_triples and not self.eval:
                 num_excluded += 1
                 self.triple_idxs.append(idx)
                 continue
             # Store idxs corresponding to triples excluded in training, in eval.
-            elif (subject_type, relation, object_type) in self.exclude_triples and self.eval:
+            elif (subject_type, relation_name, object_type) in self.exclude_triples and self.eval:
                 self.triple_idxs.append(idx)
 
             filtered_idxs.append(idx)
@@ -157,19 +157,17 @@ class DataLoader(object):
             subj_positions = get_positions(d['subj_start'], d['subj_end'], l)
             obj_positions = get_positions(d['obj_start'], d['obj_end'], l)
             # Create typed "no_relation" relations
+            relation_name = d['relation']
             if self.opt['typed_relations']:
-                relation = d['relation']
-                if 'no_relation' in relation:
-                    relation = '{}:no_relation:{}'.format(d['subj_type'], d['obj_type'])
-                if relation not in self.rel2id:
-                    self.rel2id[relation] = len(self.rel2id)
-                relation = self.rel2id[relation]
-            else:
-               relation = constant.LABEL_TO_ID[d['relation']]
+                if 'no_relation' in relation_name:
+                    relation_name = '{}:no_relation:{}'.format(d['subj_type'], d['obj_type'])
+            if relation_name not in self.rel2id:
+                self.rel2id[relation_name] = len(self.rel2id)
+            relation = self.rel2id[relation_name]
+            # else:
+            #    relation = constant.LABEL_TO_ID[d['relation']]
 
             base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
-
-
 
             # Use KG component
             if self.opt['kg_loss'] is not None:

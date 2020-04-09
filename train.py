@@ -118,7 +118,7 @@ test_batch = DataLoader(opt['data_dir'] + '/test.json',
 
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
-    cfg_dict['kg_loss']['model']['num_relations'] = len(constant.LABEL_TO_ID)
+    cfg_dict['kg_loss']['model']['num_relations'] = len(train_batch.rel2id)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)
@@ -142,12 +142,12 @@ dev_confusion_save_file = os.path.join(test_save_dir, 'dev_confusion_matrix.pkl'
 # print model info
 helper.print_config(opt)
 
-if opt['typed_relations']:
-    id2label = dict([(v,k) for k,v in train_batch.rel2id.items()])
-    opt['num_class'] = len(id2label)
-else:
-    id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
-    opt['num_class'] = len(constant.LABEL_TO_ID)
+# if opt['typed_relations']:
+id2label = dict([(v,k) for k,v in train_batch.rel2id.items()])
+opt['num_class'] = len(id2label)
+# else:
+#     id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
+#     opt['num_class'] = len(constant.LABEL_TO_ID)
 
 # model
 model = RelationModel(opt, emb_matrix=emb_matrix)
