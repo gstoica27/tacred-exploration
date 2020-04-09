@@ -161,6 +161,11 @@ class DataLoader(object):
             if self.opt['typed_relations']:
                 if 'no_relation' in relation_name:
                     relation_name = '{}:no_relation:{}'.format(d['subj_type'], d['obj_type'])
+            if self.opt['binary_classification']:
+                if 'no_relation' in relation_name:
+                    relation_name = 'no_relation'
+                else:
+                    relation_name = 'has_relation'
             if relation_name not in self.rel2id:
                 self.rel2id[relation_name] = len(self.rel2id)
             relation = self.rel2id[relation_name]

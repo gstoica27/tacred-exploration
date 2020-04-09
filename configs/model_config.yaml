@@ -43,3 +43,4 @@ kg_loss:
 relation_masking: False
 no_relation_masking: False
 typed_relations: False
+binary_classification: True
