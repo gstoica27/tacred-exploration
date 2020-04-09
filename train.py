@@ -250,6 +250,8 @@ for epoch in range(1, opt['num_epoch']+1):
     dev_acc = total_correct / len(dev_predictions)
     print('Dev Accuracy: {}'.format(dev_acc))
     current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r, 'acc': dev_acc}
+    if opt['one_vs_many']:
+        current_dev_metrics['threshold'] = dev_threshold
 
     print("Evaluating on test set...")
     predictions = []
