@@ -33,7 +33,10 @@ class RelationModel(object):
     def __init__(self, opt, emb_matrix=None):
         self.opt = opt
         self.model = PositionAwareRNN(opt, emb_matrix)
-        self.criterion = nn.CrossEntropyLoss()
+        if self.opt['one_vs_many']:
+            self.criterion = nn.BCELoss()
+        else:
+            self.criterion = nn.CrossEntropyLoss()
         main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
         self.parameters = main_model_parameters
         # self.parameters = [p for p in self.model.parameters() if p.requires_grad]
@@ -86,7 +89,13 @@ class RelationModel(object):
         self.model.train()
         self.optimizer.zero_grad()
         logits, sentence_encs, token_encs, supplemental_losses = self.model(inputs)
-        main_loss = self.criterion(logits, labels)
+        # Apply binary cross entropy if doing no_relation vs any relation model
+        if self.opt['one_vs_many']:
+            label_vector = inputs['supplemental']['binary_labels'][0]
+            probs = F.sigmoid(logits)
+            main_loss = self.criterion(probs, label_vector)
+        else:
+            main_loss = self.criterion(logits, labels)
         cumulative_loss = main_loss
         losses['main'] = main_loss.data.item()
         if self.opt['kg_loss'] is not None:
@@ -116,12 +125,15 @@ class RelationModel(object):
         # forward
         self.model.eval()
         logits, _, _, _ = self.model(inputs)
-        loss = self.criterion(logits, labels)
-        probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
+        if self.opt['one_vs_many']:
+            label_vector = inputs['supplemental']['binary_labels'][0]
+            probs = F.sigmoid(logits)
+            loss = self.criterion(probs, label_vector)
+            probs = probs.data.cpu().numpy()
+        else:
+            loss = self.criterion(logits, labels)
+            probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
         logits = logits.data.cpu().numpy()
-        # Commenting to revert from no_relation surpression
-        # no_rel_id = self.opt['rel2id']['no_relation']
-        # logits[:, no_rel_id] /= 17.
 
         if self.opt['relation_masking']:
             relation_masks = inputs['supplemental']['relation_masks'][0].data.cpu().numpy()
@@ -130,7 +142,9 @@ class RelationModel(object):
         if self.opt['no_relation_masking']:
             logits[labels.data.cpu().numpy() != 0, 0] = -np.inf
 
+
         predictions = np.argmax(logits, axis=1).tolist()
+        # predictions = logits
         if unsort:
             _, predictions, probs = [list(t) for t in zip(*sorted(zip(orig_idx,\
                     predictions, probs)))]

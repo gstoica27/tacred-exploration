@@ -167,7 +167,14 @@ class DataLoader(object):
                 else:
                     relation_name = 'has_relation'
             if relation_name not in self.rel2id:
-                self.rel2id[relation_name] = len(self.rel2id)
+                # Hack to make the relation matching after removing no_relation significantly easier
+                if self.opt['one_vs_many']:
+                    if 'no_relation' in relation_name:
+                        self.rel2id[relation_name] = 41
+                    else:
+                        self.rel2id[relation_name] = len(self.rel2id) - 1
+                else:
+                    self.rel2id[relation_name] = len(self.rel2id)
             relation = self.rel2id[relation_name]
             # else:
             #    relation = constant.LABEL_TO_ID[d['relation']]
@@ -206,6 +213,8 @@ class DataLoader(object):
                 if not self.rel_graph_pre_exists:
                     self.e1e2_to_rel[(subject_id, object_id)].add(relation)
                 supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
+            if self.opt['one_vs_many']:
+                supplemental_components['binary_labels'] += [(relation,)]
 
         if self.opt['kg_loss'] is not None:
             component_data = supplemental_components['knowledge_graph']
@@ -331,16 +340,31 @@ class DataLoader(object):
         return merged_components
 
     def ready_relation_masks_batch(self, mask_batch, sentence_lengths):
-        if self.opt['typed_relations']:
-            num_rel = len(self.rel2id)
-        else:
-            num_rel = len(constant.LABEL_TO_ID)
+        num_rel = len(self.rel2id)
         batch = list(zip(*mask_batch))
         known_relations, _ = sort_all(batch, sentence_lengths)
         labels = []
         for sample_labels in known_relations[0]:
             binary_labels = np.zeros(num_rel, dtype=np.float32)
             binary_labels[list(sample_labels)] = 1.
+            labels.append(binary_labels)
+        labels = np.stack(labels, axis=0)
+        labels = torch.FloatTensor(labels)
+        return (labels,)
+
+    def ready_binary_labels_batch(self, label_batch, sentence_lengths):
+        # Remove the no_relation from the mappings. Note, this is only possible because we've
+        # guaranteed that no_relation is the last index - so "positive" relations naturally
+        # map to the resultant label vector.
+        num_rel = len(self.rel2id) - 1
+        batch = list(zip(*label_batch))
+        batch_labels, _ = sort_all(batch, sentence_lengths)
+        labels = []
+        for label in batch_labels[0]:
+            binary_labels = np.zeros(num_rel, dtype=np.float32)
+            # don't add no_relation index because that would be out of bounds.
+            if label < num_rel:
+                binary_labels[label] = 1.
             labels.append(binary_labels)
         labels = np.stack(labels, axis=0)
         labels = torch.FloatTensor(labels)
@@ -364,6 +388,10 @@ class DataLoader(object):
             elif name == 'relation_masks':
                 readied_supplemental[name] = self.ready_relation_masks_batch(
                     mask_batch=supplemental_batch,
+                    sentence_lengths=readied_batch['sentence_lengths'])
+            elif name == 'binary_labels':
+                readied_supplemental[name] = self.ready_binary_labels_batch(
+                    label_batch=supplemental_batch,
                     sentence_lengths=readied_batch['sentence_lengths'])
         return readied_batch
 

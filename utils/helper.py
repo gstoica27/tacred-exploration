@@ -5,6 +5,9 @@ Helper functions.
 import os
 import json
 import argparse
+from copy import deepcopy
+import numpy as np
+from sklearn.metrics import roc_curve, precision_recall_curve
 
 ### IO
 def check_dir(d):
@@ -62,4 +65,56 @@ class FileLogger(object):
         with open(self.filename, 'a') as out:
             print(message, file=out)
 
+def transform_labels(labels, no_rel_id=0):
+    # Transform multi-label elements to binary label, by mapping
+    # many -> 1 and 1 -> 1
+    binary_labels = deepcopy(labels)
+    binary_labels[labels != no_rel_id] = 1
+    binary_labels[labels == no_rel_id] = 0
+    return binary_labels
 
+def filter_array(probs, filter_id):
+    # Remove filter id column from array
+    filtered_probs = deepcopy(probs)
+    filter_mask = np.ones(probs.shape, dtype=np.bool)
+    filter_mask[:, filter_id] = False
+    return filtered_probs[:, filter_mask]
+
+def choose_labels(probs, threshold, exclude_id):
+    reduced_probs = filter_array(probs, filter_id=exclude_id)
+    best_probs = np.argmax(reduced_probs, axis=1)
+
+def create_predictions(probs, threshold, other_label=41):
+    predictions = np.zeros(len(probs), dtype=np.int)
+    best_probs = np.max(probs, axis=1)
+    best_idxs = np.argmax(probs, axis=1)
+    positive_pred = best_probs > threshold
+    negative_pred = best_probs <= threshold
+    predictions[negative_pred] = other_label
+    predictions[positive_pred] = best_idxs[positive_pred]
+    return predictions
+
+def find_accuracy_threshold(probs, true_labels):
+    """Probs: [N, L-1], True Labels: [N]"""
+    reduced_probs = np.max(probs, axis=1)
+    fpr, tpr, thresholds = roc_curve(true_labels, reduced_probs)
+
+    num_pos = np.sum(true_labels == 1)
+    num_neg = np.sum(true_labels == 0)
+    tp = tpr * num_pos
+    tn = (1 - fpr) * num_neg
+    acc = (tp + tn) / (num_pos + num_neg)
+
+    best_threshold = thresholds[np.argmax(acc)]
+    return np.amax(acc), best_threshold
+
+def compute_one_vs_many_predictions(probs, true_label_names, rel2id, threshold=None):
+    # Compute threshold to apply
+    probs = np.array(probs)
+    if threshold is None:
+        true_labels = np.array([rel2id[label] for label in true_label_names])
+        binary_labels = transform_labels(labels=true_labels, no_rel_id=rel2id['no_relation'])
+        _, threshold = find_accuracy_threshold(probs=probs, true_labels=binary_labels)
+
+    predictions = create_predictions(probs, threshold, other_label=rel2id['no_relation'])
+    return predictions, threshold

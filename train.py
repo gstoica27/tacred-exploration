@@ -146,7 +146,11 @@ helper.print_config(opt)
 
 # if opt['typed_relations']:
 id2label = dict([(v,k) for k,v in train_batch.rel2id.items()])
-opt['num_class'] = len(id2label)
+# Remove no_relation from decoder
+if opt['one_vs_many']:
+    opt['num_class'] = len(id2label) - 1
+else:
+    opt['num_class'] = len(id2label)
 # else:
 #     id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
 #     opt['num_class'] = len(constant.LABEL_TO_ID)
@@ -167,8 +171,8 @@ eval_metric = opt['eval_metric']
 # start training
 for epoch in range(1, opt['num_epoch']+1):
     train_loss = 0
-    for i, batch in enumerate(train_batch):
-    # for i in range(0):
+    # for i, batch in enumerate(train_batch):
+    for i in range(0):
         start_time = time.time()
         global_step += 1
         losses = model.update(batch)
@@ -187,34 +191,52 @@ for epoch in range(1, opt['num_epoch']+1):
         model.update_lambda_term()
 
     print("Evaluating on train set...")
-    predictions = []
-    train_eval_loss = 0
-    for i, batch in enumerate(train_batch):
-    # for i, _ in enumerate([]):
-        preds, _, loss = model.predict(batch)
-        predictions += preds
-        train_eval_loss += loss
-    predictions = [id2label[p] for p in predictions]
-    train_p, train_r, train_f1 = scorer.score(train_batch.gold(), predictions)
-
-    train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
-    train_eval_loss = train_eval_loss / train_batch.num_examples * opt['batch_size']
-    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,
-                                                                                     train_loss,
-                                                                                     train_eval_loss, train_f1))
-    file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_eval_loss, train_f1))
-    total_correct = sum(np.array(predictions) == np.array(train_batch.gold()))
-    train_acc = total_correct / len(predictions)
-    print('Train Accuracy: {}'.format(train_acc))
+    # predictions = []
+    # train_probs = []
+    # train_eval_loss = 0
+    # for i, batch in enumerate(train_batch):
+    # # for i, _ in enumerate([]):
+    #     preds, probs, loss = model.predict(batch)
+    #     predictions += preds
+    #     train_eval_loss += loss
+    #     train_probs += probs
+    #
+    # train_probs = np.array(train_probs)
+    # if opt['one_vs_many']:
+    #     predictions = helper.compute_one_vs_many_predictions(probs=train_probs,
+    #                                                          true_label_names=train_batch.gold(),
+    #                                                          rel2id=train_batch.rel2id)
+    #
+    # predictions = [id2label[p] for p in predictions]
+    # train_p, train_r, train_f1 = scorer.score(train_batch.gold(), predictions)
+    #
+    # train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
+    # train_eval_loss = train_eval_loss / train_batch.num_examples * opt['batch_size']
+    # print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,
+    #                                                                                  train_loss,
+    #                                                                                  train_eval_loss, train_f1))
+    # file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_eval_loss, train_f1))
+    # total_correct = sum(np.array(predictions) == np.array(train_batch.gold()))
+    # train_acc = total_correct / len(predictions)
+    # print('Train Accuracy: {}'.format(train_acc))
 
     # eval on dev
     print("Evaluating on dev set...")
     predictions = []
+    dev_probs = []
     dev_loss = 0
     for i, batch in enumerate(dev_batch):
-        preds, _, loss = model.predict(batch)
+        preds, probs, loss = model.predict(batch)
         predictions += preds
         dev_loss += loss
+        dev_probs += probs
+
+    dev_probs = np.array(dev_probs)
+    if opt['one_vs_many']:
+        predictions, dev_threshold = helper.compute_one_vs_many_predictions(
+            probs=dev_probs, true_label_names=dev_batch.gold(), rel2id=train_batch.rel2id
+        )
+
     dev_predictions = [id2label[p] for p in predictions]
     dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), dev_predictions)
 
@@ -232,12 +254,20 @@ for epoch in range(1, opt['num_epoch']+1):
     print("Evaluating on test set...")
     predictions = []
     test_loss = 0
-    test_preds = []
+    test_probs = []
     for i, batch in enumerate(test_batch):
         preds, probs, loss = model.predict(batch)
         predictions += preds
         test_loss += loss
-        test_preds += probs
+        test_probs += probs
+
+    test_probs = np.array(test_probs)
+    if opt['one_vs_many']:
+        predictions, _ = helper.compute_one_vs_many_predictions(probs=test_probs,
+                                                             true_label_names=test_batch.gold(),
+                                                             rel2id=train_batch.rel2id,
+                                                             threshold=dev_threshold)
+
     test_predictions = [id2label[p] for p in predictions]
     test_p, test_r, test_f1 = scorer.score(test_batch.gold(), test_predictions)
 
