@@ -163,7 +163,7 @@ format_str = '{}: step {}/{} (epoch {}/{}), ({:.3f} sec/batch), lr: {:.6f}'
 max_steps = len(train_batch) * opt['num_epoch']
 best_dev_metrics = defaultdict(lambda: -np.inf)
 test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
-
+eval_metric = opt['eval_metric']
 # start training
 for epoch in range(1, opt['num_epoch']+1):
     train_loss = 0
@@ -217,10 +217,14 @@ for epoch in range(1, opt['num_epoch']+1):
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
     dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
-    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,\
-            train_loss, dev_loss, dev_f1))
+    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(
+        epoch, train_loss, dev_loss, dev_f1))
     file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_loss, dev_f1))
-    current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r}
+
+    total_correct = np.sum(np.array(predictions) == np.array(dev_batch.gold()))
+    dev_acc = total_correct / len(dev_predictions)
+    print('Test Accuracy: {}'.format(dev_acc))
+    current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r, 'acc': dev_acc}
 
     print("Evaluating on test set...")
     predictions = []
@@ -233,9 +237,13 @@ for epoch in range(1, opt['num_epoch']+1):
         test_preds += probs
     predictions = [id2label[p] for p in predictions]
     test_p, test_r, test_f1 = scorer.score(test_batch.gold(), predictions)
-    test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r}
 
-    if best_dev_metrics['f1'] <= current_dev_metrics['f1']:
+    total_correct = np.sum(np.array(predictions) == np.array(test_batch.gold()))
+    test_acc = total_correct / len(predictions)
+    print('Test Accuracy: {}'.format(test_acc))
+    test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r, 'acc': test_acc}
+
+    if best_dev_metrics[eval_metric] <= current_dev_metrics[eval_metric]:
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
         # Compute Confusion Matrices over triples excluded in Training
@@ -254,13 +262,21 @@ for epoch in range(1, opt['num_epoch']+1):
             pickle.dump(test_confusion_matrix, handle)
         with open(dev_confusion_save_file, 'wb') as handle:
             pickle.dump(dev_confusion_matrix, handle)
+    print_str = 'Best Dev Metrics |'
+    for name, value in best_dev_metrics.items():
+        print_str = ' {}: {} |'.format(name, value)
+    print(print_str)
+    print_str = 'Test Metrics at Best Dev |'
+    for name, value in test_metrics_at_best_dev.items():
+        print_str = ' {}: {} |'.format(name, value)
+    print(print_str)
 
-    print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
-        best_dev_metrics['f1'], best_dev_metrics['precision'], best_dev_metrics['recall']
-    ))
-    print("Test Metrics at Best Dev | F1: {} | Precision: {} | Recall: {}".format(
-        test_metrics_at_best_dev['f1'], test_metrics_at_best_dev['precision'], test_metrics_at_best_dev['recall']
-    ))
+    # print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
+    #     best_dev_metrics['f1'], best_dev_metrics['precision'], best_dev_metrics['recall']
+    # ))
+    # print("Test Metrics at Best Dev | F1: {} | Precision: {} | Recall: {}".format(
+    #     test_metrics_at_best_dev['f1'], test_metrics_at_best_dev['precision'], test_metrics_at_best_dev['recall']
+    # ))
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
     print("epoch {}: test_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, test_loss, test_f1))
