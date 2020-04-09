@@ -167,8 +167,8 @@ eval_metric = opt['eval_metric']
 # start training
 for epoch in range(1, opt['num_epoch']+1):
     train_loss = 0
-    # for i, batch in enumerate(train_batch):
-    for i in range(0):
+    for i, batch in enumerate(train_batch):
+    # for i in range(0):
         start_time = time.time()
         global_step += 1
         losses = model.update(batch)
@@ -189,8 +189,8 @@ for epoch in range(1, opt['num_epoch']+1):
     print("Evaluating on train set...")
     predictions = []
     train_eval_loss = 0
-    # for i, batch in enumerate(train_batch):
-    for i, _ in enumerate([]):
+    for i, batch in enumerate(train_batch):
+    # for i, _ in enumerate([]):
         preds, _, loss = model.predict(batch)
         predictions += preds
         train_eval_loss += loss
