@@ -248,10 +248,10 @@ for epoch in range(1, opt['num_epoch']+1):
         print("Saving test info...")
         with open(test_save_file, 'wb') as outfile:
             pickle.dump(test_preds, outfile)
-        # with open(test_confusion_save_file, 'wb') as handle:
-        #     pickle.dump(test_confusion_matrix, handle)
-        # with open(dev_confusion_save_file, 'wb') as handle:
-        #     pickle.dump(dev_confusion_matrix, handle)
+        with open(test_confusion_save_file, 'wb') as handle:
+            pickle.dump(test_confusion_matrix, handle)
+        with open(dev_confusion_save_file, 'wb') as handle:
+            pickle.dump(dev_confusion_matrix, handle)
 
     print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
         best_dev_metrics['f1'], best_dev_metrics['precision'], best_dev_metrics['recall']
