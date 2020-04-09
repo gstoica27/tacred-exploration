@@ -167,8 +167,8 @@ eval_metric = opt['eval_metric']
 # start training
 for epoch in range(1, opt['num_epoch']+1):
     train_loss = 0
-    for i, batch in enumerate(train_batch):
-    # for i in range(0):
+    # for i, batch in enumerate(train_batch):
+    for i in range(0):
         start_time = time.time()
         global_step += 1
         losses = model.update(batch)
@@ -189,8 +189,8 @@ for epoch in range(1, opt['num_epoch']+1):
     print("Evaluating on train set...")
     predictions = []
     train_eval_loss = 0
-    for i, batch in enumerate(train_batch):
-    # for i, _ in enumerate([]):
+    # for i, batch in enumerate(train_batch):
+    for i, _ in enumerate([]):
         preds, _, loss = model.predict(batch)
         predictions += preds
         train_eval_loss += loss
@@ -267,11 +267,11 @@ for epoch in range(1, opt['num_epoch']+1):
             pickle.dump(dev_confusion_matrix, handle)
     print_str = 'Best Dev Metrics |'
     for name, value in best_dev_metrics.items():
-        print_str = ' {}: {} |'.format(name, value)
+        print_str += ' {}: {} |'.format(name, value)
     print(print_str)
     print_str = 'Test Metrics at Best Dev |'
     for name, value in test_metrics_at_best_dev.items():
-        print_str = ' {}: {} |'.format(name, value)
+        print_str += ' {}: {} |'.format(name, value)
     print(print_str)
 
     # print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
