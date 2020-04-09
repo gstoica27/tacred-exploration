@@ -290,7 +290,7 @@ for epoch in range(1, opt['num_epoch']+1):
                                                                  predictions=dev_triple_preds)
         print("Saving test info...")
         with open(test_save_file, 'wb') as outfile:
-            pickle.dump(test_preds, outfile)
+            pickle.dump(test_probs, outfile)
         with open(test_confusion_save_file, 'wb') as handle:
             pickle.dump(test_confusion_matrix, handle)
         with open(dev_confusion_save_file, 'wb') as handle:
