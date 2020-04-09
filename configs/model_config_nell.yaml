@@ -42,4 +42,4 @@ kg_loss:
 #  freeze_embeddings: False
 relation_masking: False
 no_relation_masking: False
-typed_relations: True
+typed_relations: False
