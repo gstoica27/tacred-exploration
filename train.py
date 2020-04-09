@@ -203,6 +203,9 @@ for epoch in range(1, opt['num_epoch']+1):
                                                                                      train_loss,
                                                                                      train_eval_loss, train_f1))
     file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_eval_loss, train_f1))
+    total_correct = sum(np.array(predictions) == np.array(train_batch.gold()))
+    train_acc = total_correct / len(predictions)
+    print('Train Accuracy: {}'.format(train_acc))
 
     # eval on dev
     print("Evaluating on dev set...")
@@ -221,9 +224,9 @@ for epoch in range(1, opt['num_epoch']+1):
         epoch, train_loss, dev_loss, dev_f1))
     file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_loss, dev_f1))
 
-    total_correct = np.sum(np.array(predictions) == np.array(dev_batch.gold()))
+    total_correct = sum(np.array(dev_predictions) == np.array(dev_batch.gold()))
     dev_acc = total_correct / len(dev_predictions)
-    print('Test Accuracy: {}'.format(dev_acc))
+    print('Dev Accuracy: {}'.format(dev_acc))
     current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r, 'acc': dev_acc}
 
     print("Evaluating on test set...")
@@ -235,11 +238,11 @@ for epoch in range(1, opt['num_epoch']+1):
         predictions += preds
         test_loss += loss
         test_preds += probs
-    predictions = [id2label[p] for p in predictions]
-    test_p, test_r, test_f1 = scorer.score(test_batch.gold(), predictions)
+    test_predictions = [id2label[p] for p in predictions]
+    test_p, test_r, test_f1 = scorer.score(test_batch.gold(), test_predictions)
 
-    total_correct = np.sum(np.array(predictions) == np.array(test_batch.gold()))
-    test_acc = total_correct / len(predictions)
+    total_correct = sum(np.array(test_predictions) == np.array(test_batch.gold()))
+    test_acc = total_correct / len(test_predictions)
     print('Test Accuracy: {}'.format(test_acc))
     test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r, 'acc': test_acc}
 
