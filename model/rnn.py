@@ -119,6 +119,8 @@ class RelationModel(object):
         loss = self.criterion(logits, labels)
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
         logits = logits.data.cpu().numpy()
+        no_rel_id = self.opt['rel2id']['no_relation']
+        logits[:, no_rel_id] /= 17.
 
         if self.opt['relation_masking']:
             relation_masks = inputs['supplemental']['relation_masks'][0].data.cpu().numpy()
@@ -241,6 +243,7 @@ class PositionAwareRNN(nn.Module):
             self.emb.weight.register_hook(lambda x: \
                     torch_utils.keep_partial_grad(x, self.topn))
         else:
+            print("Finetune all embeddings.")
             print("Finetune all embeddings.")
 
     def zero_state(self, batch_size):

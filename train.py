@@ -115,7 +115,8 @@ test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         kg_graph=train_batch.kg_graph,
                         rel_graph=train_batch.e1e2_to_rel,
                         rel2id=train_batch.rel2id)
-
+# Get mappings
+opt['rel2id'] = train_batch.rel2id
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
     cfg_dict['kg_loss']['model']['num_relations'] = len(train_batch.rel2id)
