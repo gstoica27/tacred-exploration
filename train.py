@@ -203,7 +203,7 @@ for epoch in range(1, opt['num_epoch']+1):
 
     train_probs = np.array(train_probs)
     if opt['one_vs_many']:
-        predictions = helper.compute_one_vs_many_predictions(probs=train_probs,
+        predictions, _ = helper.compute_one_vs_many_predictions(probs=train_probs,
                                                              true_label_names=train_batch.gold(),
                                                              rel2id=train_batch.rel2id)
 
