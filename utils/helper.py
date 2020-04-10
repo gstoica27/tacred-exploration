@@ -116,7 +116,7 @@ def find_threshold(probs, true_labels, metric='accuracy'):
         raise ValueError('Can only be eer or accuracy. Not: {}'.format(metric))
     return best_perf, best_threshold
 
-def compute_one_vs_many_predictions(probs, true_label_names, rel2id, thresholds=None):
+def compute_one_vs_many_predictions(probs, true_label_names, rel2id, thresholds=None, threshold_metric='accuracy'):
     # Compute threshold to apply
     probs = np.array(probs)
     if thresholds is None:
@@ -128,7 +128,7 @@ def compute_one_vs_many_predictions(probs, true_label_names, rel2id, thresholds=
             # "flip label" b/c negative class is actually positive in this case
             binary_labels = 1 - binary_labels
             label_probs = probs[:, label_id]
-            _, threshold = find_threshold(probs=label_probs, true_labels=binary_labels, metric='accuracy')
+            _, threshold = find_threshold(probs=label_probs, true_labels=binary_labels, metric=threshold_metric)
             thresholds.append(threshold)
 
     predictions = create_predictions(probs, thresholds, other_label=rel2id['no_relation'])

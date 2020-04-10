@@ -204,8 +204,9 @@ for epoch in range(1, opt['num_epoch']+1):
     train_probs = np.array(train_probs)
     if opt['one_vs_many']:
         predictions, _ = helper.compute_one_vs_many_predictions(probs=train_probs,
-                                                             true_label_names=train_batch.gold(),
-                                                             rel2id=train_batch.rel2id)
+                                                                true_label_names=train_batch.gold(),
+                                                                rel2id=train_batch.rel2id,
+                                                                threshold_metric=opt['threshold_metric'])
 
     predictions = [id2label[p] for p in predictions]
     train_p, train_r, train_f1 = scorer.score(train_batch.gold(), predictions)
@@ -234,7 +235,8 @@ for epoch in range(1, opt['num_epoch']+1):
     dev_probs = np.array(dev_probs)
     if opt['one_vs_many']:
         predictions, dev_thresholds = helper.compute_one_vs_many_predictions(
-            probs=dev_probs, true_label_names=dev_batch.gold(), rel2id=train_batch.rel2id
+            probs=dev_probs, true_label_names=dev_batch.gold(),
+            rel2id=train_batch.rel2id, threshold_metric=opt['threshold_metric']
         )
 
     dev_predictions = [id2label[p] for p in predictions]
@@ -268,7 +270,8 @@ for epoch in range(1, opt['num_epoch']+1):
         predictions, _ = helper.compute_one_vs_many_predictions(probs=test_probs,
                                                              true_label_names=test_batch.gold(),
                                                              rel2id=train_batch.rel2id,
-                                                             thresholds=dev_thresholds)
+                                                             thresholds=dev_thresholds,
+                                                                threshold_metric=opt['threshold_metric'])
 
     test_predictions = [id2label[p] for p in predictions]
     test_p, test_r, test_f1 = scorer.score(test_batch.gold(), test_predictions)
