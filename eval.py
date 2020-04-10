@@ -99,7 +99,7 @@ with open(os.path.join(correctness_save_dir, 'incorrect_data.pkl'), 'wb') as han
 # save probability scores
 with open(os.path.join(save_dir, 'prediction_scores.pkl'), 'wb') as outfile:
     pickle.dump(all_probs, outfile)
-print("Prediction scores saved to {}.".format(args.out))
+print("Prediction scores saved to {}.".format(os.path.join(save_dir, 'prediction_scores.pkl')))
 
 print("Evaluation ended.")
 
