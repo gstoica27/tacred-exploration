@@ -87,20 +87,19 @@ with open(data_file, 'rb') as handle:
 correct_data = data[correct_predictions].tolist()
 incorrect_data = data[incorrect_predictions].tolist()
 
-save_dir = os.path.join(opt['test_save_dir'], opt['id'], 'correctness')
-os.makedirs(save_dir, exist_ok=True)
-with open(os.path.join(save_dir, 'correct_data.pkl'), 'wb') as handle:
+save_dir = os.path.join(opt['test_save_dir'], opt['id'])
+correctness_save_dir = os.path.join(save_dir, 'correctness')
+os.makedirs(correctness_save_dir, exist_ok=True)
+with open(os.path.join(correctness_save_dir, 'correct_data.pkl'), 'wb') as handle:
     pickle.dump(correct_data, handle)
-with open(os.path.join(save_dir, 'incorrect_data.pkl'), 'wb') as handle:
+with open(os.path.join(correctness_save_dir, 'incorrect_data.pkl'), 'wb') as handle:
     pickle.dump(incorrect_data, handle)
 
 
 # save probability scores
-if len(args.out) > 0:
-    helper.ensure_dir(os.path.dirname(args.out))
-    with open(args.out, 'wb') as outfile:
-        pickle.dump(all_probs, outfile)
-    print("Prediction scores saved to {}.".format(args.out))
+with open(os.path.join(save_dir, 'prediction_scores.pkl'), 'wb') as outfile:
+    pickle.dump(all_probs, outfile)
+print("Prediction scores saved to {}.".format(args.out))
 
 print("Evaluation ended.")
 
