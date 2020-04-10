@@ -65,12 +65,12 @@ class FileLogger(object):
         with open(self.filename, 'a') as out:
             print(message, file=out)
 
-def transform_labels(labels, no_rel_id=0):
+def transform_labels(labels, neg_id=0):
     # Transform multi-label elements to binary label, by mapping
     # many -> 1 and 1 -> 1
     binary_labels = deepcopy(labels)
-    binary_labels[labels != no_rel_id] = 1
-    binary_labels[labels == no_rel_id] = 0
+    binary_labels[labels != neg_id] = 1
+    binary_labels[labels == neg_id] = 0
     return binary_labels
 
 def filter_array(probs, filter_id):
@@ -84,37 +84,52 @@ def choose_labels(probs, threshold, exclude_id):
     reduced_probs = filter_array(probs, filter_id=exclude_id)
     best_probs = np.argmax(reduced_probs, axis=1)
 
-def create_predictions(probs, threshold, other_label=41):
+def create_predictions(probs, thresholds, other_label=41):
     predictions = np.zeros(len(probs), dtype=np.int)
-    best_probs = np.max(probs, axis=1)
+    # best_probs = np.max(probs, axis=1)
     best_idxs = np.argmax(probs, axis=1)
-    positive_pred = best_probs > threshold
-    negative_pred = best_probs <= threshold
-    predictions[negative_pred] = other_label
-    predictions[positive_pred] = best_idxs[positive_pred]
+    positive_preds = np.any(probs > thresholds, axis=1)
+    negative_preds = np.all(probs <= thresholds, axis=1)
+    predictions[negative_preds] = other_label
+    predictions[positive_preds] = best_idxs[positive_preds]
     return predictions
 
-def find_accuracy_threshold(probs, true_labels):
+def find_threshold(probs, true_labels, metric='accuracy'):
     """Probs: [N, L-1], True Labels: [N]"""
-    reduced_probs = np.max(probs, axis=1)
+    # reduced_probs = np.max(probs, axis=1)
+    reduced_probs = probs
     fpr, tpr, thresholds = roc_curve(true_labels, reduced_probs)
+    if metric == 'accuracy':
+        num_pos = np.sum(true_labels == 1)
+        num_neg = np.sum(true_labels == 0)
+        tp = tpr * num_pos
+        tn = (1 - fpr) * num_neg
+        acc = (tp + tn) / (num_pos + num_neg)
+        best_threshold = thresholds[np.argmax(acc)]
+        best_perf = np.amax(acc)
+    elif metric == 'eer':
+        fnr = 1 - tpr
+        eer_diff = np.abs(fpr - fnr)
+        best_threshold = thresholds[np.argmin(eer_diff)]
+        best_perf = np.min(eer_diff)
+    else:
+        raise ValueError('Can only be eer or accuracy. Not: {}'.format(metric))
+    return best_perf, best_threshold
 
-    num_pos = np.sum(true_labels == 1)
-    num_neg = np.sum(true_labels == 0)
-    tp = tpr * num_pos
-    tn = (1 - fpr) * num_neg
-    acc = (tp + tn) / (num_pos + num_neg)
-
-    best_threshold = thresholds[np.argmax(acc)]
-    return np.amax(acc), best_threshold
-
-def compute_one_vs_many_predictions(probs, true_label_names, rel2id, threshold=None):
+def compute_one_vs_many_predictions(probs, true_label_names, rel2id, thresholds=None):
     # Compute threshold to apply
     probs = np.array(probs)
-    if threshold is None:
+    if thresholds is None:
         true_labels = np.array([rel2id[label] for label in true_label_names])
-        binary_labels = transform_labels(labels=true_labels, no_rel_id=rel2id['no_relation'])
-        _, threshold = find_accuracy_threshold(probs=probs, true_labels=binary_labels)
+        thresholds = []
+        for label_id in range(probs.shape[1]):
 
-    predictions = create_predictions(probs, threshold, other_label=rel2id['no_relation'])
-    return predictions, threshold
+            binary_labels = transform_labels(labels=true_labels, neg_id=label_id)
+            # "flip label" b/c negative class is actually positive in this case
+            binary_labels = 1 - binary_labels
+            label_probs = probs[:, label_id]
+            _, threshold = find_threshold(probs=label_probs, true_labels=binary_labels, metric='accuracy')
+            thresholds.append(threshold)
+
+    predictions = create_predictions(probs, thresholds, other_label=rel2id['no_relation'])
+    return predictions, thresholds

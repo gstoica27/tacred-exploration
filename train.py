@@ -233,7 +233,7 @@ for epoch in range(1, opt['num_epoch']+1):
 
     dev_probs = np.array(dev_probs)
     if opt['one_vs_many']:
-        predictions, dev_threshold = helper.compute_one_vs_many_predictions(
+        predictions, dev_thresholds = helper.compute_one_vs_many_predictions(
             probs=dev_probs, true_label_names=dev_batch.gold(), rel2id=train_batch.rel2id
         )
 
@@ -251,7 +251,7 @@ for epoch in range(1, opt['num_epoch']+1):
     print('Dev Accuracy: {}'.format(dev_acc))
     current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r, 'acc': dev_acc}
     if opt['one_vs_many']:
-        current_dev_metrics['threshold'] = dev_threshold
+        current_dev_metrics['threshold'] = dev_thresholds
 
     print("Evaluating on test set...")
     predictions = []
@@ -268,7 +268,7 @@ for epoch in range(1, opt['num_epoch']+1):
         predictions, _ = helper.compute_one_vs_many_predictions(probs=test_probs,
                                                              true_label_names=test_batch.gold(),
                                                              rel2id=train_batch.rel2id,
-                                                             threshold=dev_threshold)
+                                                             thresholds=dev_thresholds)
 
     test_predictions = [id2label[p] for p in predictions]
     test_p, test_r, test_f1 = scorer.score(test_batch.gold(), test_predictions)
@@ -282,7 +282,7 @@ for epoch in range(1, opt['num_epoch']+1):
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
         # Compute Confusion Matrices over triples excluded in Training
-        test_triple_preds = np.array(predictions)
+        test_triple_preds = np.array(test_predictions)
         test_triple_gold = np.array(test_batch.gold())
         dev_triple_preds = np.array(dev_predictions)
         dev_triple_gold = np.array(dev_batch.gold())
