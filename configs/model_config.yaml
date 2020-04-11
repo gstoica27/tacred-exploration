@@ -37,3 +37,4 @@ eval_metric: 'f1'
 relation_masking: True
 no_relation_masking: False
 typed_relations: True
+reduce_spans: True

@@ -141,6 +141,29 @@ class DataLoader(object):
             l = len(tokens)
             subj_positions = get_positions(d['subj_start'], d['subj_end'], l)
             obj_positions = get_positions(d['obj_start'], d['obj_end'], l)
+
+            if opt['reduce_spans']:
+                tokens = reduce_spans(tokens, (ss, se), (os, oe))
+                pos = reduce_spans(pos, (ss, se), (os, oe))
+                ner = reduce_spans(ner, (ss, se), (os, oe))
+                deprel = reduce_spans(deprel, (ss, se), (os, oe))
+                l = len(tokens)
+
+                if d['subj_start'] < d['obj_start']:
+                    offset = se - ss
+                    os -= offset
+                    oe = os
+                    se = ss
+                else:
+                    offset = oe - os
+                    ss -= offset
+                    se = ss
+                    oe = os
+
+                subj_positions = get_positions(ss, se, l)
+                obj_positions = get_positions(os, oe, l)
+
+
             # Create typed "no_relation" relations
             relation_name = d['relation']
             if self.opt['typed_relations']:
@@ -291,6 +314,22 @@ class DataLoader(object):
 def map_to_ids(tokens, vocab):
     ids = [vocab[t] if t in vocab else constant.UNK_ID for t in tokens]
     return ids
+
+
+def reduce_spans(unabrided_data, subject_span, object_span):
+    ss, se = subject_span
+    os, oe = object_span
+    if ss < os:
+        fs, fe = subject_span
+        ls, le = object_span
+    else:
+        fs, fe = object_span
+        ls, le = subject_span
+    left_data = unabrided_data[:fs]
+    middle_data = unabrided_data[fe + 1: ls]
+    right_data = unabrided_data[le + 1:]
+    return left_data + [unabrided_data[fs]] + middle_data + [unabrided_data[ls]] + right_data
+
 
 def get_positions(start_idx, end_idx, length):
     """ Get subj/obj position sequence. """
