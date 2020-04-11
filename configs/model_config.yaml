@@ -34,15 +34,6 @@ attn: True # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 eval_metric: 'f1'
-kg_loss:
-#  model: 'ConvE'
-#  label_smoothing: .1
-#  lambda: 1.
-#  lambda_decay: .9
-#  lambda_update_gap: 1 # number of epochs between lambda updates
-#  freeze_embeddings: False
-relation_masking: False
+relation_masking: True
 no_relation_masking: False
-typed_relations: False
-binary_classification: False
-one_vs_many: True
+typed_relations: True

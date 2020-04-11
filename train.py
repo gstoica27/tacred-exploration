@@ -27,15 +27,6 @@ from configs.dict_with_attributes import AttributeDict
 def str2bool(v):
     return v.lower() in ('true')
 
-def add_kg_model_params(cfg_dict):
-    fact_checking_config = os.path.join(cwd, 'configs', 'fact_checking_configs.yaml')
-    with open(fact_checking_config, 'r') as file:
-        fact_checking_config_dict = yaml.load(file)
-    fact_checking_model = cfg_dict['kg_loss']['model']
-    params = fact_checking_config_dict[fact_checking_model]
-    params['name'] = fact_checking_model
-    return params
-
 def add_encoding_config(cfg_dict):
     if cfg_dict['encoding_type'] == 'BiLSTM':
         cfg_dict['encoding_dim'] = cfg_dict['hidden_dim'] * 2
@@ -54,9 +45,6 @@ with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 
 add_encoding_config(cfg_dict)
-if cfg_dict['kg_loss'] is not None:
-    cfg_dict['kg_loss']['model'] = add_kg_model_params(cfg_dict)
-    cfg_dict['kg_loss']['model']['freeze_embeddings'] = cfg_dict['kg_loss']['freeze_embeddings']
 
 opt = cfg_dict#AttributeDict(cfg_dict)
 opt['cuda'] = torch.cuda.is_available()
@@ -82,15 +70,6 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 
 opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
-# opt['kg_e2_idxs'] = opt['subj_idxs'] + opt['obj_idxs']
-
-# EXCLUDED_TRIPLES = {('ORGANIZATION', 'org:member_of', 'LOCATION')}
-
-# EXCLUDED_TRIPLES = {('PERSON', 'per:countries_of_residence', 'NATIONALITY'),
-#                     ('ORGANIZATION', 'org:country_of_headquarters', 'COUNTRY'),
-#                     ('PERSON', 'per:alternate_names', 'PERSON'),
-#                     ('ORGANIZATION', 'org:parents', 'COUNTRY'),
-#                     ('ORGANIZATION', 'org:subsidiaries', 'LOCATION')}
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
@@ -104,7 +83,6 @@ dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
                        opt,
                        vocab,
                        evaluation=True,
-                       kg_graph=train_batch.kg_graph,
                        rel_graph=train_batch.e1e2_to_rel,
                        rel2id=train_batch.rel2id)
 test_batch = DataLoader(opt['data_dir'] + '/test.json',
@@ -112,15 +90,11 @@ test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         opt,
                         vocab,
                         evaluation=True,
-                        kg_graph=train_batch.kg_graph,
                         rel_graph=train_batch.e1e2_to_rel,
                         rel2id=train_batch.rel2id)
 # Get mappings
 opt['rel2id'] = train_batch.rel2id
 #print(train_batch.rel2id)
-if cfg_dict['kg_loss'] is not None:
-    cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
-    cfg_dict['kg_loss']['model']['num_relations'] = len(train_batch.rel2id)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)
@@ -146,14 +120,8 @@ helper.print_config(opt)
 
 # if opt['typed_relations']:
 id2label = dict([(v,k) for k,v in train_batch.rel2id.items()])
-# Remove no_relation from decoder
-if opt['one_vs_many']:
-    opt['num_class'] = len(id2label) - 1
-else:
-    opt['num_class'] = len(id2label)
-# else:
-#     id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
-#     opt['num_class'] = len(constant.LABEL_TO_ID)
+
+opt['num_class'] = len(id2label)
 
 # model
 model = RelationModel(opt, emb_matrix=emb_matrix)
@@ -186,10 +154,6 @@ for epoch in range(1, opt['num_epoch']+1):
                 loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
             print(print_info + loss_prints)
 
-    # update lambda if needed
-    if opt['kg_loss'] is not None and epoch % opt['kg_loss']['lambda_update_gap'] == 0:
-        model.update_lambda_term()
-
     print("Evaluating on train set...")
     predictions = []
     train_probs = []
@@ -202,11 +166,6 @@ for epoch in range(1, opt['num_epoch']+1):
         train_probs += probs
 
     train_probs = np.array(train_probs)
-    if opt['one_vs_many']:
-        predictions, _ = helper.compute_one_vs_many_predictions(probs=train_probs,
-                                                                true_label_names=train_batch.gold(),
-                                                                rel2id=train_batch.rel2id,
-                                                                threshold_metric=opt['threshold_metric'])
 
     predictions = [id2label[p] for p in predictions]
     train_p, train_r, train_f1 = scorer.score(train_batch.gold(), predictions)
@@ -233,11 +192,6 @@ for epoch in range(1, opt['num_epoch']+1):
         dev_probs += probs
 
     dev_probs = np.array(dev_probs)
-    if opt['one_vs_many']:
-        predictions, dev_thresholds = helper.compute_one_vs_many_predictions(
-            probs=dev_probs, true_label_names=dev_batch.gold(),
-            rel2id=train_batch.rel2id, threshold_metric=opt['threshold_metric']
-        )
 
     dev_predictions = [id2label[p] for p in predictions]
     dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), dev_predictions)
@@ -252,8 +206,6 @@ for epoch in range(1, opt['num_epoch']+1):
     dev_acc = total_correct / len(dev_predictions)
     print('Dev Accuracy: {}'.format(dev_acc))
     current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r, 'acc': dev_acc}
-    if opt['one_vs_many']:
-        current_dev_metrics['threshold'] = dev_thresholds
 
     print("Evaluating on test set...")
     predictions = []
@@ -266,13 +218,6 @@ for epoch in range(1, opt['num_epoch']+1):
         test_probs += probs
 
     test_probs = np.array(test_probs)
-    if opt['one_vs_many']:
-        predictions, _ = helper.compute_one_vs_many_predictions(probs=test_probs,
-                                                             true_label_names=test_batch.gold(),
-                                                             rel2id=train_batch.rel2id,
-                                                             thresholds=dev_thresholds,
-                                                                threshold_metric=opt['threshold_metric'])
-
     test_predictions = [id2label[p] for p in predictions]
     test_p, test_r, test_f1 = scorer.score(test_batch.gold(), test_predictions)
 
