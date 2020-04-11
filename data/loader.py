@@ -50,6 +50,10 @@ class DataLoader(object):
             data = json.load(infile)
         np.random.shuffle(data)
         data = self.preprocess(data, vocab, opt)
+
+        if self.opt['down_sample'] and not evaluation:
+            data = self.distribute_data(data)
+
         # shuffle for training
         if not evaluation:
             data = self.shuffle_data(data)
@@ -193,11 +197,64 @@ class DataLoader(object):
                 instance_subj, instance_rel, instance_obj = component_data[idx]
                 known_relations = self.e1e2_to_rel[(instance_subj, instance_obj)]
                 component_data[idx] = (known_relations,)
+
         # transform to arrays for easier manipulations
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
 
         return {'base': np.array(base_processed), 'supplemental': supplemental_components}
+
+    def distribute_data(self, data):
+        pair2rel2data = defaultdict(lambda: defaultdict(list))
+        base_data = data['base']
+        for idx, d in enumerate(base_data):
+            subj_type = np.array(d[0])[np.array(d[4]) == 0][0]
+            obj_type = np.array(d[0])[np.array(d[5]) == 0][0]
+            relation = d[-1]
+            pair2rel2data[(subj_type, obj_type)][relation].append(idx)
+
+        sampled_idxs = []
+        for (subj_type, obj_type), rel2data in pair2rel2data.items():
+            triple_sizes = list(map(lambda x: len(x), list(rel2data.values())))
+            # median_size = self.hard_median(triple_sizes)
+            cutoff_size = sorted(triple_sizes)[-2]
+            for rel, subset in rel2data.items():
+                # Downsample to the be median size
+                if len(subset) > cutoff_size:
+                    subset_idxs = np.arange(len(subset))
+                    selected_idxs = np.random.choice(subset_idxs, cutoff_size, replace=False)
+                    new_subset = np.array(subset)[selected_idxs].tolist()
+                else:
+                    new_subset = subset
+                rel2data[rel] = new_subset
+                sampled_idxs += new_subset
+
+
+        sampled_data = {'base': self.filter_data(data['base'], keep_idxs=sampled_idxs), 'supplemental': {}}
+        for component in data['supplemental']:
+            sampled_data['supplemental'][component] = self.filter_data(data['supplemental'][component],
+                                                                       keep_idxs=sampled_idxs)
+
+        return sampled_data
+
+    def filter_data(self, data, keep_idxs):
+        keep_idxs = sorted(keep_idxs)
+        filtered_data = []
+        keep_idx = 0
+        for idx, d in enumerate(data):
+            if idx == keep_idxs[keep_idx]:
+                keep_idx += 1
+                filtered_data.append(d)
+            if keep_idx >= len(keep_idxs):
+                break
+        return np.array(filtered_data)
+
+    def hard_median(self, data):
+        length = len(data)
+        if length % 2 == 0:
+            length -= 1
+        middle = int(length / 2)
+        return sorted(data)[middle]
 
     def gold(self):
         """ Return gold labels as a list. """
