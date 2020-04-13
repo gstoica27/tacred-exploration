@@ -51,7 +51,9 @@ class DataLoader(object):
         np.random.shuffle(data)
         data = self.preprocess(data, vocab, opt)
 
-        if self.opt['down_sample'] and not evaluation:
+        if self.opt['sample_size'] is not None:
+            data = self.perform_stratified_sampling(data)
+        elif self.opt['down_sample'] and not evaluation:
             data = self.distribute_data(data)
 
         # shuffle for training
@@ -203,6 +205,52 @@ class DataLoader(object):
             supplemental_components[name] = np.array(supplemental_components[name])
 
         return {'base': np.array(base_processed), 'supplemental': supplemental_components}
+
+    def perform_stratified_sampling(self, data):
+        sample_size = self.opt['sample_size']
+        class2size = self.distribute_sample_size(sample_size)
+        class2indices = self.group_by_class(data['base'])
+        class2sample = self.sample_by_class(class2indices, class2size)
+        sample_indices = self.aggregate_sample_indices(class2sample)
+        sample_data = {'base': data['base'][sample_indices], 'supplemental': {}}
+        for component, component_data in data['supplemental'].items():
+            sample_data['supplemental'][component] = component_data[sample_indices]
+        return sample_data
+
+    def aggregate_sample_indices(self, class2sample):
+        sample_indices = []
+        for sample in class2sample.values():
+            sample_indices.append(sample)
+        sample_indices = np.concatenate(sample_indices)
+        return sample_indices
+
+    def sample_by_class(self, class2indices, class2size):
+        class2sample = {}
+        for relation, indices in class2indices.items():
+            sample_size = min(class2size[relation], len(indices))
+            sample_indices = np.random.choice(indices, sample_size, replace=False)
+            class2sample[relation] = sample_indices
+        return class2sample
+
+    def group_by_class(self, data):
+        class2indices = {}
+        for idx, sample in enumerate(data):
+            relation = sample[-1]
+            if relation not in class2indices:
+                class2indices[relation] = []
+            class2indices[relation].append(idx)
+        return class2indices
+
+    def distribute_sample_size(self, sample_size):
+        class2size = {}
+        class_sample_size = int(sample_size / len(self.rel2id))
+        remainder = sample_size % len(self.rel2id)
+        class_sample_bonus = np.random.choice(len(self.rel2id), remainder, replace=False)
+        for rel_id in self.rel2id.values():
+            class2size[rel_id] = class_sample_size
+            if rel_id in class_sample_bonus:
+                class2size[rel_id] += 1
+        return class2size
 
     def distribute_data(self, data):
         pair2rel2data = defaultdict(lambda: defaultdict(list))

@@ -24,7 +24,7 @@ max_grad_norm: 5.0  # Gradient Clipping.
 log_step: 20  # Print log every k steps.
 log:  'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
-id: 'PA-LSTM-TACRED-fully_typed_downsampling' # Model ID under which to save models.
+id: 'PA-LSTM-TACRED-sample_1000' # Model ID under which to save models.
 info: ''  # Optional info for the experiment.
 seed: 1234  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
@@ -34,8 +34,9 @@ attn: True # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 eval_metric: 'f1'
-relation_masking: True
+relation_masking: False
 no_relation_masking: False
-typed_relations: True
-reduce_spans: True
-down_sample: True
+typed_relations: False
+reduce_spans: False
+down_sample: False
+sample_size: 1000

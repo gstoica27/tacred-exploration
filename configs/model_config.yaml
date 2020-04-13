@@ -34,8 +34,9 @@ attn: True # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 eval_metric: 'f1'
-relation_masking: True
+relation_masking: False
 no_relation_masking: False
-typed_relations: True
+typed_relations: False
 reduce_spans: False
-down_sample: True
+down_sample: False
+sample_size: 1000
