@@ -14,6 +14,7 @@ import pickle
 import yaml
 import torch.nn as nn
 import torch.optim as optim
+from copy import deepcopy
 
 from data.loader import DataLoader, map_to_ids
 from utils.kg_vocab import KGVocab
@@ -23,6 +24,15 @@ from utils.vocab import Vocab
 from collections import defaultdict
 from configs.dict_with_attributes import AttributeDict
 
+
+def extract_binary_predictions(data, model):
+    id2label = dict([(v, k) for k, v in data.binary_rel2id.items()])
+    predictions = []
+    for i, batch in enumerate(data):
+        preds, _, _ = model.predict(batch)
+        pred_labels = [id2label[pred] for pred in preds]
+        predictions += pred_labels
+    return np.array(predictions)
 
 def str2bool(v):
     return v.lower() in ('true')
@@ -82,15 +92,6 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 
 opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
-# opt['kg_e2_idxs'] = opt['subj_idxs'] + opt['obj_idxs']
-
-# EXCLUDED_TRIPLES = {('ORGANIZATION', 'org:member_of', 'LOCATION')}
-
-# EXCLUDED_TRIPLES = {('PERSON', 'per:countries_of_residence', 'NATIONALITY'),
-#                     ('ORGANIZATION', 'org:country_of_headquarters', 'COUNTRY'),
-#                     ('PERSON', 'per:alternate_names', 'PERSON'),
-#                     ('ORGANIZATION', 'org:parents', 'COUNTRY'),
-#                     ('ORGANIZATION', 'org:subsidiaries', 'LOCATION')}
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
@@ -106,7 +107,8 @@ dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
                        evaluation=True,
                        kg_graph=train_batch.kg_graph,
                        rel_graph=train_batch.e1e2_to_rel,
-                       rel2id=train_batch.rel2id)
+                       rel2id=train_batch.rel2id,
+                       binary_rel2id=train_batch.binary_rel2id)
 test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         opt['batch_size'],
                         opt,
@@ -114,9 +116,12 @@ test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         evaluation=True,
                         kg_graph=train_batch.kg_graph,
                         rel_graph=train_batch.e1e2_to_rel,
-                        rel2id=train_batch.rel2id)
+                        rel2id=train_batch.rel2id,
+                        binary_rel2id=train_batch.binary_rel2id)
 # Get mappings
 opt['rel2id'] = train_batch.rel2id
+opt['no_relation_id'] = train_batch.rel2id['no_relation']
+opt['binary_rel2id'] = train_batch.binary_rel2id
 #print(train_batch.rel2id)
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
@@ -151,11 +156,12 @@ if opt['one_vs_many']:
     opt['num_class'] = len(id2label) - 1
 else:
     opt['num_class'] = len(id2label)
-# else:
-#     id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
-#     opt['num_class'] = len(constant.LABEL_TO_ID)
-
 # model
+if opt['binary_classification']:
+    opt['apply_binary_classification'] = True
+    binary_model = RelationModel(opt, emb_matrix=emb_matrix)
+
+opt['apply_binary_classification'] = False
 model = RelationModel(opt, emb_matrix=emb_matrix)
 
 dev_f1_history = []
@@ -171,12 +177,21 @@ eval_metric = opt['eval_metric']
 # start training
 for epoch in range(1, opt['num_epoch']+1):
     train_loss = 0
+    binary_train_loss = 0
     for i, batch in enumerate(train_batch):
     # for i in range(0):
         start_time = time.time()
         global_step += 1
+        # Update binary relation model
+        if opt['binary_classification']:
+            binary_batch = deepcopy(batch)
+            binary_losses = binary_model.update(binary_batch)
+            binary_train_loss += binary_losses['cumulative']
+
+        # Update full relation model
         losses = model.update(batch)
         train_loss += losses['cumulative']
+
         if global_step % opt['log_step'] == 0:
             duration = time.time() - start_time
             print_info = format_str.format(datetime.now(), global_step, max_steps, epoch,\
@@ -184,11 +199,11 @@ for epoch in range(1, opt['num_epoch']+1):
             loss_prints = ''
             for loss_type, loss in losses.items():
                 loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
+            if opt['binary_classification']:
+                loss_prints += ' | Binary Losses'
+                for loss_type, loss in binary_losses.items():
+                    loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
             print(print_info + loss_prints)
-
-    # update lambda if needed
-    if opt['kg_loss'] is not None and epoch % opt['kg_loss']['lambda_update_gap'] == 0:
-        model.update_lambda_term()
 
     print("Evaluating on train set...")
     predictions = []
@@ -208,7 +223,15 @@ for epoch in range(1, opt['num_epoch']+1):
                                                                 rel2id=train_batch.rel2id,
                                                                 threshold_metric=opt['threshold_metric'])
 
-    predictions = [id2label[p] for p in predictions]
+    predictions = np.array([id2label[p] for p in predictions])
+    if opt['binary_classification']:
+        binary_predictions = extract_binary_predictions(data=train_batch, model=binary_model)
+        gold_labels = train_batch.gold()
+        binary_gold_labels = ['has_relation' if label != 'no_relation' else label for label in gold_labels]
+        train_acc = sum(binary_predictions == binary_gold_labels) / len(binary_gold_labels)
+        predictions[binary_predictions == 'no_relation'] = 'no_relation'
+        print('Train Accuracy: {}'.format(train_acc))
+
     train_p, train_r, train_f1 = scorer.score(train_batch.gold(), predictions)
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
@@ -217,9 +240,6 @@ for epoch in range(1, opt['num_epoch']+1):
                                                                                      train_loss,
                                                                                      train_eval_loss, train_f1))
     file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_eval_loss, train_f1))
-    total_correct = sum(np.array(predictions) == np.array(train_batch.gold()))
-    train_acc = total_correct / len(predictions)
-    print('Train Accuracy: {}'.format(train_acc))
 
     # eval on dev
     print("Evaluating on dev set...")
@@ -240,6 +260,15 @@ for epoch in range(1, opt['num_epoch']+1):
         )
 
     dev_predictions = [id2label[p] for p in predictions]
+
+    if opt['binary_classification']:
+        binary_predictions = extract_binary_predictions(data=dev_batch, model=binary_model)
+        gold_labels = dev_batch.gold()
+        binary_gold_labels = ['has_relation' if label != 'no_relation' else label for label in gold_labels]
+        dev_acc = sum(binary_predictions == binary_gold_labels) / len(binary_gold_labels)
+        dev_predictions[binary_predictions == 'no_relation'] = 'no_relation'
+        print('Dev Accuracy: {}'.format(dev_acc))
+
     dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), dev_predictions)
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
@@ -248,9 +277,6 @@ for epoch in range(1, opt['num_epoch']+1):
         epoch, train_loss, dev_loss, dev_f1))
     file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_loss, dev_f1))
 
-    total_correct = sum(np.array(dev_predictions) == np.array(dev_batch.gold()))
-    dev_acc = total_correct / len(dev_predictions)
-    print('Dev Accuracy: {}'.format(dev_acc))
     current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r, 'acc': dev_acc}
     if opt['one_vs_many']:
         current_dev_metrics['threshold'] = dev_thresholds
@@ -274,11 +300,17 @@ for epoch in range(1, opt['num_epoch']+1):
                                                                 threshold_metric=opt['threshold_metric'])
 
     test_predictions = [id2label[p] for p in predictions]
+
+    if opt['binary_classification']:
+        binary_predictions = extract_binary_predictions(data=test_batch, model=binary_model)
+        gold_labels = test_batch.gold()
+        binary_gold_labels = ['has_relation' if label != 'no_relation' else label for label in gold_labels]
+        test_acc = sum(binary_predictions == binary_gold_labels) / len(binary_gold_labels)
+        test_predictions[binary_predictions == 'no_relation'] = 'no_relation'
+        print('Test Accuracy: {}'.format(test_acc))
+
     test_p, test_r, test_f1 = scorer.score(test_batch.gold(), test_predictions)
 
-    total_correct = sum(np.array(test_predictions) == np.array(test_batch.gold()))
-    test_acc = total_correct / len(test_predictions)
-    print('Test Accuracy: {}'.format(test_acc))
     test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r, 'acc': test_acc}
 
     if best_dev_metrics[eval_metric] <= current_dev_metrics[eval_metric]:

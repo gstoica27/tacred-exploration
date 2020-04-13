@@ -17,7 +17,7 @@ class DataLoader(object):
     Load data from json files, preprocess and prepare batches.
     """
     def __init__(self, filename, batch_size, opt, vocab, evaluation=False,
-                 kg_graph=None, rel_graph=None, exclude_triples=set(), rel2id={}):
+                 kg_graph=None, rel_graph=None, exclude_triples=set(), rel2id={}, binary_rel2id={}):
         self.batch_size = batch_size
         self.opt = opt
         self.vocab = vocab
@@ -56,9 +56,12 @@ class DataLoader(object):
         # if self.opt['typed_relations']:
         if self.eval:
             self.rel2id = rel2id
+            if opt['binary_classification']:
+                self.binary_rel2id = binary_rel2id
         else:
             self.rel2id = {}
-
+            if opt['binary_classification']:
+                self.binary_rel2id = {}
         self.remove_entity_types = opt['remove_entity_types']
 
         with open(filename) as infile:
@@ -121,6 +124,7 @@ class DataLoader(object):
         self.triple_idxs = []
         filtered_idxs = []
         filtered_data = []
+
         for idx, d in enumerate(data):
             subject_type = d['subj_type']
             object_type = d['obj_type']
@@ -161,11 +165,6 @@ class DataLoader(object):
             if self.opt['typed_relations']:
                 if 'no_relation' in relation_name:
                     relation_name = '{}:no_relation:{}'.format(d['subj_type'], d['obj_type'])
-            if self.opt['binary_classification']:
-                if 'no_relation' in relation_name:
-                    relation_name = 'no_relation'
-                else:
-                    relation_name = 'has_relation'
             if relation_name not in self.rel2id:
                 # Hack to make the relation matching after removing no_relation significantly easier
                 if self.opt['one_vs_many']:
@@ -175,9 +174,18 @@ class DataLoader(object):
                         self.rel2id[relation_name] = len(self.rel2id) - 1
                 else:
                     self.rel2id[relation_name] = len(self.rel2id)
+
+            if self.opt['binary_classification']:
+                if 'no_relation' != relation_name:
+                    binary_relation = 'has_relation'
+                else:
+                    binary_relation = relation_name
+                if binary_relation not in self.binary_rel2id:
+                    self.binary_rel2id[binary_relation] = len(self.binary_rel2id)
+                binary_relation = self.binary_rel2id[binary_relation]
+                supplemental_components['binary_classification'].append((binary_relation,))
+
             relation = self.rel2id[relation_name]
-            # else:
-            #    relation = constant.LABEL_TO_ID[d['relation']]
 
             base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
 
@@ -370,6 +378,12 @@ class DataLoader(object):
         labels = torch.FloatTensor(labels)
         return (labels,)
 
+    def ready_binary_classification_batch(self, label_batch, sentence_lengths):
+        batch = list(zip(*label_batch))
+        batch_labels, _ = sort_all(batch, sentence_lengths)
+        labels = torch.LongTensor(batch_labels[0])
+        return (labels,)
+
     def ready_data_batch(self, batch):
         batch_size = len(batch['base'])
         readied_batch = self.ready_base_batch(batch['base'], batch_size)
@@ -393,6 +407,11 @@ class DataLoader(object):
                 readied_supplemental[name] = self.ready_binary_labels_batch(
                     label_batch=supplemental_batch,
                     sentence_lengths=readied_batch['sentence_lengths'])
+            elif name == 'binary_classification':
+                readied_supplemental[name] = self.ready_binary_classification_batch(
+                    label_batch=supplemental_batch,
+                    sentence_lengths=readied_batch['sentence_lengths']
+                )
         return readied_batch
 
     def __getitem__(self, key):

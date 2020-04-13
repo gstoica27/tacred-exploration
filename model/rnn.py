@@ -33,8 +33,9 @@ class RelationModel(object):
     def __init__(self, opt, emb_matrix=None):
         self.opt = opt
         self.model = PositionAwareRNN(opt, emb_matrix)
-        if self.opt['one_vs_many']:
-            self.criterion = nn.BCELoss()
+        self.apply_binary_classification = opt['apply_binary_classification']
+        if self.opt['one_vs_many'] or self.apply_binary_classification:
+            self.criterion = nn.BCEWithLogitsLoss()
         else:
             self.criterion = nn.CrossEntropyLoss()
         main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
@@ -92,10 +93,13 @@ class RelationModel(object):
         # Apply binary cross entropy if doing no_relation vs any relation model
         if self.opt['one_vs_many']:
             label_vector = inputs['supplemental']['binary_labels'][0]
-            probs = F.sigmoid(logits)
-            main_loss = self.criterion(probs, label_vector)
+            main_loss = self.criterion(logits, label_vector)
+        elif self.apply_binary_classification:
+            labels = inputs['supplemental']['binary_classification'][0]
+            main_loss = self.criterion(logits.view(-1), labels.type(torch.float32))
         else:
             main_loss = self.criterion(logits, labels)
+
         cumulative_loss = main_loss
         losses['main'] = main_loss.data.item()
         if self.opt['kg_loss'] is not None:
@@ -130,6 +134,9 @@ class RelationModel(object):
             probs = F.sigmoid(logits)
             loss = self.criterion(probs, label_vector)
             probs = probs.data.cpu().numpy()
+        elif self.apply_binary_classification:
+            loss = self.criterion(logits.view(-1), labels.type(torch.float32))
+            probs = F.sigmoid(logits).data.cpu().numpy().tolist()
         else:
             loss = self.criterion(logits, labels)
             probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
@@ -140,10 +147,12 @@ class RelationModel(object):
             logits[relation_masks == 0] = -np.inf
         # If the correct prediction is not no relation, "mask out" no relation
         if self.opt['no_relation_masking']:
-            logits[labels.data.cpu().numpy() != 0, 0] = -np.inf
-
-
-        predictions = np.argmax(logits, axis=1).tolist()
+            # logits[labels.data.cpu().numpy() != 0, 0] = -np.inf
+            logits[:, self.opt['no_relation_id']] = -np.inf
+        if self.apply_binary_classification:
+            predictions = (logits.reshape(-1) > .5).astype(np.int).tolist()
+        else:
+            predictions = np.argmax(logits, axis=1).tolist()
         # predictions = logits
         if unsort:
             _, predictions, probs = [list(t) for t in zip(*sorted(zip(orig_idx,\
@@ -213,7 +222,11 @@ class PositionAwareRNN(nn.Module):
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
-        self.linear = nn.Linear(self.encoding_dim, opt['num_class'], bias=False)
+        if opt['apply_binary_classification']:
+            num_output = 1
+        else:
+            num_output = opt['num_class']
+        self.linear = nn.Linear(self.encoding_dim, num_output)
         #self.register_parameter('class_bias', torch.nn.Parameter(torch.zeros((opt['num_class']))))
 
         self.opt = opt
