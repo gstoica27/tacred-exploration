@@ -254,13 +254,6 @@ for epoch in range(1, opt['num_epoch']+1):
         print_str += ' {}: {} |'.format(name, value)
     print(print_str)
 
-    # print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
-    #     best_dev_metrics['f1'], best_dev_metrics['precision'], best_dev_metrics['recall']
-    # ))
-    # print("Test Metrics at Best Dev | F1: {} | Precision: {} | Recall: {}".format(
-    #     test_metrics_at_best_dev['f1'], test_metrics_at_best_dev['precision'], test_metrics_at_best_dev['recall']
-    # ))
-
     train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
     print("epoch {}: test_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, test_loss, test_f1))
     file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_loss, test_f1))
