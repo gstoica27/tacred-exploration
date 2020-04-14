@@ -242,7 +242,13 @@ for epoch in range(1, opt['num_epoch']+1):
         binary_gold_labels = np.array(['has_relation' if label != 'no_relation' else label for label in gold_labels])
         train_acc = sum(binary_predictions == binary_gold_labels) / len(binary_gold_labels)
         predictions[binary_predictions == 'no_relation'] = 'no_relation'
-        print('Train Accuracy: {}'.format(train_acc))
+        # Accuracy over no_relation data
+        no_rel_acc = sum((binary_predictions == binary_gold_labels)[binary_gold_labels == 'no_relation'])
+        no_rel_acc /= sum(binary_gold_labels == 'no_relation')
+        # Accuracy over relation data
+        rel_acc = sum((binary_predictions == binary_gold_labels)[binary_gold_labels != 'no_relation'])
+        rel_acc /= sum(binary_gold_labels != 'no_relation')
+        print('Train Accuracy: {} | No_relation: {} | relation: {}'.format(train_acc, no_rel_acc, rel_acc))
 
     train_p, train_r, train_f1 = scorer.score(train_batch.gold(), predictions)
 
@@ -279,8 +285,13 @@ for epoch in range(1, opt['num_epoch']+1):
         binary_gold_labels = np.array(['has_relation' if label != 'no_relation' else label for label in gold_labels])
         dev_acc = sum(binary_predictions == binary_gold_labels) / len(binary_gold_labels)
         dev_predictions[binary_predictions == 'no_relation'] = 'no_relation'
-        print('Dev Accuracy: {}'.format(dev_acc))
-
+        # Accuracy over no_relation data
+        no_rel_acc = sum((binary_predictions == binary_gold_labels)[binary_gold_labels == 'no_relation'])
+        no_rel_acc /= sum(binary_gold_labels == 'no_relation')
+        # Accuracy over relation data
+        rel_acc = sum((binary_predictions == binary_gold_labels)[binary_gold_labels != 'no_relation'])
+        rel_acc /= sum(binary_gold_labels != 'no_relation')
+        print('Dev Accuracy: {} | No_relation: {} | relation: {}'.format(dev_acc, no_rel_acc, rel_acc))
     dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), dev_predictions)
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
@@ -321,7 +332,13 @@ for epoch in range(1, opt['num_epoch']+1):
         binary_gold_labels = np.array(['has_relation' if label != 'no_relation' else label for label in gold_labels])
         test_acc = sum(binary_predictions == binary_gold_labels) / len(binary_gold_labels)
         test_predictions[binary_predictions == 'no_relation'] = 'no_relation'
-        print('Test Accuracy: {}'.format(test_acc))
+        # Accuracy over no_relation data
+        no_rel_acc = sum((binary_predictions == binary_gold_labels)[binary_gold_labels == 'no_relation'])
+        no_rel_acc /= sum(binary_gold_labels == 'no_relation')
+        # Accuracy over relation data
+        rel_acc = sum((binary_predictions == binary_gold_labels)[binary_gold_labels != 'no_relation'])
+        rel_acc /= sum(binary_gold_labels != 'no_relation')
+        print('Test Accuracy: {} | No_relation: {} | relation: {}'.format(test_acc, no_rel_acc, rel_acc))
 
     test_p, test_r, test_f1 = scorer.score(test_batch.gold(), test_predictions)
 
