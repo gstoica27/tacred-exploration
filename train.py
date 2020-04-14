@@ -25,14 +25,26 @@ from collections import defaultdict
 from configs.dict_with_attributes import AttributeDict
 
 
-def extract_binary_predictions(data, model):
-    id2label = dict([(v, k) for k, v in data.binary_rel2id.items()])
+def extract_binary_probs(data, model):
+    # id2label = dict([(v, k) for k, v in data.binary_rel2id.items()])
     predictions = []
     for i, batch in enumerate(data):
-        preds, _, _ = model.predict(batch)
-        pred_labels = [id2label[pred] for pred in preds]
-        predictions += pred_labels
+        _, probs, _ = model.predict(batch)
+        # pred_labels = [id2label[pred] for pred in preds]
+        predictions += probs
     return np.array(predictions)
+
+def extract_binary_predictions(data, model, threshold=None):
+    id2rel = dict([(v, k) for k, v in data.binary_rel2id.items()])
+    binary_probs = extract_binary_probs(data=data, model=model)
+    if threshold is None:
+        gold_labels = data.gold()
+        binary_gold_labels = ['has_relation' if label != 'no_relation' else label for label in gold_labels]
+        gold_ids = np.array([data.binary_rel2id[label] for label in binary_gold_labels])
+        acc, threshold = helper.find_threshold(probs=binary_probs, true_labels=gold_ids, metric='accuracy')
+    binary_predictions = (binary_probs.reshape(-1) > threshold).astype(np.int).tolist()
+    binary_labels = [id2rel[prediction] for prediction in binary_predictions]
+    return binary_labels, threshold
 
 def str2bool(v):
     return v.lower() in ('true')
@@ -225,9 +237,9 @@ for epoch in range(1, opt['num_epoch']+1):
 
     predictions = np.array([id2label[p] for p in predictions])
     if opt['binary_classification']:
-        binary_predictions = extract_binary_predictions(data=train_batch, model=binary_model)
+        binary_predictions, _ = extract_binary_predictions(data=train_batch, model=binary_model, threshold=None)
         gold_labels = train_batch.gold()
-        binary_gold_labels = ['has_relation' if label != 'no_relation' else label for label in gold_labels]
+        binary_gold_labels = np.array(['has_relation' if label != 'no_relation' else label for label in gold_labels])
         train_acc = sum(binary_predictions == binary_gold_labels) / len(binary_gold_labels)
         predictions[binary_predictions == 'no_relation'] = 'no_relation'
         print('Train Accuracy: {}'.format(train_acc))
@@ -259,12 +271,12 @@ for epoch in range(1, opt['num_epoch']+1):
             rel2id=train_batch.rel2id, threshold_metric=opt['threshold_metric']
         )
 
-    dev_predictions = [id2label[p] for p in predictions]
+    dev_predictions = np.array([id2label[p] for p in predictions])
 
     if opt['binary_classification']:
-        binary_predictions = extract_binary_predictions(data=dev_batch, model=binary_model)
+        binary_predictions, dev_threshold = extract_binary_predictions(data=dev_batch, model=binary_model, threshold=None)
         gold_labels = dev_batch.gold()
-        binary_gold_labels = ['has_relation' if label != 'no_relation' else label for label in gold_labels]
+        binary_gold_labels = np.array(['has_relation' if label != 'no_relation' else label for label in gold_labels])
         dev_acc = sum(binary_predictions == binary_gold_labels) / len(binary_gold_labels)
         dev_predictions[binary_predictions == 'no_relation'] = 'no_relation'
         print('Dev Accuracy: {}'.format(dev_acc))
@@ -280,6 +292,8 @@ for epoch in range(1, opt['num_epoch']+1):
     current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r, 'acc': dev_acc}
     if opt['one_vs_many']:
         current_dev_metrics['threshold'] = dev_thresholds
+    elif opt['binary_classification']:
+        current_dev_metrics['threshold'] = dev_threshold
 
     print("Evaluating on test set...")
     predictions = []
@@ -299,12 +313,12 @@ for epoch in range(1, opt['num_epoch']+1):
                                                              thresholds=dev_thresholds,
                                                                 threshold_metric=opt['threshold_metric'])
 
-    test_predictions = [id2label[p] for p in predictions]
+    test_predictions = np.array([id2label[p] for p in predictions])
 
     if opt['binary_classification']:
-        binary_predictions = extract_binary_predictions(data=test_batch, model=binary_model)
+        binary_predictions, _ = extract_binary_predictions(data=test_batch, model=binary_model, threshold=dev_threshold)
         gold_labels = test_batch.gold()
-        binary_gold_labels = ['has_relation' if label != 'no_relation' else label for label in gold_labels]
+        binary_gold_labels = np.array(['has_relation' if label != 'no_relation' else label for label in gold_labels])
         test_acc = sum(binary_predictions == binary_gold_labels) / len(binary_gold_labels)
         test_predictions[binary_predictions == 'no_relation'] = 'no_relation'
         print('Test Accuracy: {}'.format(test_acc))

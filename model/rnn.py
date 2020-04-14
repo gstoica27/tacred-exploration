@@ -136,7 +136,7 @@ class RelationModel(object):
             probs = probs.data.cpu().numpy()
         elif self.apply_binary_classification:
             loss = self.criterion(logits.view(-1), labels.type(torch.float32))
-            probs = F.sigmoid(logits).data.cpu().numpy().tolist()
+            probs = F.sigmoid(logits).data.cpu().numpy().reshape(-1)
         else:
             loss = self.criterion(logits, labels)
             probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
@@ -150,7 +150,8 @@ class RelationModel(object):
             # logits[labels.data.cpu().numpy() != 0, 0] = -np.inf
             logits[:, self.opt['no_relation_id']] = -np.inf
         if self.apply_binary_classification:
-            predictions = (logits.reshape(-1) > .5).astype(np.int).tolist()
+            predictions = (probs > .5).astype(np.int).tolist()
+            probs = probs.tolist()
         else:
             predictions = np.argmax(logits, axis=1).tolist()
         # predictions = logits
