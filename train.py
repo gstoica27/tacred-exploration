@@ -73,12 +73,12 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train_wrong.json',
+train_batch = DataLoader(opt['data_dir'] + '/train_correct.json',
                          opt['batch_size'],
                          opt,
                          vocab,
                          evaluation=False)
-test_batch = DataLoader(opt['data_dir'] + '/test_wrong.json',
+test_batch = DataLoader(opt['data_dir'] + '/test_correct.json',
                         opt['batch_size'],
                         opt,
                         vocab,
