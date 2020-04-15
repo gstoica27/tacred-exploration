@@ -259,7 +259,8 @@ class PositionAwareRNN(nn.Module):
         base_inputs, supplemental_inputs = inputs['base'], inputs['supplemental']
         words, masks, pos, ner, deprel, subj_pos, obj_pos = base_inputs
 
-        seq_lens = list(masks.data.eq(constant.PAD_ID).long().sum(1).squeeze())
+        mask_eq = masks.data.eq(constant.PAD_ID)
+        seq_lens = list(mask_eq.long().sum(1).squeeze())
         batch_size = words.size()[0]
         
         # embedding lookup
