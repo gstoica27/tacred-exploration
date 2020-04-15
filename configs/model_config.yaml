@@ -39,4 +39,4 @@ no_relation_masking: False
 typed_relations: False
 reduce_spans: False
 down_sample: False
-sample_size: 1000
+sample_size:

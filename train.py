@@ -73,19 +73,12 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train.json',
+train_batch = DataLoader(opt['data_dir'] + '/train_wrong.json',
                          opt['batch_size'],
                          opt,
                          vocab,
                          evaluation=False)
-dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
-                       opt['batch_size'],
-                       opt,
-                       vocab,
-                       evaluation=True,
-                       rel_graph=train_batch.e1e2_to_rel,
-                       rel2id=train_batch.rel2id)
-test_batch = DataLoader(opt['data_dir'] + '/test.json',
+test_batch = DataLoader(opt['data_dir'] + '/test_wrong.json',
                         opt['batch_size'],
                         opt,
                         vocab,
@@ -114,7 +107,6 @@ test_save_dir = os.path.join(opt['test_save_dir'], opt['id'])
 os.makedirs(test_save_dir, exist_ok=True)
 test_save_file = os.path.join(test_save_dir, 'test_records.pkl')
 test_confusion_save_file = os.path.join(test_save_dir, 'test_confusion_matrix.pkl')
-dev_confusion_save_file = os.path.join(test_save_dir, 'dev_confusion_matrix.pkl')
 # print model info
 helper.print_config(opt)
 
@@ -126,15 +118,14 @@ opt['num_class'] = len(id2label)
 # model
 model = RelationModel(opt, emb_matrix=emb_matrix)
 
-dev_f1_history = []
+test_f1_history = []
 current_lr = opt['lr']
 
 global_step = 0
 global_start_time = time.time()
 format_str = '{}: step {}/{} (epoch {}/{}), ({:.3f} sec/batch), lr: {:.6f}'
 max_steps = len(train_batch) * opt['num_epoch']
-best_dev_metrics = defaultdict(lambda: -np.inf)
-test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
+best_test_metrics = defaultdict(lambda: -np.inf)
 eval_metric = opt['eval_metric']
 # start training
 for epoch in range(1, opt['num_epoch']+1):
@@ -180,33 +171,6 @@ for epoch in range(1, opt['num_epoch']+1):
     train_acc = total_correct / len(predictions)
     print('Train Accuracy: {}'.format(train_acc))
 
-    # eval on dev
-    print("Evaluating on dev set...")
-    predictions = []
-    dev_probs = []
-    dev_loss = 0
-    for i, batch in enumerate(dev_batch):
-        preds, probs, loss = model.predict(batch)
-        predictions += preds
-        dev_loss += loss
-        dev_probs += probs
-
-    dev_probs = np.array(dev_probs)
-
-    dev_predictions = [id2label[p] for p in predictions]
-    dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), dev_predictions)
-
-    train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
-    dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
-    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(
-        epoch, train_loss, dev_loss, dev_f1))
-    file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_loss, dev_f1))
-
-    total_correct = sum(np.array(dev_predictions) == np.array(dev_batch.gold()))
-    dev_acc = total_correct / len(dev_predictions)
-    print('Dev Accuracy: {}'.format(dev_acc))
-    current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r, 'acc': dev_acc}
-
     print("Evaluating on test set...")
     predictions = []
     test_loss = 0
@@ -226,31 +190,20 @@ for epoch in range(1, opt['num_epoch']+1):
     print('Test Accuracy: {}'.format(test_acc))
     test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r, 'acc': test_acc}
 
-    if best_dev_metrics[eval_metric] <= current_dev_metrics[eval_metric]:
-        best_dev_metrics = current_dev_metrics
-        test_metrics_at_best_dev = test_metrics_at_current_dev
+    if best_test_metrics[eval_metric] <= test_metrics_at_current_dev[eval_metric]:
+        best_test_metrics = test_metrics_at_current_dev
         # Compute Confusion Matrices over triples excluded in Training
         test_triple_preds = np.array(test_predictions)
         test_triple_gold = np.array(test_batch.gold())
-        dev_triple_preds = np.array(dev_predictions)
-        dev_triple_gold = np.array(dev_batch.gold())
         test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_triple_gold,
                                                                   predictions=test_triple_preds)
-        dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_triple_gold,
-                                                                 predictions=dev_triple_preds)
         print("Saving test info...")
         with open(test_save_file, 'wb') as outfile:
             pickle.dump(test_probs, outfile)
         with open(test_confusion_save_file, 'wb') as handle:
             pickle.dump(test_confusion_matrix, handle)
-        with open(dev_confusion_save_file, 'wb') as handle:
-            pickle.dump(dev_confusion_matrix, handle)
-    print_str = 'Best Dev Metrics |'
-    for name, value in best_dev_metrics.items():
-        print_str += ' {}: {} |'.format(name, value)
-    print(print_str)
     print_str = 'Test Metrics at Best Dev |'
-    for name, value in test_metrics_at_best_dev.items():
+    for name, value in best_test_metrics.items():
         print_str += ' {}: {} |'.format(name, value)
     print(print_str)
 
@@ -261,19 +214,19 @@ for epoch in range(1, opt['num_epoch']+1):
     # save
     model_file = model_save_dir + '/checkpoint_epoch_{}.pt'.format(epoch)
     model.save(model_file, epoch)
-    if epoch == 1 or dev_f1 > max(dev_f1_history):
+    if epoch == 1 or test_f1 > max(test_f1_history):
         copyfile(model_file, model_save_dir + '/best_model.pt')
         print("new best model saved.")
     if epoch % opt['save_epoch'] != 0:
         os.remove(model_file)
     
     # lr schedule
-    if len(dev_f1_history) > 10 and dev_f1 <= dev_f1_history[-1] and \
+    if len(test_f1_history) > 10 and test_f1 <= test_f1_history[-1] and \
             opt['optim'] in ['sgd', 'adagrad']:
         current_lr *= opt['lr_decay']
         model.update_lr(current_lr)
 
-    dev_f1_history += [dev_f1]
+    test_f1_history += [test_f1]
     print("")
 
 print("Training ended with {} epochs.".format(epoch))
