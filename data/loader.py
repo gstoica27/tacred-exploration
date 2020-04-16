@@ -17,7 +17,7 @@ class DataLoader(object):
     Load data from json files, preprocess and prepare batches.
     """
     def __init__(self, filename, batch_size, opt, vocab, evaluation=False,
-                 kg_graph=None, rel_graph=None, exclude_triples=set(), rel2id={}, binary_rel2id={}):
+                 rel_graph=None, exclude_triples=set(), rel2id={}, binary_rel2id={}):
         self.batch_size = batch_size
         self.opt = opt
         self.vocab = vocab
@@ -26,21 +26,6 @@ class DataLoader(object):
         self.relations = set()
         # Triples to exclude for Triple isolation checking
         self.exclude_triples = exclude_triples
-        # Knowledge graph vocabulary (optional)
-        if self.opt['kg_loss'] is not None:
-            # Extract file name without path or extension
-            self.partition_name = os.path.splitext(os.path.basename(filename))[0]
-            if kg_graph is not None:
-                self.kg_graph = deepcopy(kg_graph)
-                # Add entities and relations to data partition
-                for (e1, rel), e2s in self.kg_graph.items():
-                    self.entities.add(-e1)
-                    self.entities = self.entities.union(e2s)
-                    self.relations.add(rel)
-            else:
-                self.kg_graph = defaultdict(lambda: set())
-        else:
-            self.kg_graph = None
 
         if self.opt['relation_masking']:
             # Graph already created in training dataset. Don't create new one b/c it wouldn't be correct.
@@ -68,6 +53,10 @@ class DataLoader(object):
             data = json.load(infile)
         np.random.shuffle(data)
         data = self.preprocess(data, vocab, opt)
+
+        if self.opt['sample_size'] is not None:
+            data = self.perform_stratified_sampling(data)
+
         # shuffle for training
         if not evaluation:
             data = self.shuffle_data(data)
@@ -175,6 +164,10 @@ class DataLoader(object):
                 else:
                     self.rel2id[relation_name] = len(self.rel2id)
 
+            relation = self.rel2id[relation_name]
+
+            base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
+
             if self.opt['binary_classification']:
                 if 'no_relation' != relation_name:
                     binary_relation = 'has_relation'
@@ -185,32 +178,6 @@ class DataLoader(object):
                 binary_relation = self.binary_rel2id[binary_relation]
                 supplemental_components['binary_classification'].append((binary_relation,))
 
-            relation = self.rel2id[relation_name]
-
-            base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
-
-            # Use KG component
-            if self.opt['kg_loss'] is not None:
-                subject_type = 'SUBJ-' + d['subj_type']
-                object_type = 'OBJ-' + d['obj_type']
-                if not self.eval:
-                    self.entities.add(subject_type)
-                    self.entities.add(object_type)
-                    self.relations.add(relation)
-                # Subtract offsets where needed. The way this works is that to find the corresponding subject or
-                # object embedding from the tokens, an embedding lookup is performed on the pretrained word2vec
-                # embedding matrix. The lookup only involves the subject, so the corresponding mapping utilizes
-                # the original subject token position in the vocab. However, the object ids will yield binary
-                # labels indicating whether a respective object is a valid answer to the (subj, rel) pair. Thus,
-                # We offset the object id so that it results in a zero-indexed binary labeling downstream. Note,
-                # the offset is 4 because the vocab order is: ['PAD', 'UNK', 'SUBJ-_', 'SUBJ-_', 'OBJ-*']. So
-                # objects are at index 4 onwards.
-                subject_id = vocab.word2id[subject_type]
-                object_id = vocab.word2id[object_type] - 4
-                self.kg_graph[(subject_id, relation)].add(object_id)
-                supplemental_components['knowledge_graph'] += [(subject_id, relation, object_id)]
-                # Extract all known answers for subject type, relation pair in KG
-                # supplemental_components['knowledge_graph'] += [(subject_id, known_object_types)]
             if self.opt['relation_masking']:
                 # Find all possible correct relations, and mask out those which do not appear in training set
                 subject_type = 'SUBJ-' + d['subj_type']
@@ -223,13 +190,6 @@ class DataLoader(object):
                 supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
             if self.opt['one_vs_many']:
                 supplemental_components['binary_labels'] += [(relation,)]
-
-        if self.opt['kg_loss'] is not None:
-            component_data = supplemental_components['knowledge_graph']
-            for idx in range(len(component_data)):
-                instance_subj, instance_rel, instance_obj = component_data[idx]
-                known_objects = self.kg_graph[(instance_subj, instance_rel)]
-                component_data[idx] = (instance_subj, instance_rel, known_objects)
 
         if self.opt['relation_masking']:
             component_data = supplemental_components['relation_masks']
@@ -246,6 +206,52 @@ class DataLoader(object):
     def gold(self):
         """ Return gold labels as a list. """
         return self.labels
+
+    def perform_stratified_sampling(self, data):
+        sample_size = self.opt['sample_size']
+        class2size = self.distribute_sample_size(sample_size)
+        class2indices = self.group_by_class(data['base'])
+        class2sample = self.sample_by_class(class2indices, class2size)
+        sample_indices = self.aggregate_sample_indices(class2sample)
+        sample_data = {'base': data['base'][sample_indices], 'supplemental': {}}
+        for component, component_data in data['supplemental'].items():
+            sample_data['supplemental'][component] = component_data[sample_indices]
+        return sample_data
+
+    def aggregate_sample_indices(self, class2sample):
+        sample_indices = []
+        for sample in class2sample.values():
+            sample_indices.append(sample)
+        sample_indices = np.concatenate(sample_indices)
+        return sample_indices
+
+    def sample_by_class(self, class2indices, class2size):
+        class2sample = {}
+        for relation, indices in class2indices.items():
+            sample_size = min(class2size[relation], len(indices))
+            sample_indices = np.random.choice(indices, sample_size, replace=False)
+            class2sample[relation] = sample_indices
+        return class2sample
+
+    def group_by_class(self, data):
+        class2indices = {}
+        for idx, sample in enumerate(data):
+            relation = sample[-1]
+            if relation not in class2indices:
+                class2indices[relation] = []
+            class2indices[relation].append(idx)
+        return class2indices
+
+    def distribute_sample_size(self, sample_size):
+        class2size = {}
+        class_sample_size = int(sample_size / len(self.rel2id))
+        remainder = sample_size % len(self.rel2id)
+        class_sample_bonus = np.random.choice(len(self.rel2id), remainder, replace=False)
+        for rel_id in self.rel2id.values():
+            class2size[rel_id] = class_sample_size
+            if rel_id in class_sample_bonus:
+                class2size[rel_id] += 1
+        return class2size
 
     def __len__(self):
         return len(self.data)
@@ -286,65 +292,6 @@ class DataLoader(object):
         subj_masks = get_long_tensor(batch[0], batch_size)
         obj_masks = get_long_tensor(batch[1], batch_size)
         merged_components = (subj_masks, obj_masks)
-        return merged_components
-
-    def ready_knowledge_graph_batch(self, kg_batch, sentence_lengths):
-        # Offset because we don't include the 2 subject entities
-        num_ent = len(self.entities) - 2
-        batch = list(zip(*kg_batch))
-        batch, _ = sort_all(batch, sentence_lengths)
-        subjects, relations, known_objects = batch
-        subjects = torch.LongTensor(subjects)
-        relations = torch.LongTensor(relations)
-        labels = []
-        lookup_idxs = []
-        for known_objs in known_objects:
-            binary_labels = np.zeros(num_ent, dtype=np.float32)
-            binary_labels[list(known_objs)] = 1.
-
-            if 'train' in self.partition_name:
-                max_labels = self.opt['dataset']['max_labels']
-                negative_sample_ratio = self.opt['dataset']['negative_sample_ratio']
-                assert  max_labels < num_ent, "max labels: {} must be smaller than num ent: {}".format(
-                    max_labels, num_ent
-                )
-                num_pos = len(known_objs)
-                num_neg_needed = negative_sample_ratio * num_pos
-                if num_neg_needed + num_pos > max_labels:
-                    num_pos_needed = int(num_pos / negative_sample_ratio)
-                    num_neg_needed = max_labels - num_pos_needed
-                    if num_pos_needed > num_pos:
-                        num_neg_needed += num_pos_needed - num_pos
-                        num_pos_needed = num_pos
-                    if num_neg_needed > num_ent - num_pos:
-                        num_neg_needed = num_ent - num_pos
-                        num_pos_needed = max_labels - num_neg_needed
-                else:
-                    num_neg_needed = max_labels - num_pos
-                    num_pos_needed = num_pos
-                known_objs = list(known_objs)
-                np.random.shuffle(known_objs)
-                known_idxs = known_objs[:num_pos_needed]
-                unknown_objects = np.where(binary_labels == 0)[0]
-                np.random.shuffle(unknown_objects)
-                unknown_idxs = unknown_objects[:num_neg_needed]
-                collective_idxs = np.concatenate((known_idxs, unknown_idxs), axis=0)
-                collective_labels = binary_labels[collective_idxs]
-                assert len(collective_idxs) == max_labels, 'lookup idxs: {} must match max labels: {}'.format(
-                    len(collective_idxs), max_labels
-                )
-            else:
-                collective_labels = binary_labels
-                # Make dummy lookup indexes
-                collective_idxs = np.ones(num_ent)
-
-            labels.append(collective_labels)
-            lookup_idxs.append(collective_idxs)
-        labels = np.stack(labels, axis=0)
-        labels = torch.FloatTensor(labels)
-        lookup_idxs = np.stack(lookup_idxs, axis=0)
-        lookup_idxs = torch.LongTensor(lookup_idxs)
-        merged_components = (subjects, relations, labels, lookup_idxs)
         return merged_components
 
     def ready_relation_masks_batch(self, mask_batch, sentence_lengths):
@@ -390,16 +337,7 @@ class DataLoader(object):
         readied_batch['supplemental'] = dict()
         readied_supplemental = readied_batch['supplemental']
         for name, supplemental_batch in batch['supplemental'].items():
-            if name == 'entity_masks':
-                readied_supplemental[name] = self.ready_masks_batch(
-                    masks_batch=supplemental_batch,
-                    batch_size=batch_size,
-                    sentence_lengths=readied_batch['sentence_lengths'])
-            elif name == 'knowledge_graph':
-                readied_supplemental[name] = self.ready_knowledge_graph_batch(
-                    kg_batch=supplemental_batch,
-                    sentence_lengths=readied_batch['sentence_lengths'])
-            elif name == 'relation_masks':
+            if name == 'relation_masks':
                 readied_supplemental[name] = self.ready_relation_masks_batch(
                     mask_batch=supplemental_batch,
                     sentence_lengths=readied_batch['sentence_lengths'])

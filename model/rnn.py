@@ -44,21 +44,8 @@ class RelationModel(object):
         if opt['cuda']:
             self.model.cuda()
             self.criterion.cuda()
-        if self.opt['kg_loss'] is not None:
-            self.lambda_term = self.opt['kg_loss']['lambda']
-            self.lambda_decay = self.opt['kg_loss'].get('lambda_decay', 1.0)
-
-        # if self.opt['kg_loss'] is not None:
-        #     self.fact_checker = choose_fact_checker(self.opt['kg_loss']['model'])
-        #     fact_checker_params = [p for p in self.fact_checker.parameters() if p.requires_grad]
-        #     self.parameters += fact_checker_params
-        #     if opt['cuda']:
-        #         self.fact_checker.cuda()
 
         self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
-
-    def update_lambda_term(self):
-        self.lambda_term *= self.lambda_decay
 
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
@@ -72,15 +59,6 @@ class RelationModel(object):
 
         batch['base'] = base_batch
         return batch, labels, orig_idx
-
-    def kg_criterion(self, batch_inputs, relations):
-        supplemental_inputs = batch_inputs['supplemental']
-        subjects, labels = supplemental_inputs['knowledge_graph']
-        label_smoothing = self.opt['kg_loss']['label_smoothing']
-        labels =  ((1.0 - label_smoothing) * labels) + (1.0 / labels.size(1))
-        predicted_objects = self.fact_checker.forward(subjects, relations)
-        loss = self.fact_checker.loss(predicted_objects, labels)
-        return loss
 
     def update(self, batch):
         losses = {}
@@ -102,17 +80,6 @@ class RelationModel(object):
 
         cumulative_loss = main_loss
         losses['main'] = main_loss.data.item()
-        if self.opt['kg_loss'] is not None:
-            relation_kg_loss = supplemental_losses['relation']
-            sentence_kg_loss = supplemental_losses['sentence']
-            cumulative_loss += (relation_kg_loss + sentence_kg_loss) * self.lambda_term
-            # losses.update(supplemental_losses)
-            relation_kg_loss_value = relation_kg_loss.data.item()
-            sentence_kg_loss_value = sentence_kg_loss.data.item()
-            losses.update({'relation_kg': relation_kg_loss_value, 'sentence_kg': sentence_kg_loss_value})
-            # kg_loss = self.kg_criterion(batch_inputs=inputs, relations=sentence_encs)
-            # cumulative_loss += self.opt['kg_loss']['lambda'] * kg_loss.sum()
-            # losses['kg'] = kg_loss.data.item()
         # backward
         cumulative_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
@@ -155,10 +122,10 @@ class RelationModel(object):
         else:
             predictions = np.argmax(logits, axis=1).tolist()
         # predictions = logits
+        labels = labels.data.cpu().numpy().tolist()
         if unsort:
-            _, predictions, probs = [list(t) for t in zip(*sorted(zip(orig_idx,\
-                    predictions, probs)))]
-        return predictions, probs, loss.data.item()
+            _, predictions, probs, labels = [list(t) for t in zip(*sorted(zip(orig_idx, predictions, probs, labels)))]
+        return predictions, probs, loss.data.item(), labels
 
     def update_lr(self, new_lr):
         torch_utils.change_lr(self.optimizer, new_lr)
@@ -193,14 +160,6 @@ class PositionAwareRNN(nn.Module):
         self.drop = nn.Dropout(opt['dropout'])
         self.emb = nn.Embedding(opt['vocab_size'], opt['emb_dim'], padding_idx=constant.PAD_ID)
         # Initialize relation embeddings. Note: these will be used as the decoder in the PA-LSTM,
-        # and as the relation embeddings in the KG model simultaneously.
-        if opt['kg_loss'] is not None:
-            self.rel_emb = nn.Embedding(opt['kg_loss']['model']['num_relations'],
-                                        opt['kg_loss']['model']['embedding_dim'])
-            self.object_indexes = torch.from_numpy(np.array(opt['obj_idxs']))
-            if opt['cuda']:
-                self.object_indexes = self.object_indexes.cuda()
-            self.kg_model = choose_fact_checker(opt['kg_loss']['model'])
         # Using BiLSTM or LSTM
         if opt.get('encoding_type', 'lstm').lower() in ['bilstm', 'lstm']:
             self.bidirectional_encoding = opt.get('bidirectional_encoding', False)
@@ -322,24 +281,6 @@ class PositionAwareRNN(nn.Module):
         else:
             final_hidden = hidden
 
-        if self.opt['kg_loss'] is not None:
-            subjects, relations, labels, lookup_idxs = supplemental_inputs['knowledge_graph']
-            # object indices to compare against
-            e2s = self.emb(self.object_indexes)[lookup_idxs]
-            # Obtain embeddings
-            subject_embs = self.emb(subjects)
-            relation_embs = self.rel_emb(relations)
-            # Forward pass through both relation and sentence KGLP
-            relation_kg_preds = self.kg_model.forward(subject_embs, relation_embs, e2s, lookup_idxs)
-            sentence_kg_preds = self.kg_model.forward(subject_embs, final_hidden, e2s, lookup_idxs)
-            # Compute each loss term
-            relation_kg_loss = self.kg_model.loss(relation_kg_preds, labels)
-            sentence_kg_preds = self.kg_model.loss(sentence_kg_preds, labels)
-            supplemental_losses = {'relation':relation_kg_loss, 'sentence': sentence_kg_preds}
-            # Remove gradient from flowing to the relation embeddings in the main loss calculation
-            logits = torch.mm(final_hidden, self.rel_emb.weight.transpose(1, 0).detach())
-            #logits += self.class_bias
-        else:
-            supplemental_losses = {}
-            logits = self.linear(final_hidden)
+        supplemental_losses = {}
+        logits = self.linear(final_hidden)
         return logits, final_hidden, outputs, supplemental_losses

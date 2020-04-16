@@ -28,15 +28,17 @@ from configs.dict_with_attributes import AttributeDict
 def extract_binary_probs(data, model):
     # id2label = dict([(v, k) for k, v in data.binary_rel2id.items()])
     predictions = []
+    labels = []
     for i, batch in enumerate(data):
-        _, probs, _ = model.predict(batch)
+        _, probs, _, batch_labels = model.predict(batch)
         # pred_labels = [id2label[pred] for pred in preds]
         predictions += probs
-    return np.array(predictions)
+        labels += batch_labels
+    return np.array(predictions), np.array(labels)
 
 def extract_binary_predictions(data, model, threshold=None):
     id2rel = dict([(v, k) for k, v in data.binary_rel2id.items()])
-    binary_probs = extract_binary_probs(data=data, model=model)
+    binary_probs, binary_labels = extract_binary_probs(data=data, model=model)
     if threshold is None:
         gold_labels = data.gold()
         binary_gold_labels = ['has_relation' if label != 'no_relation' else label for label in gold_labels]
@@ -46,17 +48,6 @@ def extract_binary_predictions(data, model, threshold=None):
     binary_labels = [id2rel[prediction] for prediction in binary_predictions]
     return binary_labels, threshold
 
-def str2bool(v):
-    return v.lower() in ('true')
-
-def add_kg_model_params(cfg_dict):
-    fact_checking_config = os.path.join(cwd, 'configs', 'fact_checking_configs.yaml')
-    with open(fact_checking_config, 'r') as file:
-        fact_checking_config_dict = yaml.load(file)
-    fact_checking_model = cfg_dict['kg_loss']['model']
-    params = fact_checking_config_dict[fact_checking_model]
-    params['name'] = fact_checking_model
-    return params
 
 def add_encoding_config(cfg_dict):
     if cfg_dict['encoding_type'] == 'BiLSTM':
@@ -70,15 +61,10 @@ def add_encoding_config(cfg_dict):
 cwd = os.getcwd()
 on_server = 'Desktop' not in cwd
 config_path = os.path.join(cwd, 'configs', f'model_config{"_nell" if on_server else ""}.yaml')
-# config_path = '/Users/georgestoica/Desktop/Research/tacred-exploration/configs/model_config.yaml'
-# config_path = '/zfsauton3/home/gis/research/tacred-exploration/configs/model_config_server.yaml'
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 
 add_encoding_config(cfg_dict)
-if cfg_dict['kg_loss'] is not None:
-    cfg_dict['kg_loss']['model'] = add_kg_model_params(cfg_dict)
-    cfg_dict['kg_loss']['model']['freeze_embeddings'] = cfg_dict['kg_loss']['freeze_embeddings']
 
 opt = cfg_dict#AttributeDict(cfg_dict)
 opt['cuda'] = torch.cuda.is_available()
@@ -117,7 +103,6 @@ dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
                        opt,
                        vocab,
                        evaluation=True,
-                       kg_graph=train_batch.kg_graph,
                        rel_graph=train_batch.e1e2_to_rel,
                        rel2id=train_batch.rel2id,
                        binary_rel2id=train_batch.binary_rel2id)
@@ -126,7 +111,6 @@ test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         opt,
                         vocab,
                         evaluation=True,
-                        kg_graph=train_batch.kg_graph,
                         rel_graph=train_batch.e1e2_to_rel,
                         rel2id=train_batch.rel2id,
                         binary_rel2id=train_batch.binary_rel2id)
@@ -134,10 +118,6 @@ test_batch = DataLoader(opt['data_dir'] + '/test.json',
 opt['rel2id'] = train_batch.rel2id
 opt['no_relation_id'] = train_batch.rel2id['no_relation']
 opt['binary_rel2id'] = train_batch.binary_rel2id
-#print(train_batch.rel2id)
-if cfg_dict['kg_loss'] is not None:
-    cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
-    cfg_dict['kg_loss']['model']['num_relations'] = len(train_batch.rel2id)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)
@@ -223,7 +203,7 @@ for epoch in range(1, opt['num_epoch']+1):
     train_eval_loss = 0
     for i, batch in enumerate(train_batch):
     # for i, _ in enumerate([]):
-        preds, probs, loss = model.predict(batch)
+        preds, probs, loss, _ = model.predict(batch)
         predictions += preds
         train_eval_loss += loss
         train_probs += probs
@@ -265,7 +245,7 @@ for epoch in range(1, opt['num_epoch']+1):
     dev_probs = []
     dev_loss = 0
     for i, batch in enumerate(dev_batch):
-        preds, probs, loss = model.predict(batch)
+        preds, probs, loss, _ = model.predict(batch)
         predictions += preds
         dev_loss += loss
         dev_probs += probs
@@ -294,7 +274,6 @@ for epoch in range(1, opt['num_epoch']+1):
         print('Dev Accuracy: {} | No_relation: {} | relation: {}'.format(dev_acc, no_rel_acc, rel_acc))
     dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), dev_predictions)
 
-    train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
     dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
     print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(
         epoch, train_loss, dev_loss, dev_f1))
@@ -311,7 +290,7 @@ for epoch in range(1, opt['num_epoch']+1):
     test_loss = 0
     test_probs = []
     for i, batch in enumerate(test_batch):
-        preds, probs, loss = model.predict(batch)
+        preds, probs, loss, _ = model.predict(batch)
         predictions += preds
         test_loss += loss
         test_probs += probs
