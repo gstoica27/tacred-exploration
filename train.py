@@ -45,7 +45,7 @@ def extract_binary_predictions(data, model, threshold=None):
         gold_ids = np.array([data.binary_rel2id[label] for label in binary_gold_labels])
         acc, threshold = helper.find_threshold(probs=binary_probs, true_labels=gold_ids, metric='accuracy')
     binary_predictions = (binary_probs.reshape(-1) > threshold).astype(np.int).tolist()
-    binary_labels = [id2rel[prediction] for prediction in binary_predictions]
+    binary_labels = np.array([id2rel[prediction] for prediction in binary_predictions])
     return binary_labels, threshold
 
 
