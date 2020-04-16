@@ -97,21 +97,39 @@ def create_predictions(probs, thresholds, other_label=41):
 def find_threshold(probs, true_labels, metric='accuracy'):
     """Probs: [N, L-1], True Labels: [N]"""
     # reduced_probs = np.max(probs, axis=1)
+    metric = metric.lower()
     reduced_probs = probs
-    fpr, tpr, thresholds = roc_curve(true_labels, reduced_probs)
-    if metric == 'accuracy':
-        num_pos = np.sum(true_labels == 1)
-        num_neg = np.sum(true_labels == 0)
-        tp = tpr * num_pos
-        tn = (1 - fpr) * num_neg
-        acc = (tp + tn) / (num_pos + num_neg)
-        best_threshold = thresholds[np.argmax(acc)]
-        best_perf = np.amax(acc)
-    elif metric == 'eer':
-        fnr = 1 - tpr
-        eer_diff = np.abs(fpr - fnr)
-        best_threshold = thresholds[np.argmin(eer_diff)]
-        best_perf = np.min(eer_diff)
+    if metric in ['accuracy', 'eer']:
+        fpr, tpr, thresholds = roc_curve(true_labels, reduced_probs)
+        if metric == 'accuracy':
+            num_pos = np.sum(true_labels == 1)
+            num_neg = np.sum(true_labels == 0)
+            tp = tpr * num_pos
+            tn = (1 - fpr) * num_neg
+            acc = (tp + tn) / (num_pos + num_neg)
+            best_threshold = thresholds[np.argmax(acc)]
+            best_perf = np.amax(acc)
+        elif metric == 'eer':
+            fnr = 1 - tpr
+            eer_diff = np.abs(fpr - fnr)
+            best_threshold = thresholds[np.argmin(eer_diff)]
+            best_perf = np.min(eer_diff)
+    elif metric in ['precision', 'recall', 'f1']:
+        precision, recall, thresholds = precision_recall_curve(y_true=true_labels,
+                                                               probas_pred=reduced_probs,
+                                                               pos_label=1)
+        if metric == 'f1':
+            f1 = 2*(precision * recall) / (precision + recall)
+            best_index = np.argmax(f1)
+            best_perf = f1[best_index]
+        elif metric == 'precision':
+            best_index = np.argmax(precision)
+            best_perf = precision[best_index]
+        else:
+            best_index = np.argmax(recall)
+            best_perf = recall[best_index]
+
+        best_threshold = thresholds[best_index]
     else:
         raise ValueError('Can only be eer or accuracy. Not: {}'.format(metric))
     return best_perf, best_threshold

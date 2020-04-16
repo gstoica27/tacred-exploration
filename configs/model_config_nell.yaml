@@ -24,7 +24,7 @@ max_grad_norm: 5.0  # Gradient Clipping.
 log_step: 20  # Print log every k steps.
 log:  'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
-id: 'PA-LSTM-TACRED-disjoint_ensemble' # Model ID under which to save models.
+id: 'PA-LSTM-TACRED-disjoint_ensemble_f1' # Model ID under which to save models.
 info: ''  # Optional info for the experiment.
 seed: 1234  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
@@ -38,5 +38,6 @@ relation_masking: False
 no_relation_masking: True
 typed_relations: False
 binary_classification: True
+threshold_metric: f1
 one_vs_many: False
 sample_size:

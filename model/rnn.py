@@ -183,7 +183,7 @@ class PositionAwareRNN(nn.Module):
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
         if opt['apply_binary_classification']:
-            num_output = 1
+             num_output = 1
         else:
             num_output = opt['num_class']
         self.linear = nn.Linear(self.encoding_dim, num_output)

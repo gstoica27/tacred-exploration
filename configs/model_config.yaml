@@ -38,5 +38,6 @@ relation_masking: False
 no_relation_masking: True
 typed_relations: False
 binary_classification: True
+threshold_metric: f1
 one_vs_many: False
 sample_size: 1000
