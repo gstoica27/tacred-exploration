@@ -386,7 +386,7 @@ for epoch in range(1, opt['num_epoch']+1):
             opt['optim'] in ['sgd', 'adagrad']:
         current_lr *= opt['lr_decay']
         binary_model.update_lr(current_lr)
-        positive_model.update(current_lr)
+        positive_model.update_lr(current_lr)
 
     dev_f1_history += [dev_f1]
     print("")
