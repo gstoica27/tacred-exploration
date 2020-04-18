@@ -41,3 +41,4 @@ binary_classification: True
 threshold_metric: f1
 one_vs_many: False
 sample_size: 1000
+hard_disjoint: False

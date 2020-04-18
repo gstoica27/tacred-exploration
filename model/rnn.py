@@ -34,7 +34,7 @@ class RelationModel(object):
         self.opt = opt
         self.model = PositionAwareRNN(opt, emb_matrix)
         self.apply_binary_classification = opt['apply_binary_classification']
-        if self.opt['one_vs_many'] or self.apply_binary_classification:
+        if self.apply_binary_classification:
             self.criterion = nn.BCEWithLogitsLoss()
         else:
             self.criterion = nn.CrossEntropyLoss()
@@ -69,11 +69,7 @@ class RelationModel(object):
         self.optimizer.zero_grad()
         logits, sentence_encs, token_encs, supplemental_losses = self.model(inputs)
         # Apply binary cross entropy if doing no_relation vs any relation model
-        if self.opt['one_vs_many']:
-            label_vector = inputs['supplemental']['binary_labels'][0]
-            main_loss = self.criterion(logits, label_vector)
-        elif self.apply_binary_classification:
-            labels = inputs['supplemental']['binary_classification'][0]
+        if self.apply_binary_classification:
             main_loss = self.criterion(logits.view(-1), labels.type(torch.float32))
         else:
             main_loss = self.criterion(logits, labels)
@@ -96,36 +92,24 @@ class RelationModel(object):
         # forward
         self.model.eval()
         logits, _, _, _ = self.model(inputs)
-        if self.opt['one_vs_many']:
-            label_vector = inputs['supplemental']['binary_labels'][0]
-            probs = F.sigmoid(logits)
-            loss = self.criterion(probs, label_vector)
-            probs = probs.data.cpu().numpy()
-        elif self.apply_binary_classification:
-            loss = self.criterion(logits.view(-1), labels.type(torch.float32))
-            probs = F.sigmoid(logits).data.cpu().numpy().reshape(-1)
+        if self.apply_binary_classification:
+            # loss = self.criterion(logits.view(-1), labels.type(torch.float32))
+            probs = torch.sigmoid(logits).data.cpu().numpy().reshape(-1)
         else:
-            loss = self.criterion(logits, labels)
-            probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
+            # loss = self.criterion(logits, labels)
+            probs = F.softmax(logits, dim=1).data.cpu().numpy()
         logits = logits.data.cpu().numpy()
 
         if self.opt['relation_masking']:
             relation_masks = inputs['supplemental']['relation_masks'][0].data.cpu().numpy()
             logits[relation_masks == 0] = -np.inf
-        # If the correct prediction is not no relation, "mask out" no relation
-        if self.opt['no_relation_masking']:
-            # logits[labels.data.cpu().numpy() != 0, 0] = -np.inf
-            logits[:, self.opt['no_relation_id']] = -np.inf
-        if self.apply_binary_classification:
-            predictions = (probs > .5).astype(np.int).tolist()
-            probs = probs.tolist()
-        else:
-            predictions = np.argmax(logits, axis=1).tolist()
-        # predictions = logits
+
+        probs = probs.tolist()
+
         labels = labels.data.cpu().numpy().tolist()
         if unsort:
-            _, predictions, probs, labels = [list(t) for t in zip(*sorted(zip(orig_idx, predictions, probs, labels)))]
-        return predictions, probs, loss.data.item(), labels
+            _, probs, labels = [list(t) for t in zip(*sorted(zip(orig_idx, probs, labels)))]
+        return probs, labels, #loss.data.item()
 
     def update_lr(self, new_lr):
         torch_utils.change_lr(self.optimizer, new_lr)

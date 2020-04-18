@@ -17,15 +17,13 @@ class DataLoader(object):
     Load data from json files, preprocess and prepare batches.
     """
     def __init__(self, filename, batch_size, opt, vocab, evaluation=False,
-                 rel_graph=None, exclude_triples=set(), rel2id={}, binary_rel2id={}):
+                 rel_graph=None, rel2id={}, binary_rel2id={}):
         self.batch_size = batch_size
         self.opt = opt
         self.vocab = vocab
         self.eval = evaluation
         self.entities = set()
         self.relations = set()
-        # Triples to exclude for Triple isolation checking
-        self.exclude_triples = exclude_triples
 
         if self.opt['relation_masking']:
             # Graph already created in training dataset. Don't create new one b/c it wouldn't be correct.
@@ -111,24 +109,8 @@ class DataLoader(object):
         supplemental_components = defaultdict(list)
         num_excluded = 0
         self.triple_idxs = []
-        filtered_idxs = []
-        filtered_data = []
 
         for idx, d in enumerate(data):
-            subject_type = d['subj_type']
-            object_type = d['obj_type']
-            relation_name = d['relation']
-            # Exclude triple occurrences
-            if (subject_type, relation_name, object_type) in self.exclude_triples and not self.eval:
-                num_excluded += 1
-                self.triple_idxs.append(idx)
-                continue
-            # Store idxs corresponding to triples excluded in training, in eval.
-            elif (subject_type, relation_name, object_type) in self.exclude_triples and self.eval:
-                self.triple_idxs.append(idx)
-
-            filtered_idxs.append(idx)
-            filtered_data.append(d)
             tokens = d['token']
             if opt['lower']:
                 tokens = [t.lower() for t in tokens]
