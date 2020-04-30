@@ -60,10 +60,15 @@ class DataLoader(object):
             data = self.shuffle_data(data)
 
         # if self.opt['typed_relations']:
-        id2label = dict([(v, k) for k, v in self.rel2id.items()])
+        self.id2label = dict([(v, k) for k, v in self.rel2id.items()])
+        self.labels = [self.id2label[d[-1]] for d in data['base']]
         # else:
         #     id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
-        self.labels = [id2label[d[-1]] for d in data['base']]
+        if opt['binary_classification']:
+            self.id2binary = dict([(v, k) for k, v in self.binary_rel2id.items()])
+            binary_relations = data['supplemental']['binary_classification']
+            self.binary_labels = [self.id2binary[d[-1]] for d in binary_relations]
+
         self.num_examples = len(data['base'])
         # chunk into batches
         data = self.create_batches(data=data, batch_size=batch_size)

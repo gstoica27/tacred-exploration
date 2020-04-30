@@ -35,10 +35,7 @@ attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 eval_metric: 'f1'
 relation_masking: False
-no_relation_masking: True
 typed_relations: False
-binary_classification: True
 threshold_metric: f1
-one_vs_many: False
 sample_size:
-hard_disjoint: True
+hard_disjoint: False

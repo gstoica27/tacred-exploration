@@ -128,7 +128,7 @@ class DataProcessor(object):
             sample = deepcopy(raw_sample)
             if config['binary_classification']:
                 sample_relation = sample['base']['relation']
-                if self.name2id['rel2id']['no_relation'] == sample_relation:
+                if  self.name2id['rel2id']['no_relation'] == sample_relation:
                     sample['base']['relation'] = self.name2id['binary_rel2id']['no_relation']
                 else:
                     sample['base']['relation'] = self.name2id['binary_rel2id']['has_relation']
@@ -146,7 +146,6 @@ class DataProcessor(object):
                        id2label=id2label,
                        is_eval=is_eval,
                        batch_size=self.config['batch_size'])
-
 
     def perform_stratified_sampling(self, data):
         sample_size = self.config['sample_size']

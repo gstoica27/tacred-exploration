@@ -19,10 +19,10 @@ lr: 1.0 # Applies to SGD and Adagrad
 lr_decay: 0.9
 optim: 'sgd'  # sgd, adagrad, adam or adamax.
 num_epoch: 30 # number of epochs
-batch_size: 50
+batch_size: 100
 max_grad_norm: 5.0  # Gradient Clipping.
 log_step: 1  # Print log every k steps.
-log:  'logs.txt'  # Write training log to file.
+log: 'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
 id: 'joint-re-lp'  # Model ID under which to save models.
 info: ''  # Optional info for the experiment.
@@ -35,10 +35,7 @@ attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 eval_metric: 'f1'
 relation_masking: False
-no_relation_masking: True
 typed_relations: False
-binary_classification: True
 threshold_metric: f1
-one_vs_many: False
 sample_size: 1000
 hard_disjoint: False

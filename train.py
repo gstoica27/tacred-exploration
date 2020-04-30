@@ -183,6 +183,25 @@ config={
         partition_name='test'
 )
 
+binary_dev_iterator = data_processor.create_iterator(
+    config={
+            'binary_classification': True,
+            'exclude_negative_data': False,
+            'relation_masking': False,
+            'word_dropout': opt['word_dropout']
+    },
+    partition_name='dev'
+)
+binary_test_iterator = data_processor.create_iterator(
+    config={
+            'binary_classification': True,
+            'exclude_negative_data': False,
+            'relation_masking': False,
+            'word_dropout': opt['word_dropout']
+    },
+    partition_name='test'
+)
+
 # Get mappings
 opt['id2label'] = train_iterator.id2label
 opt['binary_rel2id'] = binary_iterator.id2label
@@ -273,18 +292,23 @@ for epoch in range(1, opt['num_epoch']+1):
     positive_probs = extract_eval_probs(dataset=train_iterator, model=positive_model)
 
     train_pred_labels, _ = assign_labels(binary_probs,
-                                   positive_probs,
-                                   binary_id2rel=binary_iterator.id2label,
-                                   positive_id2rel=positive_iterator.id2label,
-                                   gold_labels=train_iterator.labels,
-                                   data_processor=data_processor,
-                                   is_hard=opt['hard_disjoint'],
-                                   metric=opt['threshold_metric'],
-                                   threshold=None)
+                                         positive_probs,
+                                         binary_id2rel=binary_iterator.id2label,
+                                         positive_id2rel=positive_iterator.id2label,
+                                         gold_labels=train_iterator.labels,
+                                         data_processor=data_processor,
+                                         is_hard=opt['hard_disjoint'],
+                                         metric=opt['threshold_metric'],
+                                         threshold=None)
 
     train_p, train_r, train_f1 = scorer.score(train_iterator.labels, train_pred_labels)
-
     train_loss = train_loss / train_iterator.num_examples * opt['batch_size']  # avg loss per batch
+    # Evaluate on binary training set
+    binary_probs = extract_eval_probs(dataset=binary_iterator, model=binary_model)
+    binary_preds = (binary_probs > .5).astype(int)
+    binary_labels = [binary_iterator.id2label[p] for p in binary_preds]
+    binary_train_p, binary_train_r, binary_train_f1 = scorer.score(binary_iterator.labels, binary_labels)
+
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, train_f1))
     file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_f1))
 
@@ -304,12 +328,17 @@ for epoch in range(1, opt['num_epoch']+1):
                                        threshold=None)
 
     dev_p, dev_r, dev_f1 = scorer.score(dev_iterator.labels, dev_pred_labels)
+    # Evaluate on binary training set
+    binary_probs = extract_eval_probs(dataset=binary_dev_iterator, model=binary_model)
+    binary_preds = (binary_probs > .5).astype(int)
+    binary_labels = [binary_dev_iterator.id2label[p] for p in binary_preds]
+    binary_dev_p, binary_dev_r, binary_dev_f1 = scorer.score(binary_dev_iterator.labels, binary_labels)
 
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(
         epoch, train_loss, dev_f1))
     file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_f1))
 
-    current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r}
+    current_dev_metrics = {'f1': binary_dev_f1, 'precision': binary_dev_p, 'recall': binary_dev_r}
     if opt['hard_disjoint']:
         current_dev_metrics['threshold'] = extra['threshold']
         threshold = extra['threshold']
@@ -331,8 +360,13 @@ for epoch in range(1, opt['num_epoch']+1):
                                        threshold=threshold)
 
     test_p, test_r, test_f1 = scorer.score(test_iterator.labels, test_pred_labels)
+    # Evaluate on binary training set
+    binary_probs = extract_eval_probs(dataset=binary_test_iterator, model=binary_model)
+    binary_preds = (binary_probs > .5).astype(int)
+    binary_labels = [binary_test_iterator.id2label[p] for p in binary_preds]
+    binary_test_p, binary_test_r, binary_test_f1 = scorer.score(binary_test_iterator.labels, binary_labels)
 
-    test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r}
+    test_metrics_at_current_dev = {'f1': binary_test_f1, 'precision': binary_test_p, 'recall': binary_test_r}
 
     if best_dev_metrics[eval_metric] <= current_dev_metrics[eval_metric]:
         best_dev_metrics = current_dev_metrics
