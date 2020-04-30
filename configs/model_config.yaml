@@ -47,4 +47,4 @@ cpg:
   dropout: .5
   use_batch_norm: True
 relation_masking: False
-no_relation_masking: True
+no_relation_masking: False
