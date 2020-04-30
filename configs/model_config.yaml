@@ -40,5 +40,11 @@ kg_loss:
 #  lambda_decay: .9
 #  lambda_update_gap: 1 # number of epochs between lambda updates
 #  freeze_embeddings: False
+cpg:
+  network_structure: [300]
+  subject_output_shape: [300, 300]
+  object_output_shape: [300, 300]
+  dropout: .5
+  use_batch_norm: True
 relation_masking: False
 no_relation_masking: True

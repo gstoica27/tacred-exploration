@@ -10,7 +10,6 @@ import torch.nn.functional as F
 
 from utils import constant, torch_utils
 from model import layers
-from model.nas_rnn import DARTSModel
 from model.blocks import *
 from model.cpg_modules import ContextualParameterGenerator
 from model.link_prediction_models import *
@@ -43,13 +42,6 @@ class RelationModel(object):
         if self.opt['kg_loss'] is not None:
             self.lambda_term = self.opt['kg_loss']['lambda']
             self.lambda_decay = self.opt['kg_loss'].get('lambda_decay', 1.0)
-
-        # if self.opt['kg_loss'] is not None:
-        #     self.fact_checker = choose_fact_checker(self.opt['kg_loss']['model'])
-        #     fact_checker_params = [p for p in self.fact_checker.parameters() if p.requires_grad]
-        #     self.parameters += fact_checker_params
-        #     if opt['cuda']:
-        #         self.fact_checker.cuda()
 
         self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
 
@@ -196,6 +188,9 @@ class PositionAwareRNN(nn.Module):
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
+        if opt['cpg'] is not None:
+            self.compositional_cpg = CompositionalCPG(config=opt['cpg'])
+
         self.linear = nn.Linear(self.encoding_dim, opt['num_class'], bias=False)
         #self.register_parameter('class_bias', torch.nn.Parameter(torch.zeros((opt['num_class']))))
 
@@ -204,13 +199,6 @@ class PositionAwareRNN(nn.Module):
         self.use_cuda = opt['cuda']
         self.emb_matrix = emb_matrix
         self.init_weights()
-
-    # def load_decoder(self, model_path):
-    #     state_dict = torch.load(model_path)
-    #     relation_embs = state_dict['emb_rel.weight']
-    #     self.linear.weight.data.copy_(relation_embs)
-    #     if self.opt['kg_loss']['freeze_embeddings']:
-    #         self.linear.weight.requires_grad = False
 
     def init_weights(self):
         if self.emb_matrix is None:
@@ -290,6 +278,7 @@ class PositionAwareRNN(nn.Module):
         else:
             final_hidden = hidden
 
+        supplemental_losses = {}
         if self.opt['kg_loss'] is not None:
             subjects, relations, labels, lookup_idxs = supplemental_inputs['knowledge_graph']
             # object indices to compare against
@@ -307,7 +296,41 @@ class PositionAwareRNN(nn.Module):
             # Remove gradient from flowing to the relation embeddings in the main loss calculation
             logits = torch.mm(final_hidden, self.rel_emb.weight.transpose(1, 0).detach())
             #logits += self.class_bias
+        elif self.opt['cpg'] is not None:
+            subjects, objects = supplemental_inputs['cpg']
+            subject_embs = self.emb(subjects)
+            object_embs = self.emb(objects)
+            comp_inputs = (final_hidden, subject_embs, object_embs)
+            final_hidden = self.compositional_cpg(comp_inputs)
+            logits = self.linear(final_hidden)
         else:
-            supplemental_losses = {}
             logits = self.linear(final_hidden)
         return logits, final_hidden, outputs, supplemental_losses
+
+class CompositionalCPG(nn.Module):
+    def __init__(self, config):
+
+        super(CompositionalCPG, self).__init__()
+        self.config = config
+        self.subject_cpg = ContextualParameterGenerator(
+            network_structure=self.config['network_structure'],
+            output_shape=self.config['subject_output_shape'],
+            dropout=self.config['dropout'],
+            use_batch_norm=self.config['use_batch_norm']
+        )
+        self.object_cpg = ContextualParameterGenerator(
+            network_structure=self.config['network_structure'],
+            output_shape=self.config['object_output_shape'],
+            dropout=self.config['dropout'],
+            use_batch_norm=self.config['use_batch_norm']
+        )
+
+    def forward(self, inputs):
+        base_input, subjects, objects = inputs
+        subject_weights = self.subject_cpg(subjects)
+        object_weights = self.object_cpg(objects)
+
+        subj_atn = F.relu(torch.einsum('ij,ijk->ik', base_input, subject_weights))
+        obj_atn = F.relu(torch.einsum('ij,ijk->ik', subj_atn, object_weights))
+        return obj_atn
+

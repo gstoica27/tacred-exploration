@@ -183,6 +183,15 @@ class DataLoader(object):
                     self.e1e2_to_rel[(subject_id, object_id)].add(relation)
                 supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
 
+            if self.opt['cpg'] is not None:
+                # Find all possible correct relations, and mask out those which do not appear in training set
+                subject_type = 'SUBJ-' + d['subj_type']
+                object_type = 'OBJ-' + d['obj_type']
+                subject_id = vocab.word2id[subject_type]
+                object_id = vocab.word2id[object_type]
+                supplemental_components['cpg'] += [(subject_id, object_id)]
+
+
         if self.opt['kg_loss'] is not None:
             component_data = supplemental_components['knowledge_graph']
             for idx in range(len(component_data)):
@@ -246,6 +255,15 @@ class DataLoader(object):
         obj_masks = get_long_tensor(batch[1], batch_size)
         merged_components = (subj_masks, obj_masks)
         return merged_components
+
+    def ready_cpg_batch(self, cpg_batch, sentence_lengths):
+        batch = list(zip(*cpg_batch))
+        batch, _ = sort_all(batch, sentence_lengths)
+        subjects, objects = batch
+        subjects = torch.LongTensor(subjects)
+        objects = torch.LongTensor(objects)
+
+        return (subjects, objects)
 
     def ready_knowledge_graph_batch(self, kg_batch, sentence_lengths):
         # Offset because we don't include the 2 subject entities
@@ -338,6 +356,11 @@ class DataLoader(object):
                 readied_supplemental[name] = self.ready_relation_masks_batch(
                     mask_batch=supplemental_batch,
                     sentence_lengths=readied_batch['sentence_lengths'])
+            elif name == 'cpg':
+                readied_supplemental[name] = self.ready_cpg_batch(
+                    cpg_batch=supplemental_batch,
+                    sentence_lengths=readied_batch['sentence_lengths']
+                )
         return readied_batch
 
     def __getitem__(self, key):
