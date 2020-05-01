@@ -157,6 +157,9 @@ for curriculum_stage, train_length in opt['curriculum'].items():
     eval_metric = opt['eval_metric']
     dev_f1_history = []
     current_lr = opt['lr']
+    # save
+    stage_model_save_dir = os.path.join(model_save_dir, 'curriculum_{}'.format(curriculum_stage))
+    os.makedirs(stage_model_save_dir, exist_ok=True)
 
     for epoch in range(1, train_length + 1):
         train_loss = 0
@@ -225,9 +228,7 @@ for curriculum_stage, train_length in opt['curriculum'].items():
         for name, value in test_metrics_at_best_dev.items():
             print_str += ' {}: {} |'.format(name, value)
         print(print_str)
-        # save
-        stage_model_save_dir = os.path.join(model_save_dir, 'curriculum_{}'.format(curriculum_stage))
-        os.makedirs(stage_model_save_dir, exist_ok=True)
+
         model_file = os.path.join(stage_model_save_dir, 'checkpoint_epoch_{}.pt'.format(epoch))
         model.save(model_file, epoch)
 
@@ -246,8 +247,11 @@ for curriculum_stage, train_length in opt['curriculum'].items():
         dev_f1_history += [dev_f1]
         print("")
 
-    best_cross_curriculum[curriculum_stage] = {'dev': best_dev_metrics, 'test': test_metrics_at_best_dev}
     print("Training ended with {} epochs.".format(epoch))
+    print('Loading best model...')
+    model.load(os.path.join(stage_model_save_dir, 'best_model.pt'))
+    best_cross_curriculum[curriculum_stage] = {'dev': best_dev_metrics, 'test': test_metrics_at_best_dev}
+
 print('#'*80)
 print('Performances across curriculum:')
 for curriculum_stage, performances in best_cross_curriculum.items():
