@@ -33,6 +33,7 @@ def extract_preds(dataset, model):
         pred_triples = list(zip(subjects.detach().numpy(), batch_preds, objects.detach().numpy()))
 
         data_preds += pred_triples
+    data_preds = [dataset.triple2id_fn(triple) for triple in data_preds]
     return data_preds
 
 def add_encoding_config(cfg_dict):
@@ -180,20 +181,20 @@ for curriculum_stage, train_length in opt['curriculum'].items():
 
         print('Evaluating on train set...')
         train_pred_ids = extract_preds(dataset=train_iterator, model=model)
-        train_pred_labels = [train_iterator.id2label[train_iterator.triple2id_fn(pred_id)] for pred_id in train_pred_ids]
+        train_pred_labels = [train_iterator.id2label[pred_id] for pred_id in train_pred_ids]
         train_precision, train_recall, train_f1 = scorer.score(train_iterator.labels, train_pred_labels)
         train_loss = train_loss / train_iterator.num_examples * opt['batch_size']  # avg loss per batch
 
         print('Evaluating on dev set...')
         dev_pred_ids = extract_preds(dataset=dev_iterator, model=model)
-        dev_pred_labels = [dev_iterator.id2label[dev_iterator.triple2id_fn(pred_id)] for pred_id in dev_pred_ids]
+        dev_pred_labels = [dev_iterator.id2label[pred_id] for pred_id in dev_pred_ids]
         dev_precision, dev_recall, dev_f1 = scorer.score(dev_iterator.labels, dev_pred_labels)
         print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, dev_f1))
         file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_f1))
 
         print('Evaluating on test set...')
         test_pred_ids = extract_preds(dataset=test_iterator, model=model)
-        test_pred_labels = [test_iterator.id2label[test_iterator.triple2id_fn(pred_id)] for pred_id in test_pred_ids]
+        test_pred_labels = [test_iterator.id2label[pred_id] for pred_id in test_pred_ids]
         test_precision, test_recall, test_f1 = scorer.score(test_iterator.labels, test_pred_labels)
         print("epoch {}: train_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, train_loss, test_f1))
         file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_f1))
@@ -252,7 +253,7 @@ for curriculum_stage, train_length in opt['curriculum'].items():
         print("")
 
     print("Training ended with {} epochs.".format(epoch))
-    print('Loading best model...')
+    print('Loading best model from curriculum {}...'.format(curriculum_stage))
     model.load(os.path.join(stage_model_save_dir, 'best_model.pt'))
     best_cross_curriculum[curriculum_stage] = {'dev': best_dev_metrics, 'test': test_metrics_at_best_dev}
 

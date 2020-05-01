@@ -38,7 +38,7 @@ relation_masking: False
 typed_relations: False
 sample_size: 1000
 curriculum:
-  binary: 30
-  subj_type: 30
+  binary: 0
+  subj_type: 0
   subj_obj_type: 30
   full: 50
