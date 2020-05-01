@@ -108,26 +108,25 @@ def find_threshold(probs, true_labels, metric='accuracy'):
             tn = (1 - fpr) * num_neg
             acc = (tp + tn) / (num_pos + num_neg)
             best_threshold = thresholds[np.argmax(acc)]
-            best_perf = np.amax(acc)
+            best_perf = {'accuracy': np.amax(acc)}
         elif metric == 'eer':
             fnr = 1 - tpr
             eer_diff = np.abs(fpr - fnr)
             best_threshold = thresholds[np.argmin(eer_diff)]
-            best_perf = np.min(eer_diff)
+            best_perf = {'eer': np.min(eer_diff)}
     elif metric in ['precision', 'recall', 'f1']:
         precision, recall, thresholds = precision_recall_curve(y_true=true_labels,
                                                                probas_pred=reduced_probs,
                                                                pos_label=1)
+        f1 = 2 * (precision * recall) / (precision + recall)
         if metric == 'f1':
-            f1 = 2*(precision * recall) / (precision + recall)
             best_index = np.argmax(f1)
-            best_perf = f1[best_index]
         elif metric == 'precision':
             best_index = np.argmax(precision)
-            best_perf = precision[best_index]
         else:
             best_index = np.argmax(recall)
-            best_perf = recall[best_index]
+
+        best_perf = {'f1': f1[best_index], 'precision': precision[best_index], 'recall': recall[best_index]}
 
         best_threshold = thresholds[best_index]
     else:

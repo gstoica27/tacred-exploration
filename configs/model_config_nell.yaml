@@ -38,4 +38,4 @@ relation_masking: False
 typed_relations: False
 threshold_metric: f1
 sample_size:
-hard_disjoint: False
+hard_disjoint: True

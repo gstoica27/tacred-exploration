@@ -24,30 +24,6 @@ from utils.vocab import Vocab
 from collections import defaultdict
 from configs.dict_with_attributes import AttributeDict
 
-
-# def extract_binary_probs(data, model):
-#     # id2label = dict([(v, k) for k, v in data.binary_rel2id.items()])
-#     predictions = []
-#     labels = []
-#     for i, batch in enumerate(data):
-#         _, probs, _, batch_labels = model.predict(batch)
-#         # pred_labels = [id2label[pred] for pred in preds]
-#         predictions += probs
-#         labels += batch_labels
-#     return np.array(predictions), np.array(labels)
-#
-# def extract_binary_predictions(data, model, threshold=None, metric='accuracy'):
-#     id2rel = dict([(v, k) for k, v in data.binary_rel2id.items()])
-#     binary_probs, binary_labels = extract_binary_probs(data=data, model=model)
-#     if threshold is None:
-#         gold_labels = data.gold()
-#         binary_gold_labels = ['has_relation' if label != 'no_relation' else label for label in gold_labels]
-#         gold_ids = np.array([data.binary_rel2id[label] for label in binary_gold_labels])
-#         acc, threshold = helper.find_threshold(probs=binary_probs, true_labels=gold_ids, metric=metric)
-#     binary_predictions = (binary_probs.reshape(-1) > threshold).astype(np.int).tolist()
-#     binary_labels = np.array([id2rel[prediction] for prediction in binary_predictions])
-#     return binary_labels, threshold
-
 def extract_eval_probs(dataset, model):
     data_probs = []
     for i, batch in enumerate(dataset):
@@ -72,6 +48,10 @@ def assign_labels(binary_probs,
         if threshold is None:
             gold_ids = np.array([binary_rel2id[label] for label in binary_gold_labels])
             acc, threshold = helper.find_threshold(probs=binary_probs, true_labels=gold_ids, metric=metric)
+            # perf_print = 'Threshold {} Performance: '
+            # for name, metric in acc.items():
+            #     perf_print += '{}: {}, '.format(name, metric)
+            # print(perf_print)
         binary_predictions = (binary_probs.reshape(-1) > threshold).astype(np.int).tolist()
         binary_labels = np.array([binary_id2rel[prediction] for prediction in binary_predictions])
         positive_predictions = np.argmax(positive_probs, axis=1)
@@ -87,6 +67,14 @@ def assign_labels(binary_probs,
         predictions = np.argmax(all_probs, axis=1)
         labels = [positive_id2rel[pred_id] for pred_id in predictions]
     return labels, extra
+
+def find_binary_threshold(gold_ids, prediction_probs, threshold_metric='f1'):
+    acc, threshold = helper.find_threshold(probs=prediction_probs, true_labels=gold_ids, metric=threshold_metric)
+    perf_print = 'Threshold {} Performance: '
+    for name, metric in acc.items():
+        perf_print += '{}: {}, '.format(name, metric)
+    print(perf_print)
+    return threshold
 
 
 def add_encoding_config(cfg_dict):
@@ -278,108 +266,114 @@ for epoch in range(1, opt['num_epoch']+1):
                 max_steps=max_steps,
                 epoch=epoch,
                 current_lr=current_lr)
-    print('Training Epoch: {} of positive model'.format(epoch))
-    train_epoch(model=positive_model,
-                dataset=positive_iterator,
-                opt=opt,
-                global_step=global_step,
-                max_steps=max_steps,
-                epoch=epoch,
-                current_lr=current_lr)
+    # print('Training Epoch: {} of positive model'.format(epoch))
+    # train_epoch(model=positive_model,
+    #             dataset=positive_iterator,
+    #             opt=opt,
+    #             global_step=global_step,
+    #             max_steps=max_steps,
+    #             epoch=epoch,
+    #             current_lr=current_lr)
 
     print("Evaluating on train set...")
-    binary_probs = extract_eval_probs(dataset=train_iterator, model=binary_model)
-    positive_probs = extract_eval_probs(dataset=train_iterator, model=positive_model)
+    # train_binary_probs = extract_eval_probs(dataset=train_iterator, model=binary_model)
+    # positive_probs = extract_eval_probs(dataset=train_iterator, model=positive_model)
 
-    train_pred_labels, _ = assign_labels(binary_probs,
-                                         positive_probs,
-                                         binary_id2rel=binary_iterator.id2label,
-                                         positive_id2rel=positive_iterator.id2label,
-                                         gold_labels=train_iterator.labels,
-                                         data_processor=data_processor,
-                                         is_hard=opt['hard_disjoint'],
-                                         metric=opt['threshold_metric'],
-                                         threshold=None)
-
-    train_p, train_r, train_f1 = scorer.score(train_iterator.labels, train_pred_labels)
+    # train_pred_labels, _ = assign_labels(train_binary_probs,
+    #                                      positive_probs,
+    #                                      binary_id2rel=binary_iterator.id2label,
+    #                                      positive_id2rel=positive_iterator.id2label,
+    #                                      gold_labels=train_iterator.labels,
+    #                                      data_processor=data_processor,
+    #                                      is_hard=opt['hard_disjoint'],
+    #                                      metric=opt['threshold_metric'],
+    #                                      threshold=None)
+    #
+    # train_p, train_r, train_f1 = scorer.score(train_iterator.labels, train_pred_labels)
     train_loss = train_loss / train_iterator.num_examples * opt['batch_size']  # avg loss per batch
     # Evaluate on binary training set
-    binary_probs = extract_eval_probs(dataset=binary_iterator, model=binary_model)
-    binary_preds = (binary_probs > .5).astype(int)
-    binary_labels = [binary_iterator.id2label[p] for p in binary_preds]
-    binary_train_p, binary_train_r, binary_train_f1 = scorer.score(binary_iterator.labels, binary_labels)
+    train_binary_probs = extract_eval_probs(dataset=binary_iterator, model=binary_model)
+    gold_ids = [data_processor.name2id['binary_rel2id'][l] for l in binary_iterator.labels]
+    train_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=train_binary_probs, threshold_metric='f1')
+    train_binary_preds = (train_binary_probs >= train_threshold).astype(int)
+    train_binary_labels = [binary_iterator.id2label[p] for p in train_binary_preds]
+    binary_train_p, binary_train_r, binary_train_f1 = scorer.score(binary_iterator.labels, train_binary_labels)
 
-    print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, train_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_f1))
+    print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, binary_train_f1))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, binary_train_f1))
 
     # eval on dev
     print("Evaluating on dev set...")
-    binary_probs = extract_eval_probs(dataset=dev_iterator, model=binary_model)
-    positive_probs = extract_eval_probs(dataset=dev_iterator, model=positive_model)
-
-    dev_pred_labels, extra = assign_labels(binary_probs,
-                                       positive_probs,
-                                       binary_id2rel=binary_iterator.id2label,
-                                       positive_id2rel=positive_iterator.id2label,
-                                       gold_labels=dev_iterator.labels,
-                                       data_processor=data_processor,
-                                       is_hard=opt['hard_disjoint'],
-                                       metric=opt['threshold_metric'],
-                                       threshold=None)
-
-    dev_p, dev_r, dev_f1 = scorer.score(dev_iterator.labels, dev_pred_labels)
+    # dev_binary_probs = extract_eval_probs(dataset=dev_iterator, model=binary_model)
+    # positive_probs = extract_eval_probs(dataset=dev_iterator, model=positive_model)
+    #
+    # dev_pred_labels, extra = assign_labels(dev_binary_probs,
+    #                                    positive_probs,
+    #                                    binary_id2rel=binary_iterator.id2label,
+    #                                    positive_id2rel=positive_iterator.id2label,
+    #                                    gold_labels=dev_iterator.labels,
+    #                                    data_processor=data_processor,
+    #                                    is_hard=opt['hard_disjoint'],
+    #                                    metric=opt['threshold_metric'],
+    #                                    threshold=None)
+    #
+    # dev_p, dev_r, dev_f1 = scorer.score(dev_iterator.labels, dev_pred_labels)
     # Evaluate on binary training set
-    binary_probs = extract_eval_probs(dataset=binary_dev_iterator, model=binary_model)
-    binary_preds = (binary_probs > .5).astype(int)
-    binary_labels = [binary_dev_iterator.id2label[p] for p in binary_preds]
-    binary_dev_p, binary_dev_r, binary_dev_f1 = scorer.score(binary_dev_iterator.labels, binary_labels)
+    dev_binary_probs = extract_eval_probs(dataset=binary_dev_iterator, model=binary_model)
+    gold_ids = [data_processor.name2id['binary_rel2id'][l] for l in binary_dev_iterator.labels]
+    dev_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=dev_binary_probs, threshold_metric='f1')
+    dev_binary_preds = (dev_binary_probs >= dev_threshold).astype(int)
+    dev_binary_labels = [binary_dev_iterator.id2label[p] for p in dev_binary_preds]
+    binary_dev_p, binary_dev_r, binary_dev_f1 = scorer.score(binary_dev_iterator.labels, dev_binary_labels)
 
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(
-        epoch, train_loss, dev_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_f1))
+        epoch, train_loss, binary_dev_f1))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, binary_dev_f1))
 
     current_dev_metrics = {'f1': binary_dev_f1, 'precision': binary_dev_p, 'recall': binary_dev_r}
     if opt['hard_disjoint']:
-        current_dev_metrics['threshold'] = extra['threshold']
-        threshold = extra['threshold']
+        current_dev_metrics['threshold'] = dev_threshold
     else:
-        threshold = None
+        dev_threshold = None
 
     print("Evaluating on test set...")
-    binary_probs = extract_eval_probs(dataset=test_iterator, model=binary_model)
-    positive_probs = extract_eval_probs(dataset=test_iterator, model=positive_model)
-
-    test_pred_labels, extra = assign_labels(binary_probs,
-                                       positive_probs,
-                                       binary_id2rel=binary_iterator.id2label,
-                                       positive_id2rel=positive_iterator.id2label,
-                                       gold_labels=test_iterator.labels,
-                                       data_processor=data_processor,
-                                       is_hard=opt['hard_disjoint'],
-                                       metric=opt['threshold_metric'],
-                                       threshold=threshold)
-
-    test_p, test_r, test_f1 = scorer.score(test_iterator.labels, test_pred_labels)
+    # test_binary_probs = extract_eval_probs(dataset=test_iterator, model=binary_model)
+    # positive_probs = extract_eval_probs(dataset=test_iterator, model=positive_model)
+    #
+    # test_pred_labels, extra = assign_labels(test_binary_probs,
+    #                                    positive_probs,
+    #                                    binary_id2rel=binary_iterator.id2label,
+    #                                    positive_id2rel=positive_iterator.id2label,
+    #                                    gold_labels=test_iterator.labels,
+    #                                    data_processor=data_processor,
+    #                                    is_hard=opt['hard_disjoint'],
+    #                                    metric=opt['threshold_metric'],
+    #                                    threshold=threshold)
+    #
+    # test_p, test_r, test_f1 = scorer.score(test_iterator.labels, test_pred_labels)
     # Evaluate on binary training set
-    binary_probs = extract_eval_probs(dataset=binary_test_iterator, model=binary_model)
-    binary_preds = (binary_probs > .5).astype(int)
-    binary_labels = [binary_test_iterator.id2label[p] for p in binary_preds]
-    binary_test_p, binary_test_r, binary_test_f1 = scorer.score(binary_test_iterator.labels, binary_labels)
+    test_binary_probs = extract_eval_probs(dataset=binary_test_iterator, model=binary_model)
+    test_binary_preds = (test_binary_probs > dev_threshold).astype(int)
+    test_binary_labels = [binary_test_iterator.id2label[p] for p in test_binary_preds]
+    binary_test_p, binary_test_r, binary_test_f1 = scorer.score(binary_test_iterator.labels, test_binary_labels)
 
     test_metrics_at_current_dev = {'f1': binary_test_f1, 'precision': binary_test_p, 'recall': binary_test_r}
+    print("epoch {}: train_loss = {:.6f}, test_f1 = {:.4f}".format(
+        epoch, train_loss, binary_test_f1))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, binary_test_f1))
 
     if best_dev_metrics[eval_metric] <= current_dev_metrics[eval_metric]:
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
         # Compute Confusion Matrices over triples excluded in Training
-        test_triple_preds = np.array(test_pred_labels)
-        test_triple_gold = np.array(test_iterator.labels)
-        dev_triple_preds = np.array(dev_pred_labels)
-        dev_triple_gold = np.array(dev_iterator.labels)
-        test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_triple_gold,
-                                                                  predictions=test_triple_preds)
-        dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_triple_gold,
-                                                                 predictions=dev_triple_preds)
+        test_preds = np.array(test_binary_labels)
+        test_gold = np.array(binary_test_iterator.labels)
+        dev_preds = np.array(dev_binary_labels)
+        dev_gold = np.array(binary_dev_iterator.labels)
+        test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_gold,
+                                                                  predictions=test_preds)
+        dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_gold,
+                                                                 predictions=dev_preds)
         print("Saving test info...")
         with open(test_confusion_save_file, 'wb') as handle:
             pickle.dump(test_confusion_matrix, handle)
@@ -394,9 +388,6 @@ for epoch in range(1, opt['num_epoch']+1):
         print_str += ' {}: {} |'.format(name, value)
     print(print_str)
 
-    print("epoch {}: test_f1 = {:.4f}".format(epoch, test_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_f1))
-
     # save
     binary_model_dir = os.path.join(model_save_dir, 'binary_model')
     positive_model_dir = os.path.join(model_save_dir, 'positive_model')
@@ -407,7 +398,7 @@ for epoch in range(1, opt['num_epoch']+1):
     binary_model.save(binary_model_file, epoch)
     positive_model.save(positive_model_file, epoch)
 
-    if epoch == 1 or dev_f1 > max(dev_f1_history):
+    if epoch == 1 or binary_dev_f1 > max(dev_f1_history):
         # , model_save_dir + '/best_model.pt'
         copyfile(binary_model_file, os.path.join(binary_model_dir, 'best_model.pt'))
         copyfile(positive_model_file, os.path.join(positive_model_dir, 'best_model.pt'))
@@ -416,13 +407,13 @@ for epoch in range(1, opt['num_epoch']+1):
         os.remove(binary_model_file)
         os.remove(positive_model_file)
     # lr schedule
-    if len(dev_f1_history) > 10 and dev_f1 <= dev_f1_history[-1] and \
+    if len(dev_f1_history) > 10 and binary_dev_f1 <= dev_f1_history[-1] and \
             opt['optim'] in ['sgd', 'adagrad']:
         current_lr *= opt['lr_decay']
         binary_model.update_lr(current_lr)
         positive_model.update_lr(current_lr)
 
-    dev_f1_history += [dev_f1]
+    dev_f1_history += [binary_dev_f1]
     print("")
 
 print("Training ended with {} epochs.".format(epoch))
