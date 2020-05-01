@@ -113,6 +113,7 @@ data_processor = DataProcessor(config=opt,
 opt['num_class'] = data_processor.num_rel
 model = RelationModel(opt, emb_matrix=emb_matrix)
 
+best_cross_curriculum = {}
 # start training
 for curriculum_stage, train_length in opt['curriculum'].items():
     print('#' * 80)
@@ -245,5 +246,14 @@ for curriculum_stage, train_length in opt['curriculum'].items():
         dev_f1_history += [dev_f1]
         print("")
 
+    best_cross_curriculum[curriculum_stage] = {'dev': best_dev_metrics, 'test': test_metrics_at_best_dev}
     print("Training ended with {} epochs.".format(epoch))
-
+print('#'*80)
+print('Performances across curriculum:')
+for curriculum_stage, performances in best_cross_curriculum.items():
+    print('Curriculum: {}'.format(curriculum_stage))
+    for partition_name, metrics in performances.items():
+        print_str = '{} performances | '.format(partition_name)
+        for metric_name, metric_value in metrics.items():
+            print_str += '{}: {:.4f}, '.format(metric_name, metric_value)
+        print(print_str)
