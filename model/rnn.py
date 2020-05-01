@@ -131,7 +131,7 @@ class RelationModel(object):
         self.model.eval()
         logits, _, _, _ = self.model(inputs)
         one_hot_labels = self.one_hot_embedding(labels, num_classes=self.opt['num_class'])
-        main_loss = self.criterion(logits, one_hot_labels)
+        loss = self.criterion(logits, one_hot_labels)
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
         logits = logits.data.cpu().numpy()
 
