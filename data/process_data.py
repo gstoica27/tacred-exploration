@@ -16,12 +16,21 @@ class DataProcessor(object):
         self.partition_names = partition_names
         self.name2id = {
             'ent2id': vocab.word2id,
-            'rel2id': {},
-            'binary_rel2id': {'no_relation': 0, 'has_relation': 1},
             'pos2id': constant.POS_TO_ID,
             'ner2id': constant.NER_TO_ID,
-            'deprel2id': constant.DEPREL_TO_ID
-                        }
+            'deprel2id': constant.DEPREL_TO_ID,
+            # Curriculum learning mappings
+            'ids2rel': {},
+            'binary_ids2rel': {},
+            'type_ids2rel': {},
+            'subj_objs2rel': {},
+            # Curriculum learning reverse mappings
+            'rel2id': {},
+            'rel2binary_ids': defaultdict(lambda: set()),
+            'rel2type_ids': defaultdict(lambda: set()),
+            'rel2subj_obj_ids': defaultdict(lambda: set())
+        }
+
         self.graph = {}
         self.preprocess_data()
 
@@ -45,8 +54,10 @@ class DataProcessor(object):
             # anonymize tokens
             ss, se = d['subj_start'], d['subj_end']
             os, oe = d['obj_start'], d['obj_end']
-            tokens[ss:se + 1] = ['SUBJ-' + d['subj_type']] * (se - ss + 1)
-            tokens[os:oe + 1] = ['OBJ-' + d['obj_type']] * (oe - os + 1)
+            subject_type = 'SUBJ-' + d['subj_type']
+            object_type = 'OBJ-' + d['obj_type']
+            tokens[ss:se + 1] = [subject_type] * (se - ss + 1)
+            tokens[os:oe + 1] = [object_type] * (oe - os + 1)
             tokens = self.map_to_ids(tokens, self.name2id['ent2id'])
             pos = self.map_to_ids(d['stanford_pos'], self.name2id['pos2id'])
             ner = self.map_to_ids(d['stanford_ner'], self.name2id['ner2id'])
@@ -58,22 +69,29 @@ class DataProcessor(object):
             relation_name = d['relation']
             if self.config['typed_relations']:
                 relation_name = '{}:{}:{}'.format(d['subj_type'], d['relation'], d['obj_type'])
+            # Full relations
             if relation_name not in self.name2id['rel2id']:
-                # This will fail for typed relations!!
-                if 'no_relation' in relation_name:
-                   self.name2id['rel2id'][relation_name] = 41
-                else:
-                    self.name2id['rel2id'][relation_name] = num_rel
-                    num_rel += 1
-
-            if 'no_relation' in relation_name:
-                binary_relation = 'no_relation'
-            else:
-                binary_relation = 'has_relation'
-            if binary_relation not in self.name2id['binary_rel2id']:
-                self.name2id['binary_rel2id'][binary_relation] = len(self.name2id['binary_rel2id'])
-
+                self.name2id['rel2id'][relation_name] = len(self.name2id['rel2id'])
             relation_id = self.name2id['rel2id'][relation_name]
+            # binary relations
+            if relation_name == 'no_relation':
+                self.name2id['rel2binary_ids']['no_relation'].add(relation_id)
+            else:
+                self.name2id['rel2binary_ids']['has_relation'].add(relation_id)
+            # Type relations
+            if 'per' in relation_name:
+                self.name2id['rel2type_ids']['per:relation'].add(relation_id)
+            elif 'org' in relation_name:
+                self.name2id['rel2type_ids']['org:relation'].add(relation_id)
+            else:
+                self.name2id['rel2type_ids']['no_relation'].add(relation_id)
+            # subject & object relations
+            if relation_name != 'no_relation':
+                subj_objs = '{}_{}'.format(subject_type, object_type)
+                self.name2id['rel2subj_obj_ids'][subj_objs].add(relation_id)
+            else:
+                self.name2id['rel2subj_obj_ids']['no_relation'].add(relation_id)
+
             base_sample = {'tokens': tokens,
                            'pos': pos,
                            'ner': ner,
@@ -102,7 +120,21 @@ class DataProcessor(object):
 
             parsed_data.append(parsed_sample)
 
+        # Calculate Curriculum mappings
+        self.name2id['ids2rel'] = dict([(v, k) for (k, v) in self.name2id['rel2id'].items()])
+        self.name2id['rel2ids'] = dict([(k, set([v])) for (k, v) in self.name2id['rel2id'].items()])
+        self.name2id['binary_ids2rel'] = self.reverse_set_maps(self.name2id['rel2binary_ids'])
+        self.name2id['type_ids2rel'] = self.reverse_set_maps(self.name2id['rel2type_ids'])
+        self.name2id['subj_objs2rel'] = self.reverse_set_maps(self.name2id['rel2subj_obj_ids'])
+        self.num_rel = len(self.name2id['rel2id'])
         return parsed_data
+
+    def reverse_set_maps(self, dict2set):
+        id2id = {}
+        for key, value_set in dict2set.items():
+            for value in value_set:
+                id2id[value] = key
+        return id2id
 
     def get_positions(self, start_idx, end_idx, length):
         """ Get subj/obj position sequence. """
@@ -113,25 +145,38 @@ class DataProcessor(object):
         return [mapper[t] if t in mapper else constant.UNK_ID for t in names]
 
 
-    def create_iterator(self, config, partition_name='train'):
+    def create_iterator(self, config, partition_name='train', curriculum_stage='full'):
         partition_data = self.partitions[partition_name]
         cleaned_data = []
         is_eval = True if partition_name != 'train' else False
         if self.config['sample_size'] is not None:
             partition_data = self.perform_stratified_sampling(partition_data)
-        if config['binary_classification']:
-            id2label = dict([(v, k) for k, v in self.name2id['binary_rel2id'].items()])
+        # Specify curriculum
+        if curriculum_stage == 'binary':
+            id2label = self.name2id['binary_ids2rel']
+            label2ids = self.name2id['rel2binary_ids']
+        elif curriculum_stage == 'subj_type':
+            id2label = self.name2id['type_ids2rel']
+            label2ids = self.name2id['rel2type_ids']
+        elif curriculum_stage == 'subj_obj_type':
+            id2label = self.name2id['subj_objs2rel']
+            label2ids = self.name2id['rel2subj_obj_ids']
+        elif curriculum_stage == 'full':
+            id2label = self.name2id['ids2rel']
+            label2ids = self.name2id['rel2ids']
         else:
-            id2label = dict([(v, k) for k, v in self.name2id['rel2id'].items()])
+            raise ValueError('Curriculum stage unsupported.')
 
         for raw_sample in partition_data:
             sample = deepcopy(raw_sample)
-            if config['binary_classification']:
-                sample_relation = sample['base']['relation']
-                if  self.name2id['rel2id']['no_relation'] == sample_relation:
-                    sample['base']['relation'] = self.name2id['binary_rel2id']['no_relation']
-                else:
-                    sample['base']['relation'] = self.name2id['binary_rel2id']['has_relation']
+            # Extract matched relations
+            relation_id = sample['base']['relation']
+            relation_label = id2label[relation_id]
+            matched_ids = list(label2ids[relation_label])
+            # Create binary relation vector for all correct relations at curriculum stage
+            activated_relations = np.zeros(self.num_rel, dtype=np.float32)
+            activated_relations[matched_ids] = 1.
+            sample['base']['activated_relations'] = activated_relations
 
             if config['exclude_negative_data'] and 'no_relation' in id2label[sample['base']['relation']] and not is_eval:
                 continue
@@ -192,8 +237,6 @@ class DataProcessor(object):
         return class2size
 
 
-
-
 class Batcher(object):
     def __init__(self, dataset, config, id2label, batch_size=50, is_eval=False):
         self.id2label = id2label
@@ -233,7 +276,7 @@ class Batcher(object):
             sample['deprel'],
             sample['subj_positions'],
             sample['obj_positions'],
-            sample['relation']
+            sample['activated_relations']
         )
     
     def ready_base_batch(self, base_batch, batch_size):
@@ -259,7 +302,7 @@ class Batcher(object):
         subj_positions = self.get_long_tensor(batch[4], batch_size)
         obj_positions = self.get_long_tensor(batch[5], batch_size)
 
-        rels = torch.LongTensor(batch[6])
+        rels = self.get_long_tensor(batch[-1], batch_size).type(torch.float32)
 
         merged_components = (words, masks, pos, ner, deprel, subj_positions, obj_positions, rels, orig_idx)
         return {'base': merged_components, 'sentence_lengths': lens}

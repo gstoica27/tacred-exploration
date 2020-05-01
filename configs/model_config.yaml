@@ -36,6 +36,9 @@ pe_dim: 30  # Position encoding dimension.
 eval_metric: 'f1'
 relation_masking: False
 typed_relations: False
-threshold_metric: f1
 sample_size: 1000
-hard_disjoint: Tru
+curriculum:
+  binary: 30
+  subj_type: 30
+  subj_obj_type: 30
+  full: 50

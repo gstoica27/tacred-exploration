@@ -33,11 +33,7 @@ class RelationModel(object):
     def __init__(self, opt, emb_matrix=None):
         self.opt = opt
         self.model = PositionAwareRNN(opt, emb_matrix)
-        self.apply_binary_classification = opt['apply_binary_classification']
-        if self.apply_binary_classification:
-            self.criterion = nn.BCEWithLogitsLoss()
-        else:
-            self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.BCEWithLogitsLoss()
         main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
         self.parameters = main_model_parameters
         # self.parameters = [p for p in self.model.parameters() if p.requires_grad]
@@ -69,10 +65,7 @@ class RelationModel(object):
         self.optimizer.zero_grad()
         logits, sentence_encs, token_encs, supplemental_losses = self.model(inputs)
         # Apply binary cross entropy if doing no_relation vs any relation model
-        if self.apply_binary_classification:
-            main_loss = self.criterion(logits.view(-1), labels.type(torch.float32))
-        else:
-            main_loss = self.criterion(logits, labels)
+        main_loss = self.criterion(logits, labels)
 
         cumulative_loss = main_loss
         losses['main'] = main_loss.data.item()
@@ -92,12 +85,8 @@ class RelationModel(object):
         # forward
         self.model.eval()
         logits, _, _, _ = self.model(inputs)
-        if self.apply_binary_classification:
-            # loss = self.criterion(logits.view(-1), labels.type(torch.float32))
-            probs = torch.sigmoid(logits).data.cpu().numpy().reshape(-1)
-        else:
-            # loss = self.criterion(logits, labels)
-            probs = F.softmax(logits, dim=1).data.cpu().numpy()
+        # loss = self.criterion(logits, labels)
+        probs = F.softmax(logits, dim=1).data.cpu().numpy()
         logits = logits.data.cpu().numpy()
 
         if self.opt['relation_masking']:
@@ -166,10 +155,7 @@ class PositionAwareRNN(nn.Module):
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
-        if opt['apply_binary_classification']:
-             num_output = 1
-        else:
-            num_output = opt['num_class']
+        num_output = opt['num_class']
         self.linear = nn.Linear(self.encoding_dim, num_output)
         #self.register_parameter('class_bias', torch.nn.Parameter(torch.zeros((opt['num_class']))))
 
