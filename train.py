@@ -27,10 +27,13 @@ from configs.dict_with_attributes import AttributeDict
 def extract_preds(dataset, model):
     data_preds = []
     for i, batch in enumerate(dataset):
+        subjects, _, objects = batch['supplemental']['triple']
         batch_probs, _ = model.predict(batch)
         batch_preds = list(np.argmax(batch_probs, axis=-1))
-        data_preds += batch_preds
-    return np.array(data_preds)
+        pred_triples = list(zip(subjects.detach().numpy(), batch_preds, objects.detach().numpy()))
+
+        data_preds += pred_triples
+    return data_preds
 
 def add_encoding_config(cfg_dict):
     if cfg_dict['encoding_type'] == 'BiLSTM':
@@ -160,7 +163,8 @@ for curriculum_stage, train_length in opt['curriculum'].items():
     # save
     stage_model_save_dir = os.path.join(model_save_dir, 'curriculum_{}'.format(curriculum_stage))
     os.makedirs(stage_model_save_dir, exist_ok=True)
-
+    # Dummy arg so print statement below doesn't fail
+    epoch = 0
     for epoch in range(1, train_length + 1):
         train_loss = 0
         binary_train_loss = 0
@@ -176,20 +180,20 @@ for curriculum_stage, train_length in opt['curriculum'].items():
 
         print('Evaluating on train set...')
         train_pred_ids = extract_preds(dataset=train_iterator, model=model)
-        train_pred_labels = [train_iterator.id2label[pred_id] for pred_id in train_pred_ids]
+        train_pred_labels = [train_iterator.id2label[train_iterator.triple2id_fn(pred_id)] for pred_id in train_pred_ids]
         train_precision, train_recall, train_f1 = scorer.score(train_iterator.labels, train_pred_labels)
         train_loss = train_loss / train_iterator.num_examples * opt['batch_size']  # avg loss per batch
 
         print('Evaluating on dev set...')
         dev_pred_ids = extract_preds(dataset=dev_iterator, model=model)
-        dev_pred_labels = [dev_iterator.id2label[pred_id] for pred_id in dev_pred_ids]
+        dev_pred_labels = [dev_iterator.id2label[dev_iterator.triple2id_fn(pred_id)] for pred_id in dev_pred_ids]
         dev_precision, dev_recall, dev_f1 = scorer.score(dev_iterator.labels, dev_pred_labels)
         print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, dev_f1))
         file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_f1))
 
         print('Evaluating on test set...')
         test_pred_ids = extract_preds(dataset=test_iterator, model=model)
-        test_pred_labels = [test_iterator.id2label[pred_id] for pred_id in test_pred_ids]
+        test_pred_labels = [test_iterator.id2label[test_iterator.triple2id_fn(pred_id)] for pred_id in test_pred_ids]
         test_precision, test_recall, test_f1 = scorer.score(test_iterator.labels, test_pred_labels)
         print("epoch {}: train_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, train_loss, test_f1))
         file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_f1))
