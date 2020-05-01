@@ -33,7 +33,7 @@ class RelationModel(object):
     def __init__(self, opt, emb_matrix=None):
         self.opt = opt
         self.model = PositionAwareRNN(opt, emb_matrix)
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.BCEWithLogitsLoss()
         main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
         self.parameters = main_model_parameters
         # self.parameters = [p for p in self.model.parameters() if p.requires_grad]
@@ -78,6 +78,19 @@ class RelationModel(object):
         loss = self.fact_checker.loss(predicted_objects, labels)
         return loss
 
+    def one_hot_embedding(self, labels, num_classes):
+        """Embedding labels to one-hot form.
+
+        Args:
+          labels: (LongTensor) class labels, sized [N,].
+          num_classes: (int) number of classes.
+
+        Returns:
+          (tensor) encoded labels, sized [N, #classes].
+        """
+        y = torch.eye(num_classes, dtype=torch.float32)
+        return y[labels]
+
     def update(self, batch):
         losses = {}
         """ Run a step of forward and backward model update. """
@@ -86,7 +99,8 @@ class RelationModel(object):
         self.model.train()
         self.optimizer.zero_grad()
         logits, sentence_encs, token_encs, supplemental_losses = self.model(inputs)
-        main_loss = self.criterion(logits, labels)
+        one_hot_labels = self.one_hot_embedding(labels, num_classes=self.opt['num_class'])
+        main_loss = self.criterion(logits, one_hot_labels)
         cumulative_loss = main_loss
         losses['main'] = main_loss.data.item()
         if self.opt['kg_loss'] is not None:
@@ -116,7 +130,8 @@ class RelationModel(object):
         # forward
         self.model.eval()
         logits, _, _, _ = self.model(inputs)
-        loss = self.criterion(logits, labels)
+        one_hot_labels = self.one_hot_embedding(labels, num_classes=self.opt['num_class'])
+        main_loss = self.criterion(logits, one_hot_labels)
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
         logits = logits.data.cpu().numpy()
 
