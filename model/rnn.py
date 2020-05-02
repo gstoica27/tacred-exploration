@@ -34,6 +34,7 @@ class RelationModel(object):
         self.opt = opt
         self.model = PositionAwareRNN(opt, emb_matrix)
         self.criterion = nn.BCEWithLogitsLoss()
+        self.label_fn = lambda x: x
         main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
         self.parameters = main_model_parameters
         # self.parameters = [p for p in self.model.parameters() if p.requires_grad]
@@ -42,6 +43,14 @@ class RelationModel(object):
             self.criterion.cuda()
 
         self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
+
+    def specify_SCE_criterion(self):
+        self.criterion = nn.CrossEntropyLoss()
+        self.label_fn = lambda x: torch.argmax(x, dim=-1).type(torch.int64)
+
+    def specify_BCE_criterion(self):
+        self.criterion = nn.BCEWithLogitsLoss()
+        self.label_fn = lambda x: x
 
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
@@ -65,6 +74,7 @@ class RelationModel(object):
         self.optimizer.zero_grad()
         logits, sentence_encs, token_encs, supplemental_losses = self.model(inputs)
         # Apply binary cross entropy if doing no_relation vs any relation model
+        labels = self.label_fn(labels)
         main_loss = self.criterion(logits, labels)
 
         cumulative_loss = main_loss

@@ -151,6 +151,10 @@ for curriculum_stage, train_length in opt['curriculum'].items():
         partition_name='test',
         curriculum_stage=curriculum_stage
     )
+    if curriculum_stage == 'full':
+        model.specify_SCE_criterion()
+    else:
+        model.specify_BCE_criterion()
 
     global_step = 0
     global_start_time = time.time()
