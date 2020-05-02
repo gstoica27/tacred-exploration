@@ -266,6 +266,12 @@ for curriculum_stage, train_length in opt['curriculum'].items():
     test_pred_labels = [test_iterator.id2label[pred_id] for pred_id in test_pred_ids]
     scorer.score(test_iterator.labels, test_pred_labels)
 
+    print('Resetting model optimizer..')
+    model.reset_optimizer()
+    print('Resetting model last layer...')
+    model.reset_decoder()
+
+
 print('#'*80)
 print('Performances across curriculum:')
 for curriculum_stage, performances in best_cross_curriculum.items():

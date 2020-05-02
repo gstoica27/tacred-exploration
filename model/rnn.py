@@ -52,6 +52,12 @@ class RelationModel(object):
         self.criterion = nn.BCEWithLogitsLoss()
         self.label_fn = lambda x: x
 
+    def reset_optimizer(self):
+        self.optimizer = torch_utils.get_optimizer(self.opt['optim'], self.parameters, self.opt['lr'])
+
+    def reset_decoder(self):
+        self.model.reset_decoder()
+
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
         labels = batch['base'][7]
@@ -181,6 +187,9 @@ class PositionAwareRNN(nn.Module):
     #     self.linear.weight.data.copy_(relation_embs)
     #     if self.opt['kg_loss']['freeze_embeddings']:
     #         self.linear.weight.requires_grad = False
+
+    def reset_decoder(self):
+        self.linear = nn.Linear(self.encoding_dim, self.opt['num_class'])
 
     def init_weights(self):
         if self.emb_matrix is None:
