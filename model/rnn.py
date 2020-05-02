@@ -47,10 +47,14 @@ class RelationModel(object):
     def specify_SCE_criterion(self):
         self.criterion = nn.CrossEntropyLoss()
         self.label_fn = lambda x: torch.argmax(x, dim=-1).type(torch.int64)
+        if self.opt['cuda']:
+            self.criterion.cuda()
 
     def specify_BCE_criterion(self):
         self.criterion = nn.BCEWithLogitsLoss()
         self.label_fn = lambda x: x
+        if self.opt['cuda']:
+            self.criterion.cuda()
 
     def reset_optimizer(self):
         self.optimizer = torch_utils.get_optimizer(self.opt['optim'], self.parameters, self.opt['lr'])
@@ -190,6 +194,10 @@ class PositionAwareRNN(nn.Module):
 
     def reset_decoder(self):
         self.linear = nn.Linear(self.encoding_dim, self.opt['num_class'])
+        self.linear.bias.data.fill_(0)
+        init.xavier_uniform_(self.linear.weight, gain=1)
+        if self.opt['cuda']:
+            self.linear.cuda()
 
     def init_weights(self):
         if self.emb_matrix is None:
@@ -203,7 +211,7 @@ class PositionAwareRNN(nn.Module):
         if self.opt['ner_dim'] > 0:
             self.ner_emb.weight.data[1:,:].uniform_(-1.0, 1.0)
 
-        # self.linear.bias.data.fill_(0)
+        self.linear.bias.data.fill_(0)
         init.xavier_uniform_(self.linear.weight, gain=1) # initialize linear layer
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
