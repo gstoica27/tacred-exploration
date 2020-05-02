@@ -261,6 +261,11 @@ for curriculum_stage, train_length in opt['curriculum'].items():
     model.load(os.path.join(stage_model_save_dir, 'best_model.pt'))
     best_cross_curriculum[curriculum_stage] = {'dev': best_dev_metrics, 'test': test_metrics_at_best_dev}
 
+    print('Model performance on Loaded Curriculum Stage (Test)...')
+    test_pred_ids = extract_preds(dataset=test_iterator, model=model)
+    test_pred_labels = [test_iterator.id2label[pred_id] for pred_id in test_pred_ids]
+    scorer.score(test_iterator.labels, test_pred_labels)
+
 print('#'*80)
 print('Performances across curriculum:')
 for curriculum_stage, performances in best_cross_curriculum.items():
