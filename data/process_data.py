@@ -133,7 +133,7 @@ class DataProcessor(object):
                 else:
                     sample['base']['relation'] = self.name2id['binary_rel2id']['has_relation']
 
-            if config['exclude_negative_data'] and 'no_relation' in id2label[sample['base']['relation']] and not is_eval:
+            if config['exclude_negative_data'] and 'no_relation' in id2label[sample['base']['relation']]:
                 continue
             if config['relation_masking']:
                 subject, _, object = sample['supplemental']['relation_masking']

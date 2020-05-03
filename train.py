@@ -119,30 +119,72 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
 
+experiment_type = 'positive'
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
 data_processor = DataProcessor(config=opt,
                                vocab=vocab,
                                data_dir = opt['data_dir'],
                                partition_names=['train', 'dev', 'test'])
-binary_iterator = data_processor.create_iterator(
+if experiment_type == 'binary':
+    binary_iterator = data_processor.create_iterator(
+            config={
+                'binary_classification': True,
+                'exclude_negative_data': False,
+                'relation_masking': False,
+                'word_dropout': opt['word_dropout']
+            },
+            partition_name='train'
+        )
+    binary_dev_iterator = data_processor.create_iterator(
         config={
             'binary_classification': True,
             'exclude_negative_data': False,
             'relation_masking': False,
             'word_dropout': opt['word_dropout']
         },
-        partition_name='train'
+        partition_name='dev'
     )
-positive_iterator = data_processor.create_iterator(
-config={
+    binary_test_iterator = data_processor.create_iterator(
+        config={
+            'binary_classification': True,
+            'exclude_negative_data': False,
+            'relation_masking': False,
+            'word_dropout': opt['word_dropout']
+        },
+        partition_name='test'
+    )
+    opt['binary_rel2id'] = binary_iterator.id2label
+elif experiment_type == 'positive':
+    positive_iterator = data_processor.create_iterator(
+    config={
+                'binary_classification': False,
+                'exclude_negative_data': True,
+                'relation_masking': False,
+                'word_dropout': opt['word_dropout']
+            },
+            partition_name='train'
+    )
+
+    positive_dev_iterator = data_processor.create_iterator(
+        config={
             'binary_classification': False,
             'exclude_negative_data': True,
             'relation_masking': False,
             'word_dropout': opt['word_dropout']
         },
-        partition_name='train'
-)
+        partition_name='dev'
+    )
+    positive_test_iterator = data_processor.create_iterator(
+        config={
+            'binary_classification': False,
+            'exclude_negative_data': True,
+            'relation_masking': False,
+            'word_dropout': opt['word_dropout']
+        },
+        partition_name='test'
+    )
+
 train_iterator = data_processor.create_iterator(
 config={
             'binary_classification': False,
@@ -171,28 +213,8 @@ config={
         partition_name='test'
 )
 
-binary_dev_iterator = data_processor.create_iterator(
-    config={
-            'binary_classification': True,
-            'exclude_negative_data': False,
-            'relation_masking': False,
-            'word_dropout': opt['word_dropout']
-    },
-    partition_name='dev'
-)
-binary_test_iterator = data_processor.create_iterator(
-    config={
-            'binary_classification': True,
-            'exclude_negative_data': False,
-            'relation_masking': False,
-            'word_dropout': opt['word_dropout']
-    },
-    partition_name='test'
-)
-
 # Get mappings
 opt['id2label'] = train_iterator.id2label
-opt['binary_rel2id'] = binary_iterator.id2label
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)
@@ -221,8 +243,10 @@ helper.print_config(opt)
 opt['apply_binary_classification'] = True
 binary_model = RelationModel(opt, emb_matrix=emb_matrix)
 opt['apply_binary_classification'] = False
-opt['num_class'] = 41
+opt['num_class'] = 42
 positive_model = RelationModel(opt, emb_matrix=emb_matrix)
+
+
 
 dev_f1_history = []
 current_lr = opt['lr']
@@ -252,20 +276,28 @@ def train_epoch(model, dataset, opt, global_step, max_steps, epoch, current_lr):
                 loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
             print(print_info + loss_prints)
 
-
 # start training
 for epoch in range(1, opt['num_epoch']+1):
     train_loss = 0
     binary_train_loss = 0
     # Pass through one epoch of binary model
     print('Training Epoch: {} of binary model'.format(epoch))
-    train_epoch(model=binary_model,
-                dataset=binary_iterator,
-                opt=opt,
-                global_step=global_step,
-                max_steps=max_steps,
-                epoch=epoch,
-                current_lr=current_lr)
+    if experiment_type == 'binary':
+        train_epoch(model=binary_model,
+                    dataset=binary_iterator,
+                    opt=opt,
+                    global_step=global_step,
+                    max_steps=max_steps,
+                    epoch=epoch,
+                    current_lr=current_lr)
+    else:
+        train_epoch(model=positive_model,
+                    dataset=positive_iterator,
+                    opt=opt,
+                    global_step=global_step,
+                    max_steps=max_steps,
+                    epoch=epoch,
+                    current_lr=current_lr)
     # print('Training Epoch: {} of positive model'.format(epoch))
     # train_epoch(model=positive_model,
     #             dataset=positive_iterator,
@@ -292,15 +324,22 @@ for epoch in range(1, opt['num_epoch']+1):
     # train_p, train_r, train_f1 = scorer.score(train_iterator.labels, train_pred_labels)
     train_loss = train_loss / train_iterator.num_examples * opt['batch_size']  # avg loss per batch
     # Evaluate on binary training set
-    train_binary_probs = extract_eval_probs(dataset=binary_iterator, model=binary_model)
-    gold_ids = [data_processor.name2id['binary_rel2id'][l] for l in binary_iterator.labels]
-    train_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=train_binary_probs, threshold_metric='f1')
-    train_binary_preds = (train_binary_probs >= train_threshold).astype(int)
-    train_binary_labels = [binary_iterator.id2label[p] for p in train_binary_preds]
-    binary_train_p, binary_train_r, binary_train_f1 = scorer.score(binary_iterator.labels, train_binary_labels)
+    if experiment_type == 'binary':
+        train_binary_probs = extract_eval_probs(dataset=binary_iterator, model=binary_model)
+        gold_ids = [data_processor.name2id['binary_rel2id'][l] for l in binary_iterator.labels]
+        train_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=train_binary_probs, threshold_metric='f1')
+        train_binary_preds = (train_binary_probs >= train_threshold).astype(int)
+        train_binary_labels = [binary_iterator.id2label[p] for p in train_binary_preds]
+        train_p, train_r, train_f1 = scorer.score(binary_iterator.labels, train_binary_labels)
+    else:
+        train_preds = np.argmax(extract_eval_probs(dataset=positive_iterator, model=positive_model), axis=1)
+        train_labels = [positive_iterator.id2label[p] for p in train_preds]
+        train_p, train_r, train_f1 = scorer.score(positive_iterator.labels, train_labels)
 
-    print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, binary_train_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, binary_train_f1))
+
+
+    print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, train_f1))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_f1))
 
     # eval on dev
     print("Evaluating on dev set...")
@@ -319,19 +358,24 @@ for epoch in range(1, opt['num_epoch']+1):
     #
     # dev_p, dev_r, dev_f1 = scorer.score(dev_iterator.labels, dev_pred_labels)
     # Evaluate on binary training set
-    dev_binary_probs = extract_eval_probs(dataset=binary_dev_iterator, model=binary_model)
-    gold_ids = [data_processor.name2id['binary_rel2id'][l] for l in binary_dev_iterator.labels]
-    dev_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=dev_binary_probs, threshold_metric='f1')
-    dev_binary_preds = (dev_binary_probs >= dev_threshold).astype(int)
-    dev_binary_labels = [binary_dev_iterator.id2label[p] for p in dev_binary_preds]
-    binary_dev_p, binary_dev_r, binary_dev_f1 = scorer.score(binary_dev_iterator.labels, dev_binary_labels)
+    if experiment_type == 'binary':
+        dev_binary_probs = extract_eval_probs(dataset=binary_dev_iterator, model=binary_model)
+        gold_ids = [data_processor.name2id['binary_rel2id'][l] for l in binary_dev_iterator.labels]
+        dev_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=dev_binary_probs, threshold_metric='f1')
+        dev_binary_preds = (dev_binary_probs >= dev_threshold).astype(int)
+        dev_labels = [binary_dev_iterator.id2label[p] for p in dev_binary_preds]
+        dev_p, dev_r, dev_f1 = scorer.score(binary_dev_iterator.labels, dev_labels)
+    else:
+        dev_preds = np.argmax(extract_eval_probs(dataset=positive_dev_iterator, model=positive_model), axis=1)
+        dev_labels = [positive_dev_iterator.id2label[p] for p in dev_preds]
+        dev_p, dev_r, dev_f1 = scorer.score(positive_dev_iterator.labels, dev_labels)
 
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(
-        epoch, train_loss, binary_dev_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, binary_dev_f1))
+        epoch, train_loss, dev_f1))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_f1))
 
-    current_dev_metrics = {'f1': binary_dev_f1, 'precision': binary_dev_p, 'recall': binary_dev_r}
-    if opt['hard_disjoint']:
+    current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r}
+    if opt['hard_disjoint'] and experiment_type == 'binary':
         current_dev_metrics['threshold'] = dev_threshold
     else:
         dev_threshold = None
@@ -352,24 +396,33 @@ for epoch in range(1, opt['num_epoch']+1):
     #
     # test_p, test_r, test_f1 = scorer.score(test_iterator.labels, test_pred_labels)
     # Evaluate on binary training set
-    test_binary_probs = extract_eval_probs(dataset=binary_test_iterator, model=binary_model)
-    test_binary_preds = (test_binary_probs > dev_threshold).astype(int)
-    test_binary_labels = [binary_test_iterator.id2label[p] for p in test_binary_preds]
-    binary_test_p, binary_test_r, binary_test_f1 = scorer.score(binary_test_iterator.labels, test_binary_labels)
+    if experiment_type == 'binary':
+        test_probs = extract_eval_probs(dataset=binary_test_iterator, model=binary_model)
+        test_preds = (test_probs > dev_threshold).astype(int)
+        test_labels = [binary_test_iterator.id2label[p] for p in test_preds]
+        test_p, test_r, test_f1 = scorer.score(binary_test_iterator.labels, test_labels)
+    else:
+        test_preds = np.argmax(extract_eval_probs(dataset=positive_test_iterator, model=positive_model), axis=1)
+        test_labels = [positive_test_iterator.id2label[p] for p in test_preds]
+        test_p, test_r, test_f1 = scorer.score(positive_test_iterator.labels, test_labels)
 
-    test_metrics_at_current_dev = {'f1': binary_test_f1, 'precision': binary_test_p, 'recall': binary_test_r}
+    test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r}
     print("epoch {}: train_loss = {:.6f}, test_f1 = {:.4f}".format(
-        epoch, train_loss, binary_test_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, binary_test_f1))
+        epoch, train_loss, test_f1))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_f1))
 
     if best_dev_metrics[eval_metric] <= current_dev_metrics[eval_metric]:
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
         # Compute Confusion Matrices over triples excluded in Training
-        test_preds = np.array(test_binary_labels)
-        test_gold = np.array(binary_test_iterator.labels)
-        dev_preds = np.array(dev_binary_labels)
-        dev_gold = np.array(binary_dev_iterator.labels)
+        test_preds = np.array(test_labels)
+        dev_preds = np.array(dev_labels)
+        if experiment_type == 'binary':
+            test_gold = np.array(binary_test_iterator.labels)
+            dev_gold = np.array(binary_dev_iterator.labels)
+        else:
+            test_gold = np.array(positive_test_iterator.labels)
+            dev_gold = np.array(positive_dev_iterator.labels)
         test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_gold,
                                                                   predictions=test_preds)
         dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_gold,
@@ -389,31 +442,39 @@ for epoch in range(1, opt['num_epoch']+1):
     print(print_str)
 
     # save
-    binary_model_dir = os.path.join(model_save_dir, 'binary_model')
-    positive_model_dir = os.path.join(model_save_dir, 'positive_model')
-    os.makedirs(binary_model_dir, exist_ok=True)
-    os.makedirs(positive_model_dir, exist_ok=True)
-    binary_model_file = os.path.join(binary_model_dir, 'checkpoint_epoch_{}.pt'.format(epoch))
-    positive_model_file = os.path.join(positive_model_dir, 'checkpoint_epoch_{}.pt'.format(epoch))
-    binary_model.save(binary_model_file, epoch)
-    positive_model.save(positive_model_file, epoch)
+    if experiment_type == 'binary':
+        binary_model_dir = os.path.join(model_save_dir, 'binary_model')
+        os.makedirs(binary_model_dir, exist_ok=True)
+        binary_model_file = os.path.join(binary_model_dir, 'checkpoint_epoch_{}.pt'.format(epoch))
+        binary_model.save(binary_model_file, epoch)
+    else:
+        positive_model_dir = os.path.join(model_save_dir, 'positive_model')
+        os.makedirs(positive_model_dir, exist_ok=True)
+        positive_model_file = os.path.join(positive_model_dir, 'checkpoint_epoch_{}.pt'.format(epoch))
+        positive_model.save(positive_model_file, epoch)
 
-    if epoch == 1 or binary_dev_f1 > max(dev_f1_history):
+    if epoch == 1 or dev_f1 > max(dev_f1_history):
         # , model_save_dir + '/best_model.pt'
-        copyfile(binary_model_file, os.path.join(binary_model_dir, 'best_model.pt'))
-        copyfile(positive_model_file, os.path.join(positive_model_dir, 'best_model.pt'))
+        if experiment_type == 'binary':
+            copyfile(binary_model_file, os.path.join(binary_model_dir, 'best_model.pt'))
+        else:
+            copyfile(positive_model_file, os.path.join(positive_model_dir, 'best_model.pt'))
         print("new best model saved.")
     if epoch % opt['save_epoch'] != 0:
-        os.remove(binary_model_file)
-        os.remove(positive_model_file)
+        if experiment_type == 'binary':
+            os.remove(binary_model_file)
+        else:
+            os.remove(positive_model_file)
     # lr schedule
-    if len(dev_f1_history) > 10 and binary_dev_f1 <= dev_f1_history[-1] and \
+    if len(dev_f1_history) > 10 and dev_f1 <= dev_f1_history[-1] and \
             opt['optim'] in ['sgd', 'adagrad']:
         current_lr *= opt['lr_decay']
-        binary_model.update_lr(current_lr)
-        positive_model.update_lr(current_lr)
+        if experiment_type == 'binary':
+            binary_model.update_lr(current_lr)
+        else:
+            positive_model.update_lr(current_lr)
 
-    dev_f1_history += [binary_dev_f1]
+    dev_f1_history += [dev_f1]
     print("")
 
 print("Training ended with {} epochs.".format(epoch))
