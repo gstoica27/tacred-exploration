@@ -116,6 +116,7 @@ data_processor = DataProcessor(config=opt,
 # Initialize model
 opt['num_class'] = data_processor.num_rel
 model = RelationModel(opt, emb_matrix=emb_matrix)
+current_lr = opt['lr']
 
 best_cross_curriculum = {}
 # start training
@@ -164,7 +165,7 @@ for curriculum_stage, train_length in opt['curriculum'].items():
     test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
     eval_metric = opt['eval_metric']
     dev_f1_history = []
-    current_lr = opt['lr']
+    # current_lr = opt['lr']
     # save
     stage_model_save_dir = os.path.join(model_save_dir, 'curriculum_{}'.format(curriculum_stage))
     os.makedirs(stage_model_save_dir, exist_ok=True)
