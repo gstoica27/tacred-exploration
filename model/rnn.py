@@ -36,8 +36,10 @@ class RelationModel(object):
         self.apply_binary_classification = opt['apply_binary_classification']
         if self.apply_binary_classification:
             self.criterion = nn.BCEWithLogitsLoss()
+            self.mask_no_relations = False
         else:
             self.criterion = nn.CrossEntropyLoss()
+            self.mask_no_relations = True
         main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
         self.parameters = main_model_parameters
         # self.parameters = [p for p in self.model.parameters() if p.requires_grad]
@@ -103,6 +105,8 @@ class RelationModel(object):
         if self.opt['relation_masking']:
             relation_masks = inputs['supplemental']['relation_masks'][0].data.cpu().numpy()
             logits[relation_masks == 0] = -np.inf
+        if self.mask_no_relations:
+            logits[:, 41] = -np.inf
 
         probs = probs.tolist()
 
