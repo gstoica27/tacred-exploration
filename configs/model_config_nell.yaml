@@ -24,7 +24,7 @@ max_grad_norm: 5.0  # Gradient Clipping.
 log_step: 20  # Print log every k steps.
 log:  'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
-id: 'PA-LSTM-TACRED-curriculum_b10_s10_f20' # Model ID under which to save models.
+id: 'PA-LSTM-TACRED-curriculum_b10_s10_f20-same_lr' # Model ID under which to save models.
 info: ''  # Optional info for the experiment.
 seed: 1234  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
@@ -38,7 +38,7 @@ relation_masking: False
 typed_relations: False
 sample_size:
 curriculum:
-  binary: 10
-  subj_type: 10
+  binary: 20
+  subj_type: 20
   #subj_obj_type: 30
-  full: 20
+  full: 30
