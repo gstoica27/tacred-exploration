@@ -123,7 +123,11 @@ def evaluate_joint_models(dataset, binary_model, positive_model, id2label, binar
     binary_probs = extract_eval_probs(dataset=dataset, model=binary_model)
     positive_probs = extract_eval_probs(dataset=dataset, model=positive_model)
     binary_preds = (binary_probs > threshold).astype(int)
+    print('Binary performance...')
     binary_labels = np.array([binary_id2label[p] for p in binary_preds])
+    binary_gold = ['has_relation' if label != 'no_relation' else label for label in dataset.labels]
+    scorer.score(binary_gold, binary_labels)
+
     positive_preds = np.argmax(positive_probs, axis=-1)
     positive_labels = np.array([id2label[p] for p in positive_preds])
     test_labels = []
