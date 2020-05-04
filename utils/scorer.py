@@ -25,6 +25,7 @@ def score(key, prediction, verbose=False):
     gold_by_relation    = Counter()
 
     actual_fn = 0
+    actual_fp = 0
     # Loop over the data to compute a score
     for row in range(len(key)):
         gold = key[row]
@@ -36,10 +37,11 @@ def score(key, prediction, verbose=False):
         # elif gold == NO_RELATION and guess != NO_RELATION:
         elif NO_RELATION in gold and NO_RELATION not in guess:
             guessed_by_relation[guess] += 1
-            actual_fn += 1
+            actual_fp += 1
         # elif gold != NO_RELATION and guess == NO_RELATION:
         elif NO_RELATION not in gold and NO_RELATION in guess:
             gold_by_relation[gold] += 1
+            actual_fn += 1
         # elif gold != NO_RELATION and guess != NO_RELATION:
         elif NO_RELATION not in gold and NO_RELATION not in guess:
             guessed_by_relation[guess] += 1
