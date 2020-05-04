@@ -378,6 +378,7 @@ for epoch in range(1, opt['num_epoch']+1):
         current_dev_metrics['threshold'] = dev_threshold
     else:
         dev_threshold = None
+    dev_f1 = current_dev_metrics['f1']
 
     print("Evaluating on test set...")
     # test_binary_probs = extract_eval_probs(dataset=test_iterator, model=binary_model)
