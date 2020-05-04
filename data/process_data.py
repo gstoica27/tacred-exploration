@@ -121,8 +121,10 @@ class DataProcessor(object):
             partition_data = self.perform_stratified_sampling(partition_data)
         if config['binary_classification']:
             id2label = dict([(v, k) for k, v in self.name2id['binary_rel2id'].items()])
+            label2id = self.name2id['binary_rel2id']
         else:
             id2label = dict([(v, k) for k, v in self.name2id['rel2id'].items()])
+            label2id = self.name2id['rel2id']
 
         for raw_sample in partition_data:
             sample = deepcopy(raw_sample)
@@ -144,6 +146,7 @@ class DataProcessor(object):
         return Batcher(dataset=cleaned_data,
                        config=self.config,
                        id2label=id2label,
+                       label2id=label2id,
                        is_eval=is_eval,
                        batch_size=self.config['batch_size'])
 
@@ -195,8 +198,9 @@ class DataProcessor(object):
 
 
 class Batcher(object):
-    def __init__(self, dataset, config, id2label, batch_size=50, is_eval=False):
+    def __init__(self, dataset, config, id2label, label2id, batch_size=50, is_eval=False):
         self.id2label = id2label
+        self.label2id = label2id
         self.batch_size = batch_size
         self.is_eval = is_eval
         self.config = config
