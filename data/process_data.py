@@ -16,7 +16,7 @@ class DataProcessor(object):
         self.partition_names = partition_names
         self.name2id = {
             'ent2id': vocab.word2id,
-            'rel2id': {},
+            'rel2id': constant.LABEL_TO_ID,
             'binary_rel2id': {'no_relation': 0, 'has_relation': 1},
             'pos2id': constant.POS_TO_ID,
             'ner2id': constant.NER_TO_ID,
