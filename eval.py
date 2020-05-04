@@ -15,26 +15,27 @@ import numpy as np
 from data.process_data import DataProcessor
 
 server_load_dir = '/usr0/home/gis/research/tacred-exploration/saved_models'
-local_load_dir = '/Volumes/External HDD/dataset/tacred/saved_models'
+server_data_dir = '/usr0/home/gis/data/tacred/data/json'
 server_vocab_dir = '/usr0/home/gis/data/tacred/data/vocab'
+
+local_load_dir = '/Volumes/External HDD/dataset/tacred/saved_models'
+local_data_dir = '/Volumes/External HDD/dataset/tacred/data/json'
 local_vocab_dir = '/Volumes/External HDD/dataset/tacred/data/vocab'
+
 cwd = os.getcwd()
 on_server = 'Desktop' not in cwd
 base_load_dir = server_load_dir if on_server else local_load_dir
-binary_dir_index = 'binary_model' if on_server else ''
-positive_dir_index = 'positive_model' if on_server else ''
 vocab_dir = server_vocab_dir if on_server else local_vocab_dir
+data_dir = server_data_dir if on_server else local_data_dir
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model_dir', type=str, help='Directory of the model.',
-                    default='/usr0/home/gis/research/tacred-exploration/saved_models/PA-LSTM-TACRED')
 parser.add_argument('--model', type=str, default='best_model.pt', help='Name of the model file.')
-parser.add_argument('--data_dir', type=str, default='/usr0/home/gis/data/tacred/data/json')
+parser.add_argument('--data_dir', type=str, default=data_dir)
 parser.add_argument('--vocab_dir', type=str,
                     default=vocab_dir)
 parser.add_argument('--dataset', type=str, default='test', help="Evaluate on dev or test.")
 parser.add_argument('--binary_model_file', type=str,
-                    default=os.path.join(base_load_dir, 'PA-LSTM-TACRED-binary', binary_dir_index),
+                    default=os.path.join(base_load_dir, 'PA-LSTM-Binary'),
                     )
 parser.add_argument('--positive_model_file', type=str,
                     default=os.path.join(base_load_dir, 'PA-LSTM-Positive')
@@ -57,16 +58,20 @@ binary_model_file = os.path.join(args.binary_model_file, args.model)
 print("Loading model from {}".format(binary_model_file))
 binary_opt = torch_utils.load_config(binary_model_file)
 binary_opt['apply_binary_classification'] = True
+binary_opt['cuda'] = torch.cuda.is_available()
 binary_model = RelationModel(binary_opt)
 binary_model.load(binary_model_file)
+binary_model.opt['cuda'] = torch.cuda.is_available()
 # Load positive model
 positive_model_file = os.path.join(args.positive_model_file, args.model)
 print("Loading model from {}".format(positive_model_file))
 positive_opt = torch_utils.load_config(positive_model_file)
 positive_opt['apply_binary_classification'] = False
 positive_opt['num_class'] = 42
+positive_opt['cuda'] = torch.cuda.is_available()
 positive_model = RelationModel(positive_opt)
 positive_model.load(positive_model_file)
+positive_model.opt['cuda'] = torch.cuda.is_available()
 
 # load vocab
 vocab_file = args.vocab_dir + '/vocab.pkl'
@@ -83,7 +88,7 @@ assert binary_opt['vocab_size'] == vocab.size, "Vocab size must match that in th
 # load data
 data_processor = DataProcessor(config=binary_opt,
                                vocab=vocab,
-                               data_dir = binary_opt['data_dir'],
+                               data_dir = data_dir,
                                partition_names=['dev', 'test'])
 
 dev_iterator =  data_processor.create_iterator(
@@ -126,13 +131,14 @@ def evaluate_joint_models(dataset, binary_model, positive_model, id2label, binar
     print('Binary performance...')
     binary_labels = np.array([binary_id2label[p] for p in binary_preds])
     binary_gold = ['has_relation' if label != 'no_relation' else label for label in dataset.labels]
-    scorer.score(binary_gold, binary_labels)
+    print(scorer.score(binary_gold, binary_labels))
 
+    positive_probs[:, constant.LABEL_TO_ID['no_relation']] = -np.inf
     positive_preds = np.argmax(positive_probs, axis=-1)
     positive_labels = np.array([id2label[p] for p in positive_preds])
     positive_gold = [label for label in dataset.labels if label != 'no_relation']
     filtered_positives = [label for label, gold_label in zip(positive_labels, dataset.labels) if gold_label != 'no_relation']
-    scorer.score(positive_gold, filtered_positives)
+    print(scorer.score(positive_gold, filtered_positives))
 
     test_labels = []
     for binary_label, positive_label in zip(binary_labels, positive_labels):
@@ -141,6 +147,7 @@ def evaluate_joint_models(dataset, binary_model, positive_model, id2label, binar
         else:
             test_labels.append(positive_label)
     metrics = scorer.score(dataset.labels, test_labels)
+    print(metrics)
     return metrics
 
 threshold = 0.5096710324287415 # Fill this in

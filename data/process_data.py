@@ -97,6 +97,7 @@ class DataProcessor(object):
                 self.graph[pair].add(relation_id)
 
                 supplemental_sample['relation_masking'] = (subject_id, relation_id, object_id)
+            supplemental_sample['data_idx'] = (idx,)
 
             parsed_sample = {'base': base_sample, 'supplemental': supplemental_sample}
 
@@ -309,6 +310,11 @@ class Batcher(object):
         labels = torch.FloatTensor(labels)
         return (labels,)
 
+    def ready_data_idx_batch(self, data_idx_batch, sentence_lengths):
+        batch = list(zip(*data_idx_batch))
+        batch_idxs, _ = self.sort_all(batch, sentence_lengths)
+        return (torch.LongTensor(batch_idxs[0]),)
+
     def ready_binary_classification_batch(self, label_batch, sentence_lengths):
         batch = list(zip(*label_batch))
         batch_labels, _ = self.sort_all(batch, sentence_lengths)
@@ -329,6 +335,11 @@ class Batcher(object):
                 readied_supplemental[name] = self.ready_binary_labels_batch(
                     label_batch=supplemental_batch,
                     sentence_lengths=readied_batch['sentence_lengths'])
+            elif name == 'data_idx':
+                readied_supplemental[name] = self.ready_data_idx_batch(
+                    data_idx_batch=supplemental_batch,
+                    sentence_lengths=readied_batch['sentence_lengths']
+                )
         return readied_batch
 
     def get_long_tensor(self, tokens_list, batch_size):

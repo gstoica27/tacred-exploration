@@ -11,6 +11,7 @@ from shutil import copyfile
 import torch
 import pickle
 import yaml
+import json
 
 from data.process_data import DataProcessor
 from model.rnn import RelationModel
@@ -18,12 +19,17 @@ from utils import scorer, helper
 from utils.vocab import Vocab
 from collections import defaultdict
 
-def extract_eval_probs(dataset, model):
+def extract_eval_probs(dataset, model, with_idxs=False):
     data_probs = []
+    data_idxs = []
     for i, batch in enumerate(dataset):
         batch_probs, _ = model.predict(batch)
         data_probs += batch_probs
-    return np.array(data_probs)
+        data_idxs += list(batch['supplemental']['data_idx'][0].numpy())
+    if with_idxs:
+        return np.array(data_probs), data_idxs
+    else:
+        return np.array(data_probs)
 
 def assign_labels(binary_probs,
                   positive_probs,
@@ -217,37 +223,30 @@ for epoch in range(1, opt['num_epoch']+1):
                 current_lr=current_lr)
 
     print("Evaluating on train set...")
-    # train_binary_probs = extract_eval_probs(dataset=train_iterator, model=model)
-    # positive_probs = extract_eval_probs(dataset=train_iterator, model=model)
-
-    # train_pred_labels, _ = assign_labels(train_binary_probs,
-    #                                      positive_probs,
-    #                                      binary_id2rel=binary_iterator.id2label,
-    #                                      positive_id2rel=positive_iterator.id2label,
-    #                                      gold_labels=train_iterator.labels,
-    #                                      data_processor=data_processor,
-    #                                      is_hard=opt['hard_disjoint'],
-    #                                      metric=opt['threshold_metric'],
-    #                                      threshold=None)
-    #
-    # train_p, train_r, train_f1 = scorer.score(train_iterator.labels, train_pred_labels)
     train_loss = train_loss / train_iterator.num_examples * opt['batch_size']  # avg loss per batch
     # Evaluate on binary training set
+    train_metrics = {}
     if opt['experiment_type'] == 'binary':
-        train_binary_probs = extract_eval_probs(dataset=train_iterator, model=model)
+        train_binary_probs, data_idxs = extract_eval_probs(dataset=train_iterator, model=model, with_idxs=True)
         gold_ids = [train_iterator.label2id[l] for l in train_iterator.labels]
         train_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=train_binary_probs, threshold_metric='f1')
         train_binary_preds = (train_binary_probs >= train_threshold).astype(int)
         train_labels = [train_iterator.id2label[p] for p in train_binary_preds]
+        positive_idxs = []
+        for data_idx, pred_label in zip(data_idxs, train_labels):
+            if pred_label == 'has_relation':
+                positive_idxs.append(data_idx)
+        train_metrics['positive_idxs'] = positive_idxs
     else:
         train_preds = np.argmax(extract_eval_probs(dataset=train_iterator, model=model), axis=1)
         train_labels = [train_iterator.id2label[p] for p in train_preds]
-    train_metrics = scorer.score(train_iterator.labels, train_labels)
+    train_metrics.update(scorer.score(train_iterator.labels, train_labels))
 
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, train_metrics['f1']))
     file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_metrics['f1']))
 
     # eval on dev
+    current_dev_metrics = {}
     print("Evaluating on dev set...")
     if opt['experiment_type'] == 'binary':
         dev_binary_probs = extract_eval_probs(dataset=dev_iterator, model=model)
@@ -255,12 +254,11 @@ for epoch in range(1, opt['num_epoch']+1):
         dev_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=dev_binary_probs, threshold_metric='f1')
         dev_binary_preds = (dev_binary_probs >= dev_threshold).astype(int)
         dev_labels = [dev_iterator.id2label[p] for p in dev_binary_preds]
-        current_dev_metrics = scorer.score(dev_iterator.labels, dev_labels)
         current_dev_metrics['threshold'] = dev_threshold
     else:
         dev_preds = np.argmax(extract_eval_probs(dataset=dev_iterator, model=model), axis=1)
         dev_labels = [dev_iterator.id2label[p] for p in dev_preds]
-        current_dev_metrics = scorer.score(dev_iterator.labels, dev_labels)
+    current_dev_metrics.update(scorer.score(dev_iterator.labels, dev_labels))
 
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(
         epoch, train_loss, current_dev_metrics['f1']))
@@ -332,5 +330,18 @@ for epoch in range(1, opt['num_epoch']+1):
     dev_f1_history += [dev_f1]
     print("")
 
+print('Filtering Training Data...')
+def save_filtered_data(data_dir, filter_idxs):
+    data_file = os.path.join(data_dir, 'train.json')
+    with open(data_file, 'rb') as handle:
+        data_data = json.load(handle)
+    data_data = np.array(data_data)
+    filtered_data = data_data[filter_idxs].tolist()
+    filtered_file = os.path.join(data_dir, 'train_filtered.json')
+    json.dump(filtered_data, open(filtered_file, 'w'))
+    print('Saved filtered data.')
+
+if 'positive_idxs' in train_metrics:
+    save_filtered_data(opt['data_dir'], train_metrics['positive_idxs'])
 print("Training ended with {} epochs.".format(epoch))
 
