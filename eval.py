@@ -131,7 +131,7 @@ def evaluate_joint_models(dataset, binary_model, positive_model, id2label, binar
     metrics = scorer.score(dataset.labels, test_labels)
     return metrics
 
-threshold = .5 # Fill this in
+threshold = 0.5096710324287415 # Fill this in
 evaluate_joint_models(
     dataset=dev_iterator,
     binary_model=binary_model,
