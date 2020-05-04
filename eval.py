@@ -16,11 +16,14 @@ from data.process_data import DataProcessor
 
 server_load_dir = '/usr0/home/gis/research/tacred-exploration/saved_models'
 local_load_dir = '/Volumes/External HDD/dataset/tacred/saved_models'
+server_vocab_dir = '/usr0/home/gis/data/tacred/data/vocab'
+local_vocab_dir = '/Volumes/External HDD/dataset/tacred/data/vocab'
 cwd = os.getcwd()
 on_server = 'Desktop' not in cwd
 base_load_dir = server_load_dir if on_server else local_load_dir
 binary_dir_index = 'binary_model' if on_server else ''
 positive_dir_index = 'positive_model' if on_server else ''
+vocab_dir = server_vocab_dir if on_server else local_vocab_dir
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', type=str, help='Directory of the model.',
@@ -28,7 +31,7 @@ parser.add_argument('--model_dir', type=str, help='Directory of the model.',
 parser.add_argument('--model', type=str, default='best_model.pt', help='Name of the model file.')
 parser.add_argument('--data_dir', type=str, default='/usr0/home/gis/data/tacred/data/json')
 parser.add_argument('--vocab_dir', type=str,
-                    default='/Volumes/External HDD/dataset/tacred/data/vocab')
+                    default=vocab_dir)
 parser.add_argument('--dataset', type=str, default='test', help="Evaluate on dev or test.")
 parser.add_argument('--binary_model_file', type=str,
                     default=os.path.join(base_load_dir, 'PA-LSTM-TACRED-binary', binary_dir_index),
