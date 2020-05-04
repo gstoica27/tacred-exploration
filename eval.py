@@ -49,17 +49,16 @@ if args.cpu:
 elif args.cuda:
     torch.cuda.manual_seed(args.seed)
 
-# load opt
-model_file = args.model_dir + '/' + args.model
-print("Loading model from {}".format(model_file))
 # Load binary model
 binary_model_file = os.path.join(args.binary_model_file, args.model)
+print("Loading model from {}".format(binary_model_file))
 binary_opt = torch_utils.load_config(binary_model_file)
 binary_opt['apply_binary_classification'] = True
 binary_model = RelationModel(binary_opt)
 binary_model.load(binary_model_file)
 # Load positive model
 positive_model_file = os.path.join(args.positive_model_file, args.model)
+print("Loading model from {}".format(positive_model_file))
 positive_opt = torch_utils.load_config(positive_model_file)
 positive_opt['apply_binary_classification'] = False
 positive_opt['num_class'] = 42
