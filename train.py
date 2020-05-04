@@ -259,6 +259,8 @@ for epoch in range(1, opt['num_epoch']+1):
         dev_preds = np.argmax(extract_eval_probs(dataset=dev_iterator, model=model), axis=1)
         dev_labels = [dev_iterator.id2label[p] for p in dev_preds]
     current_dev_metrics.update(scorer.score(dev_iterator.labels, dev_labels))
+    if 'positive_idxs' in train_metrics:
+        current_dev_metrics['positive_idxs'] = train_metrics['positive_idxs']
 
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(
         epoch, train_loss, current_dev_metrics['f1']))
@@ -304,6 +306,7 @@ for epoch in range(1, opt['num_epoch']+1):
             pickle.dump(dev_confusion_matrix, handle)
     print_str = 'Best Dev Metrics |'
     for name, value in best_dev_metrics.items():
+        if 'positive_idxs' == name: continue
         print_str += ' {}: {} |'.format(name, value)
     print(print_str)
     print_str = 'Test Metrics at Best Dev |'
@@ -339,9 +342,8 @@ def save_filtered_data(data_dir, filter_idxs):
     filtered_data = data_data[filter_idxs].tolist()
     filtered_file = os.path.join(data_dir, 'train_filtered.json')
     json.dump(filtered_data, open(filtered_file, 'w'))
-    print('Saved filtered data.')
 
-if 'positive_idxs' in train_metrics:
-    save_filtered_data(opt['data_dir'], train_metrics['positive_idxs'])
+if 'positive_idxs' in best_dev_metrics:
+    save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'])
 print("Training ended with {} epochs.".format(epoch))
 
