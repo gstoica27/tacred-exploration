@@ -119,7 +119,7 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
 
-experiment_type = 'positive'
+experiment_type = 'binary'
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
 data_processor = DataProcessor(config=opt,
@@ -330,16 +330,16 @@ for epoch in range(1, opt['num_epoch']+1):
         train_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=train_binary_probs, threshold_metric='f1')
         train_binary_preds = (train_binary_probs >= train_threshold).astype(int)
         train_binary_labels = [binary_iterator.id2label[p] for p in train_binary_preds]
-        train_p, train_r, train_f1 = scorer.score(binary_iterator.labels, train_binary_labels)
+        train_metrics= scorer.score(binary_iterator.labels, train_binary_labels)
     else:
         train_preds = np.argmax(extract_eval_probs(dataset=positive_iterator, model=positive_model), axis=1)
         train_labels = [positive_iterator.id2label[p] for p in train_preds]
-        train_p, train_r, train_f1 = scorer.score(positive_iterator.labels, train_labels)
+        train_metrics = scorer.score(positive_iterator.labels, train_labels)
 
 
 
-    print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, train_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_f1))
+    print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, train_metrics['f1']))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_metrics['f1']))
 
     # eval on dev
     print("Evaluating on dev set...")
@@ -364,17 +364,16 @@ for epoch in range(1, opt['num_epoch']+1):
         dev_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=dev_binary_probs, threshold_metric='f1')
         dev_binary_preds = (dev_binary_probs >= dev_threshold).astype(int)
         dev_labels = [binary_dev_iterator.id2label[p] for p in dev_binary_preds]
-        dev_p, dev_r, dev_f1 = scorer.score(binary_dev_iterator.labels, dev_labels)
+        current_dev_metrics = scorer.score(binary_dev_iterator.labels, dev_labels)
     else:
         dev_preds = np.argmax(extract_eval_probs(dataset=positive_dev_iterator, model=positive_model), axis=1)
         dev_labels = [positive_dev_iterator.id2label[p] for p in dev_preds]
-        dev_p, dev_r, dev_f1 = scorer.score(positive_dev_iterator.labels, dev_labels)
+        current_dev_metrics = scorer.score(positive_dev_iterator.labels, dev_labels)
 
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(
-        epoch, train_loss, dev_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_f1))
+        epoch, train_loss, current_dev_metrics['f1']))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, current_dev_metrics['f1']))
 
-    current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r}
     if opt['hard_disjoint'] and experiment_type == 'binary':
         current_dev_metrics['threshold'] = dev_threshold
     else:
@@ -400,16 +399,15 @@ for epoch in range(1, opt['num_epoch']+1):
         test_probs = extract_eval_probs(dataset=binary_test_iterator, model=binary_model)
         test_preds = (test_probs > dev_threshold).astype(int)
         test_labels = [binary_test_iterator.id2label[p] for p in test_preds]
-        test_p, test_r, test_f1 = scorer.score(binary_test_iterator.labels, test_labels)
+        test_metrics_at_current_dev = scorer.score(binary_test_iterator.labels, test_labels)
     else:
         test_preds = np.argmax(extract_eval_probs(dataset=positive_test_iterator, model=positive_model), axis=1)
         test_labels = [positive_test_iterator.id2label[p] for p in test_preds]
-        test_p, test_r, test_f1 = scorer.score(positive_test_iterator.labels, test_labels)
+        test_metrics_at_current_dev = scorer.score(positive_test_iterator.labels, test_labels)
 
-    test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r}
     print("epoch {}: train_loss = {:.6f}, test_f1 = {:.4f}".format(
-        epoch, train_loss, test_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_f1))
+        epoch, train_loss, test_metrics_at_current_dev['f1']))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_metrics_at_current_dev['f1']))
 
     if best_dev_metrics[eval_metric] <= current_dev_metrics[eval_metric]:
         best_dev_metrics = current_dev_metrics
