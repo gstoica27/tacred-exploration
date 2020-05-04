@@ -130,6 +130,10 @@ def evaluate_joint_models(dataset, binary_model, positive_model, id2label, binar
 
     positive_preds = np.argmax(positive_probs, axis=-1)
     positive_labels = np.array([id2label[p] for p in positive_preds])
+    positive_gold = [label for label in dataset.labels if label != 'no_relation']
+    filtered_positives = [label for label, gold_label in zip(positive_labels, dataset.labels) if gold_label != 'no_relation']
+    scorer.score(positive_gold, filtered_positives)
+
     test_labels = []
     for binary_label, positive_label in zip(binary_labels, positive_labels):
         if binary_label == 'no_relation':
