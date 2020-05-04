@@ -37,7 +37,7 @@ parser.add_argument('--binary_model_file', type=str,
                     default=os.path.join(base_load_dir, 'PA-LSTM-TACRED-binary', binary_dir_index),
                     )
 parser.add_argument('--positive_model_file', type=str,
-                    default=os.path.join(base_load_dir, 'PA-LSTM-TACRED-binary', positive_dir_index)
+                    default=os.path.join(base_load_dir, 'PA-LSTM-Positive')
                     )
 
 parser.add_argument('--seed', type=int, default=1234)
