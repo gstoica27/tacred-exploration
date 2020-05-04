@@ -14,6 +14,11 @@ from utils.vocab import Vocab
 import numpy as np
 from data.process_data import DataProcessor
 
+server_load_dir = '/usr0/home/gis/research/tacred-exploration/saved_models'
+local_load_dir = '/Volumes/External HDD/dataset/tacred/saved_models'
+cwd = os.getcwd()
+on_server = 'Desktop' not in cwd
+base_load_dir = server_load_dir if on_server else local_load_dir
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', type=str, help='Directory of the model.',
@@ -24,9 +29,11 @@ parser.add_argument('--vocab_dir', type=str,
                     default='/Volumes/External HDD/dataset/tacred/data/vocab')
 parser.add_argument('--dataset', type=str, default='test', help="Evaluate on dev or test.")
 parser.add_argument('--binary_model_file', type=str,
-                    default='/Volumes/External HDD/dataset/tacred/saved_models/PA-LSTM-Binary')
+                    default=os.path.join(base_load_dir, 'PA-LSTM-Binary'),
+                    )
 parser.add_argument('--positive_model_file', type=str,
-                    default='/Volumes/External HDD/dataset/tacred/saved_models/PA-LSTM-Positive')
+                    default=os.path.join(base_load_dir, 'PA-LSTM-Positive')
+                    )
 
 parser.add_argument('--seed', type=int, default=1234)
 parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
