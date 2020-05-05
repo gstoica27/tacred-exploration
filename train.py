@@ -19,6 +19,17 @@ from utils import scorer, helper
 from utils.vocab import Vocab
 from collections import defaultdict
 
+def save_filtered_data(data_dir, filter_idxs):
+    print('There are: {} elements in filter'.format(len(filter_idxs)))
+    data_file = os.path.join(data_dir, 'train.json')
+    with open(data_file, 'rb') as handle:
+        data_data = json.load(handle)
+    data_data = np.array(data_data)
+    filtered_data = data_data[filter_idxs].tolist()
+    filtered_file = os.path.join(data_dir, 'train_filtered.json')
+    json.dump(filtered_data, open(filtered_file, 'w'))
+
+
 def extract_eval_probs(dataset, model, with_idxs=False):
     data_probs = []
     data_idxs = []
@@ -319,6 +330,9 @@ for epoch in range(1, opt['num_epoch']+1):
     for name, value in test_metrics_at_best_dev.items():
         print_str += ' {}: {} |'.format(name, value)
     print(print_str)
+    print('Filtering Training Data...')
+    if 'positive_idxs' in best_dev_metrics:
+        save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'])
 
     # save
     model_file = os.path.join(model_save_dir, 'checkpoint_epoch_{}.pt'.format(epoch))
@@ -340,16 +354,6 @@ for epoch in range(1, opt['num_epoch']+1):
     print("")
 
 print('Filtering Training Data...')
-def save_filtered_data(data_dir, filter_idxs):
-    print('There are: {} elements in filter'.format(len(filter_idxs)))
-    data_file = os.path.join(data_dir, 'train.json')
-    with open(data_file, 'rb') as handle:
-        data_data = json.load(handle)
-    data_data = np.array(data_data)
-    filtered_data = data_data[filter_idxs].tolist()
-    filtered_file = os.path.join(data_dir, 'train_filtered.json')
-    json.dump(filtered_data, open(filtered_file, 'w'))
-
 if 'positive_idxs' in best_dev_metrics:
     save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'])
 print("Training ended with {} epochs.".format(epoch))
