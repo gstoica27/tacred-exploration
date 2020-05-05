@@ -238,6 +238,8 @@ for epoch in range(1, opt['num_epoch']+1):
             if pred_label == 'has_relation':
                 positive_idxs.append(data_idx)
         train_metrics['positive_idxs'] = positive_idxs
+        print('Length of positive predicted elements: {} | unique: {}'.format(
+            len(positive_idxs), len(np.unique(positive_idxs))))
     else:
         train_preds = np.argmax(extract_eval_probs(dataset=train_iterator, model=model), axis=1)
         train_labels = [train_iterator.id2label[p] for p in train_preds]

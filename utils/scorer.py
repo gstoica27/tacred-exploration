@@ -111,7 +111,7 @@ def score(key, prediction, verbose=False):
                'f1': f1_micro,
                'TP': TP, 'FP': FP,
                'FN': FN}
-
+    print(metrics)
     return metrics
 
 def compute_confusion_matrices(ground_truth, predictions):
