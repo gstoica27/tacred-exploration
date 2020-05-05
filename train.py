@@ -342,7 +342,7 @@ for epoch in range(1, opt['num_epoch']+1):
     print(print_str)
     print('Filtering Training Data...')
     if 'positive_idxs' in best_dev_metrics:
-        save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'], train_iterator.labels)
+        save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'], train_labels)
 
     # save
     model_file = os.path.join(model_save_dir, 'checkpoint_epoch_{}.pt'.format(epoch))
