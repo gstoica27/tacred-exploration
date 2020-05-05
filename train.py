@@ -131,7 +131,7 @@ if opt['experiment_type'] == 'binary':
 else:
     config={
         'binary_classification': False,
-        'exclude_negative_data': True,
+        'exclude_negative_data': False,
         'relation_masking': False,
         'word_dropout': opt['word_dropout']
     }
