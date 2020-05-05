@@ -27,6 +27,11 @@ def save_filtered_data(data_dir, filter_idxs):
     data_data = np.array(data_data)
     filtered_data = data_data[filter_idxs].tolist()
     filtered_file = os.path.join(data_dir, 'train_filtered.json')
+    num_no_relations = 0
+    for d in filtered_data:
+        if d['relation'] == 'no_relation':
+            num_no_relations += 1
+    print('There are {} no relation elements: {} in {} total samples'.format(num_no_relations, len(filtered_data)))
     json.dump(filtered_data, open(filtered_file, 'w'))
 
 
