@@ -109,7 +109,7 @@ class RelationModel(object):
             logits[:, 41] = -np.inf
 
         probs = probs.tolist()
-        sample_idxs = inputs['supplemental']['data_idx'].data.cpu().numpy().tolist()
+        sample_idxs = inputs['supplemental']['data_idx'][0].data.cpu().numpy().tolist()
         labels = labels.data.cpu().numpy().tolist()
         if unsort:
             _, probs, labels, sample_idxs = [list(t) for t in zip(*sorted(zip(orig_idx, probs, labels, sample_idxs)))]
