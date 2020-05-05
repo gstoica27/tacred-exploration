@@ -38,7 +38,7 @@ parser.add_argument('--binary_model_file', type=str,
                     default=os.path.join(base_load_dir, 'PA-LSTM-Binary'),
                     )
 parser.add_argument('--positive_model_file', type=str,
-                    default=os.path.join(base_load_dir, 'PA-LSTM-Positive')
+                    default=os.path.join(base_load_dir, ' PA-LSTM-Filtered-Positive')
                     )
 
 parser.add_argument('--seed', type=int, default=1234)
@@ -89,7 +89,17 @@ assert binary_opt['vocab_size'] == vocab.size, "Vocab size must match that in th
 data_processor = DataProcessor(config=binary_opt,
                                vocab=vocab,
                                data_dir = data_dir,
-                               partition_names=['dev', 'test'])
+                               partition_names=['train', 'dev', 'test'])
+
+train_iterator = data_processor.create_iterator(
+    config={
+        'binary_classification': False,
+        'exclude_negative_data': False,
+        'relation_masking': False,
+        'word_dropout': binary_model['word_dropout']
+    },
+    partition_name='train'
+)
 
 dev_iterator =  data_processor.create_iterator(
 config={
@@ -151,6 +161,14 @@ def evaluate_joint_models(dataset, binary_model, positive_model, id2label, binar
     return metrics
 
 threshold = 0.5096710324287415 # Fill this in
+evaluate_joint_models(
+    dataset=train_iterator,
+    binary_model=binary_model,
+    positive_model=positive_model,
+    id2label=id2label,
+    binary_id2label=binary_id2label,
+    threshold=threshold
+)
 evaluate_joint_models(
     dataset=dev_iterator,
     binary_model=binary_model,
