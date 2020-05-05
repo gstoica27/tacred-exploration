@@ -131,7 +131,7 @@ print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['
 data_processor = DataProcessor(config=opt,
                                vocab=vocab,
                                data_dir = opt['data_dir'],
-                               partition_names=['train', 'dev', 'test'])
+                               partition_names=['train_hard', 'dev', 'test'])
 if opt['experiment_type'] == 'binary':
     config = {
         'binary_classification': True,
@@ -149,7 +149,7 @@ else:
 
 train_iterator = data_processor.create_iterator(
         config=config,
-        partition_name='train'
+        partition_name='train_hard'
     )
 dev_iterator = data_processor.create_iterator(
     config=config,
@@ -361,7 +361,7 @@ for epoch in range(1, opt['num_epoch']+1):
     print("")
 
 print('Filtering Training Data...')
-if opt['experiment_type'] == 'binary':
-    save_filtered_data(opt['data_dir'], train_metrics_at_best_dev['incorrect_idxs'])
+#if opt['experiment_type'] == 'binary':
+ #   save_filtered_data(opt['data_dir'], train_metrics_at_best_dev['incorrect_idxs'])
 print("Training ended with {} epochs.".format(epoch))
 
