@@ -44,13 +44,6 @@ class RelationModel(object):
             self.lambda_term = self.opt['kg_loss']['lambda']
             self.lambda_decay = self.opt['kg_loss'].get('lambda_decay', 1.0)
 
-        # if self.opt['kg_loss'] is not None:
-        #     self.fact_checker = choose_fact_checker(self.opt['kg_loss']['model'])
-        #     fact_checker_params = [p for p in self.fact_checker.parameters() if p.requires_grad]
-        #     self.parameters += fact_checker_params
-        #     if opt['cuda']:
-        #         self.fact_checker.cuda()
-
         self.optimizer = torch_utils.get_optimizer(opt['optim'], self.parameters, opt['lr'])
 
     def update_lambda_term(self):
@@ -99,8 +92,8 @@ class RelationModel(object):
         self.model.train()
         self.optimizer.zero_grad()
         logits, sentence_encs, token_encs, supplemental_losses = self.model(inputs)
-        one_hot_labels = self.one_hot_embedding(labels, num_classes=self.opt['num_class'])
-        main_loss = self.criterion(logits, one_hot_labels)
+        # one_hot_labels = self.one_hot_embedding(labels, num_classes=self.opt['num_class'])
+        main_loss = self.criterion(logits, labels)
         cumulative_loss = main_loss
         losses['main'] = main_loss.data.item()
         if self.opt['kg_loss'] is not None:
@@ -130,8 +123,8 @@ class RelationModel(object):
         # forward
         self.model.eval()
         logits, _, _, _ = self.model(inputs)
-        one_hot_labels = self.one_hot_embedding(labels, num_classes=self.opt['num_class'])
-        loss = self.criterion(logits, one_hot_labels)
+        # one_hot_labels = self.one_hot_embedding(labels, num_classes=self.opt['num_class'])
+        loss = self.criterion(logits, labels)
         probs = F.softmax(logits, dim=1).data.cpu().numpy().tolist()
         logits = logits.data.cpu().numpy()
 
