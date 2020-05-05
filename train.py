@@ -32,7 +32,7 @@ def save_filtered_data(data_dir, filter_idxs, iterator_labels):
     for d in filtered_data:
         if d['relation'] == 'no_relation':
             num_no_relations += 1
-    for idx in range(iterator_labels):
+    for idx in range(len(iterator_labels)):
         d = iterator_labels[idx]
         if idx in filter_idxs:
             if d == 'no_relation':
