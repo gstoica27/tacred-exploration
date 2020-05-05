@@ -98,7 +98,7 @@ class DataProcessor(object):
                 self.graph[pair].add(relation_id)
 
                 supplemental_sample['relation_masking'] = (subject_id, relation_id, object_id)
-            supplemental_sample['data_idx'] = (idx,)
+            supplemental_sample['data_idx'] = (idx, relation_id)
 
             parsed_sample = {'base': base_sample, 'supplemental': supplemental_sample}
 
@@ -314,7 +314,7 @@ class Batcher(object):
     def ready_data_idx_batch(self, data_idx_batch, sentence_lengths):
         batch = list(zip(*data_idx_batch))
         batch_idxs, _ = self.sort_all(batch, sentence_lengths)
-        return (torch.LongTensor(batch_idxs[0]),)
+        return (torch.LongTensor(batch_idxs[0]), torch.LongTensor(batch_idxs[1]))
 
     def ready_binary_classification_batch(self, label_batch, sentence_lengths):
         batch = list(zip(*label_batch))

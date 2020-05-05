@@ -120,7 +120,7 @@ print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['
 data_processor = DataProcessor(config=opt,
                                vocab=vocab,
                                data_dir = opt['data_dir'],
-                               partition_names=['train_filtered', 'dev', 'test'])
+                               partition_names=['train', 'dev', 'test'])
 if opt['experiment_type'] == 'binary':
     config = {
         'binary_classification': True,
@@ -138,7 +138,7 @@ else:
 
 train_iterator = data_processor.create_iterator(
         config=config,
-        partition_name='train_filtered'
+        partition_name='train'
     )
 dev_iterator = data_processor.create_iterator(
     config=config,
@@ -234,12 +234,15 @@ for epoch in range(1, opt['num_epoch']+1):
         train_binary_preds = (train_binary_probs >= train_threshold).astype(int)
         train_labels = [train_iterator.id2label[p] for p in train_binary_preds]
         positive_idxs = []
-        for data_idx, pred_label in zip(data_idxs, train_labels):
+        actual_fp = 0
+        for idx, (data_idx, pred_label) in enumerate(zip(data_idxs, train_labels)):
             if pred_label == 'has_relation':
                 positive_idxs.append(data_idx)
+                if train_iterator.labels[idx] == 'no_relation':
+                    actual_fp += 1
         train_metrics['positive_idxs'] = positive_idxs
-        print('Length of positive predicted elements: {} | unique: {}'.format(
-            len(positive_idxs), len(np.unique(positive_idxs))))
+        print('Length of positive predicted elements: {} | unique: {} | FP: {}'.format(
+            len(positive_idxs), len(np.unique(positive_idxs)), actual_fp))
     else:
         train_preds = np.argmax(extract_eval_probs(dataset=train_iterator, model=model), axis=1)
         train_labels = [train_iterator.id2label[p] for p in train_preds]
@@ -309,8 +312,8 @@ for epoch in range(1, opt['num_epoch']+1):
             pickle.dump(dev_confusion_matrix, handle)
     print_str = 'Best Dev Metrics |'
     for name, value in best_dev_metrics.items():
-        if 'positive_idxs' == name: continue
-        print_str += ' {}: {} |'.format(name, value)
+        if 'positive_idxs' == name: print_str += ' {}:{} |'.format(name, len(value))
+        else: print_str += ' {}: {} |'.format(name, value)
     print(print_str)
     print_str = 'Test Metrics at Best Dev |'
     for name, value in test_metrics_at_best_dev.items():
@@ -338,6 +341,7 @@ for epoch in range(1, opt['num_epoch']+1):
 
 print('Filtering Training Data...')
 def save_filtered_data(data_dir, filter_idxs):
+    print('There are: {} elements in filter'.format(len(filter_idxs)))
     data_file = os.path.join(data_dir, 'train.json')
     with open(data_file, 'rb') as handle:
         data_data = json.load(handle)
