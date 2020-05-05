@@ -31,7 +31,7 @@ def save_filtered_data(data_dir, filter_idxs):
     for d in filtered_data:
         if d['relation'] == 'no_relation':
             num_no_relations += 1
-    print('There are {} no relation elements: {} in {} total samples'.format(num_no_relations, len(filtered_data)))
+    print('There are {} no relation elements in {} total samples'.format(num_no_relations, len(filtered_data)))
     json.dump(filtered_data, open(filtered_file, 'w'))
 
 
