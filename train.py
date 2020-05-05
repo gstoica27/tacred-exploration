@@ -19,7 +19,7 @@ from utils import scorer, helper
 from utils.vocab import Vocab
 from collections import defaultdict
 
-def save_filtered_data(data_dir, filter_idxs):
+def save_filtered_data(data_dir, filter_idxs, iterator_labels):
     print('There are: {} elements in filter'.format(len(filter_idxs)))
     data_file = os.path.join(data_dir, 'train.json')
     with open(data_file, 'rb') as handle:
@@ -28,10 +28,15 @@ def save_filtered_data(data_dir, filter_idxs):
     filtered_data = data_data[filter_idxs].tolist()
     filtered_file = os.path.join(data_dir, 'train_filtered.json')
     num_no_relations = 0
+    num_no_relations_il = 0
     for d in filtered_data:
         if d['relation'] == 'no_relation':
             num_no_relations += 1
-    print('There are {} no relation elements in {} total samples'.format(num_no_relations, len(filtered_data)))
+    for d in iterator_labels:
+        if d == 'no_relation':
+            num_no_relations_il += 1
+    print('There are {}, {} no relation elements in {} total samples'.format(
+        num_no_relations, num_no_relations_il, len(filtered_data)))
     json.dump(filtered_data, open(filtered_file, 'w'))
 
 
@@ -337,7 +342,7 @@ for epoch in range(1, opt['num_epoch']+1):
     print(print_str)
     print('Filtering Training Data...')
     if 'positive_idxs' in best_dev_metrics:
-        save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'])
+        save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'], train_iterator.labels)
 
     # save
     model_file = os.path.join(model_save_dir, 'checkpoint_epoch_{}.pt'.format(epoch))
