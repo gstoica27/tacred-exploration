@@ -180,6 +180,7 @@ else:
     opt['apply_binary_classification'] = False
     opt['num_class'] = 42
 model = RelationModel(opt, emb_matrix=emb_matrix)
+model.mask_no_relations = False
 
 dev_f1_history = []
 current_lr = opt['lr']
