@@ -335,7 +335,7 @@ for epoch in range(1, opt['num_epoch']+1):
     print(print_str)
     print_str = 'Train Metrics at Best Dev |'
     for name, value in train_metrics_at_best_dev.items():
-        if 'positive_idxs' == name:
+        if 'idxs' in name:
             print_str += ' {}:{} |'.format(name, len(value))
         else:
             print_str += ' {}: {} |'.format(name, value)
