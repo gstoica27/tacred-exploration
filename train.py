@@ -264,8 +264,18 @@ for epoch in range(1, opt['num_epoch']+1):
                 if train_iterator.labels[idx] == 'no_relation':
                     actual_fp += 1
         train_metrics['positive_idxs'] = positive_idxs
-        print('Length of positive predicted elements: {} | unique: {} | FP: {}'.format(
-            len(positive_idxs), len(np.unique(positive_idxs)), actual_fp))
+
+        data_file = os.path.join(opt['data_dir'], 'train.json')
+        with open(data_file, 'rb') as handle:
+            data = json.load(handle)
+        data = np.array(data)
+        num_no_rels = 0
+        for idx in positive_idxs:
+            rel = data[idx]['relation']
+            if rel == 'no_relation': num_no_rels += 1
+
+        print('Length of positive predicted elements: {} | unique: {} | FP: {} | Num Neg: {}'.format(
+            len(positive_idxs), len(np.unique(positive_idxs)), actual_fp, num_no_rels))
     else:
         train_preds = np.argmax(extract_eval_probs(dataset=train_iterator, model=model), axis=1)
         train_labels = [train_iterator.id2label[p] for p in train_preds]
