@@ -109,11 +109,11 @@ class RelationModel(object):
             logits[:, 41] = -np.inf
 
         probs = probs.tolist()
-
+        sample_idxs = inputs['supplemental']['data_idx'].data.cpu().numpy().tolist()
         labels = labels.data.cpu().numpy().tolist()
         if unsort:
-            _, probs, labels = [list(t) for t in zip(*sorted(zip(orig_idx, probs, labels)))]
-        return probs, labels, #loss.data.item()
+            _, probs, labels, sample_idxs = [list(t) for t in zip(*sorted(zip(orig_idx, probs, labels, sample_idxs)))]
+        return probs, labels, sample_idxs #loss.data.item()
 
     def update_lr(self, new_lr):
         torch_utils.change_lr(self.optimizer, new_lr)

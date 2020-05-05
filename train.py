@@ -45,9 +45,9 @@ def extract_eval_probs(dataset, model, with_idxs=False):
     data_probs = []
     data_idxs = []
     for i, batch in enumerate(dataset):
-        batch_probs, _ = model.predict(batch)
+        batch_probs, _, batch_idxs = model.predict(batch)
         data_probs += batch_probs
-        data_idxs += list(batch['supplemental']['data_idx'][0].detach().cpu().numpy())
+        data_idxs += batch_idxs
     if with_idxs:
         return np.array(data_probs), data_idxs
     else:
