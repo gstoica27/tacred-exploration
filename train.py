@@ -142,7 +142,7 @@ if opt['experiment_type'] == 'binary':
 else:
     config={
         'binary_classification': False,
-        'exclude_negative_data': False,
+        'exclude_negative_data': opt['exclude_negatives'],
         'relation_masking': False,
         'word_dropout': opt['word_dropout']
     }
@@ -191,7 +191,6 @@ else:
     opt['apply_binary_classification'] = False
     opt['num_class'] = 42
 model = RelationModel(opt, emb_matrix=emb_matrix)
-model.mask_no_relations = False
 
 dev_f1_history = []
 current_lr = opt['lr']

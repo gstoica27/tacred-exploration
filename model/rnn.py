@@ -39,7 +39,7 @@ class RelationModel(object):
             self.mask_no_relations = False
         else:
             self.criterion = nn.CrossEntropyLoss()
-            self.mask_no_relations = True
+            self.mask_no_relations = opt['exclude_negatives']
         main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
         self.parameters = main_model_parameters
         # self.parameters = [p for p in self.model.parameters() if p.requires_grad]
