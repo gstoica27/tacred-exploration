@@ -138,7 +138,7 @@ else:
 
 train_iterator = data_processor.create_iterator(
         config=config,
-        partition_name='train'
+        partition_name='train_filtered'
     )
 dev_iterator = data_processor.create_iterator(
     config=config,
