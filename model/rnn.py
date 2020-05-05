@@ -33,7 +33,7 @@ class RelationModel(object):
     def __init__(self, opt, emb_matrix=None):
         self.opt = opt
         self.model = PositionAwareRNN(opt, emb_matrix)
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.CrossEntropyLoss()
         main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
         self.parameters = main_model_parameters
         # self.parameters = [p for p in self.model.parameters() if p.requires_grad]
