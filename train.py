@@ -214,6 +214,7 @@ format_str = '{}: step {}/{} (epoch {}/{}), ({:.3f} sec/batch), lr: {:.6f}'
 max_steps = len(train_iterator) * opt['num_epoch']
 best_dev_metrics = defaultdict(lambda: -np.inf)
 test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
+train_metrics_at_best_dev = defaultdict(lambda: -np.inf)
 eval_metric = opt['eval_metric']
 
 def train_epoch(model, dataset, opt, global_step, max_steps, epoch, current_lr):
@@ -315,6 +316,7 @@ for epoch in range(1, opt['num_epoch']+1):
     if best_dev_metrics[eval_metric] <= current_dev_metrics[eval_metric]:
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
+        train_metrics_at_best_dev = train_metrics
         # Compute Confusion Matrices over triples excluded in Training
         test_preds = np.array(test_labels)
         dev_preds = np.array(dev_labels)
@@ -342,6 +344,11 @@ for epoch in range(1, opt['num_epoch']+1):
     for name, value in test_metrics_at_best_dev.items():
         print_str += ' {}: {} |'.format(name, value)
     print(print_str)
+    print_str = 'Train Metrics at Best Dev |'
+    for name, value in train_metrics_at_best_dev.items():
+        print_str += ' {}: {} |'.format(name, value)
+    print(print_str)
+
     print('Filtering Training Data...')
     if 'positive_idxs' in best_dev_metrics:
         save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'], train_iterator.labels)
