@@ -34,7 +34,7 @@ def save_filtered_data(data_dir, filter_idxs, iterator_labels):
             num_no_relations += 1
     for idx in range(len(iterator_labels)):
         d = iterator_labels[idx]
-        if idx in filter_idxs:
+        if idx in set(list(filter_idxs)):
             if d == 'no_relation':
                 num_no_relations_il += 1
     print('There are {}, {} no relation elements in {} total samples'.format(
