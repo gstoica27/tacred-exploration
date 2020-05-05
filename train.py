@@ -26,13 +26,7 @@ def save_filtered_data(data_dir, filter_idxs):
         data_data = json.load(handle)
     data_data = np.array(data_data)
     filtered_data = data_data[filter_idxs].tolist()
-    filtered_file = os.path.join(data_dir, 'train_filtered.json')
-    num_no_relations = 0
-    for d in filtered_data:
-        if d['relation'] == 'no_relation':
-            num_no_relations += 1
-    print('There are {} no relation elements in {} total samples'.format(
-        num_no_relations, len(filtered_data)))
+    filtered_file = os.path.join(data_dir, 'train_hard.json')
     json.dump(filtered_data, open(filtered_file, 'w'))
 
 
@@ -137,7 +131,7 @@ print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['
 data_processor = DataProcessor(config=opt,
                                vocab=vocab,
                                data_dir = opt['data_dir'],
-                               partition_names=['train_filtered', 'dev', 'test'])
+                               partition_names=['train', 'dev', 'test'])
 if opt['experiment_type'] == 'binary':
     config = {
         'binary_classification': True,
@@ -155,7 +149,7 @@ else:
 
 train_iterator = data_processor.create_iterator(
         config=config,
-        partition_name='train_filtered'
+        partition_name='train'
     )
 dev_iterator = data_processor.create_iterator(
     config=config,
@@ -252,22 +246,18 @@ for epoch in range(1, opt['num_epoch']+1):
         train_binary_preds = (train_binary_probs >= train_threshold).astype(int)
         train_labels = [train_iterator.id2label[p] for p in train_binary_preds]
         positive_idxs = []
-        actual_fp = 0
+        incorrect_idxs = []
         for idx, (data_idx, pred_label) in enumerate(zip(data_idxs, train_labels)):
             if pred_label == 'has_relation':
                 positive_idxs.append(data_idx)
-                if train_iterator.labels[idx] == 'no_relation':
-                    actual_fp += 1
+            if train_iterator.labels[idx] != pred_label:
+                incorrect_idxs.append(data_idx)
+
         train_metrics['positive_idxs'] = positive_idxs
+        train_metrics['incorrect_idxs'] = incorrect_idxs
 
-        data = np.array(data_processor.partition_data['train'])
-        num_no_rels = 0
-        for idx in positive_idxs:
-            rel = data[idx]['relation']
-            if rel == 'no_relation': num_no_rels += 1
-
-        print('Length of positive predicted elements: {} | unique: {} | FP: {} | Num Neg: {}'.format(
-            len(positive_idxs), len(np.unique(positive_idxs)), actual_fp, num_no_rels))
+        print('Length of positive predicted elements: {} | unique: {} | Num Incorrect: {}'.format(
+            len(positive_idxs), len(np.unique(positive_idxs)), len(incorrect_idxs)))
     else:
         train_preds = np.argmax(extract_eval_probs(dataset=train_iterator, model=model), axis=1)
         train_labels = [train_iterator.id2label[p] for p in train_preds]
@@ -290,8 +280,6 @@ for epoch in range(1, opt['num_epoch']+1):
         dev_preds = np.argmax(extract_eval_probs(dataset=dev_iterator, model=model), axis=1)
         dev_labels = [dev_iterator.id2label[p] for p in dev_preds]
     current_dev_metrics.update(scorer.score(dev_iterator.labels, dev_labels))
-    if 'positive_idxs' in train_metrics:
-        current_dev_metrics['positive_idxs'] = train_metrics['positive_idxs']
 
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(
         epoch, train_loss, current_dev_metrics['f1']))
@@ -373,7 +361,7 @@ for epoch in range(1, opt['num_epoch']+1):
     print("")
 
 print('Filtering Training Data...')
-if 'positive_idxs' in best_dev_metrics:
-    save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'])
+if opt['experiment_type'] == 'binary':
+    save_filtered_data(opt['data_dir'], train_metrics_at_best_dev['incorrect_idxs'])
 print("Training ended with {} epochs.".format(epoch))
 
