@@ -22,6 +22,7 @@ class DataProcessor(object):
             'ner2id': constant.NER_TO_ID,
             'deprel2id': constant.DEPREL_TO_ID
                         }
+        self.partition_data = {}
         self.graph = {}
         self.preprocess_data()
 
@@ -34,6 +35,7 @@ class DataProcessor(object):
                 partition_data = json.load(handle)
                 partition_parsed = self.parse_data(partition_data)
                 partitions[partition_name] = partition_parsed
+                self.partition_data[partition_name] = partition_data
         self.partitions = partitions
 
     def parse_data(self, data):

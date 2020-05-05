@@ -265,10 +265,7 @@ for epoch in range(1, opt['num_epoch']+1):
                     actual_fp += 1
         train_metrics['positive_idxs'] = positive_idxs
 
-        data_file = os.path.join(opt['data_dir'], 'train.json')
-        with open(data_file, 'rb') as handle:
-            data = json.load(handle)
-        data = np.array(data)
+        data = np.array(data_processor.partition_data['train'])
         num_no_rels = 0
         for idx in positive_idxs:
             rel = data[idx]['relation']
