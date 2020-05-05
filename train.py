@@ -32,9 +32,11 @@ def save_filtered_data(data_dir, filter_idxs, iterator_labels):
     for d in filtered_data:
         if d['relation'] == 'no_relation':
             num_no_relations += 1
-    for d in iterator_labels:
-        if d == 'no_relation':
-            num_no_relations_il += 1
+    for idx in range(iterator_labels):
+        d = iterator_labels[idx]
+        if idx in filter_idxs:
+            if d == 'no_relation':
+                num_no_relations_il += 1
     print('There are {}, {} no relation elements in {} total samples'.format(
         num_no_relations, num_no_relations_il, len(filtered_data)))
     json.dump(filtered_data, open(filtered_file, 'w'))
@@ -342,7 +344,7 @@ for epoch in range(1, opt['num_epoch']+1):
     print(print_str)
     print('Filtering Training Data...')
     if 'positive_idxs' in best_dev_metrics:
-        save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'], train_labels)
+        save_filtered_data(opt['data_dir'], best_dev_metrics['positive_idxs'], train_iterator.labels)
 
     # save
     model_file = os.path.join(model_save_dir, 'checkpoint_epoch_{}.pt'.format(epoch))
