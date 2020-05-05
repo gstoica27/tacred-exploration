@@ -29,6 +29,7 @@ class DataProcessor(object):
         partitions = defaultdict(list)
         for partition_name in self.partition_names:
             partition_file = os.path.join(self.data_dir, partition_name + '.json')
+            print('Loading: {}'.format(partition_file))
             with open(partition_file, 'rb') as handle:
                 partition_data = json.load(handle)
                 partition_parsed = self.parse_data(partition_data)
