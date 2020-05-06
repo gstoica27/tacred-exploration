@@ -30,10 +30,8 @@ def extract_preds(dataset, model):
         subjects, _, objects = batch['supplemental']['triple']
         batch_probs, _ = model.predict(batch)
         batch_preds = list(np.argmax(batch_probs, axis=-1))
-        pred_triples = list(zip(subjects.detach().numpy(), batch_preds, objects.detach().numpy()))
 
-        data_preds += pred_triples
-    data_preds = [dataset.triple2id_fn(triple) for triple in data_preds]
+        data_preds += batch_preds
     return data_preds
 
 def add_encoding_config(cfg_dict):
@@ -107,12 +105,15 @@ def train_epoch(model, dataset, opt, global_step, max_steps, epoch, current_lr):
                 loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
             print(print_info + loss_prints)
 
+# Load Curriculum Stages
+curriculum_stages = pickle.load(open(opt['curriculum_stages_path'], 'rb'))
 # Load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
 data_processor = DataProcessor(config=opt,
                                vocab=vocab,
                                data_dir = opt['data_dir'],
-                               partition_names=['train', 'dev', 'test'])
+                               partition_names=['train', 'dev', 'test'],
+                               curriculum_stages=curriculum_stages)
 # Initialize model
 opt['num_class'] = data_processor.num_rel
 model = RelationModel(opt, emb_matrix=emb_matrix)
@@ -120,14 +121,15 @@ current_lr = opt['lr']
 
 best_cross_curriculum = {}
 # start training
-for curriculum_stage, train_length in opt['curriculum'].items():
+curriculum_stage_names = data_processor.curriculum_stage_names
+for curriculum_stage in curriculum_stage_names:
+    train_length = 30
     print('#' * 80)
     print('Starting curriculum stage: {}. Training for {} epochs'.format(curriculum_stage, train_length))
     print('#'*80)
     # Create curriculum iterators
     train_iterator = data_processor.create_iterator(
         config={
-            'exclude_negative_data': False,
             'relation_masking': False,
             'word_dropout': opt['word_dropout']
         },
@@ -136,7 +138,6 @@ for curriculum_stage, train_length in opt['curriculum'].items():
     )
     dev_iterator = data_processor.create_iterator(
         config={
-            'exclude_negative_data': False,
             'relation_masking': False,
             'word_dropout': opt['word_dropout']
         },
@@ -145,17 +146,18 @@ for curriculum_stage, train_length in opt['curriculum'].items():
     )
     test_iterator = data_processor.create_iterator(
         config={
-            'exclude_negative_data': False,
             'relation_masking': False,
             'word_dropout': opt['word_dropout']
         },
         partition_name='test',
         curriculum_stage=curriculum_stage
     )
-    if curriculum_stage == 'full':
-        model.specify_SCE_criterion()
-    else:
-        model.specify_BCE_criterion()
+
+    print('Resetting model optimizer..')
+    model.reset_optimizer()
+    print('Resetting model last layer...')
+    model_classes = train_iterator.num_classes
+    model.reset_decoder(num_classes=model_classes)
 
     global_step = 0
     global_start_time = time.time()
@@ -266,12 +268,6 @@ for curriculum_stage, train_length in opt['curriculum'].items():
     test_pred_ids = extract_preds(dataset=test_iterator, model=model)
     test_pred_labels = [test_iterator.id2label[pred_id] for pred_id in test_pred_ids]
     scorer.score(test_iterator.labels, test_pred_labels)
-
-    print('Resetting model optimizer..')
-    model.reset_optimizer()
-    print('Resetting model last layer...')
-    model.reset_decoder()
-
 
 print('#'*80)
 print('Performances across curriculum:')

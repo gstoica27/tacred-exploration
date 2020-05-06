@@ -10,11 +10,11 @@ from utils import constant, helper, vocab
 
 
 class DataProcessor(object):
-    def __init__(self, config, vocab, data_dir, partition_names=['train', 'dev', 'test']):
+    def __init__(self, config, vocab, data_dir, partition_names=['train', 'dev', 'test'], curriculum_stages=None):
         self.config = config
         self.data_dir = data_dir
         self.partition_names = partition_names
-        self.name2id = {
+        self.component2id = {
             'ent2id': vocab.word2id,
             'pos2id': constant.POS_TO_ID,
             'ner2id': constant.NER_TO_ID,
@@ -27,11 +27,53 @@ class DataProcessor(object):
             'subj2rels': defaultdict(lambda: set()),
             'subj_obj2triples': defaultdict(lambda: set())
         }
+        self.curriculum_stage_names = []
+        self.stage2cluster2rels = self.process_clusters(curriculum_stages)
+        # {stage_name: {relation_id: cluster_name}}
+        self.stage2rel_id2cluster = defaultdict(lambda: defaultdict(lambda: set()))
+        # {stage name: {cluster_name: cluster_id}}
+        self.stage2id2cluster = self.compute_stage2id2cluster(self.stage2cluster2rels)
+        # {stage name: {cluster_id: cluster_name}}
+        self.stage2cluster2id = self.compute_stage2cluster2id(self.stage2id2cluster)
 
         self.graph = {}
         self.preprocess_data()
 
+    def process_clusters(self, curriculum_stages):
+        stage2cluster2rels = defaultdict(lambda: defaultdict(lambda: set()))
+        for stage_idx in range(len(curriculum_stages)):
+            stage_clusters = curriculum_stages[stage_idx]
+            stage_name = f'stage_{stage_idx}'
+            self.curriculum_stage_names.append(stage_name)
+            for cluster_idx in range(len(stage_clusters)):
+                cluster = stage_clusters[cluster_idx]
+                # Last stage cluster names should be those of relations
+                if stage_idx == len(curriculum_stages) - 1:
+                    cluster_name = cluster[0]
+                else:
+                    cluster_name = f'cluster_{cluster_idx}'
+                stage2cluster2rels[stage_name][cluster_name] = set(cluster)
+        return stage2cluster2rels
+
+    def compute_stage2id2cluster(self, stage2cluster2rels):
+        stage2id2cluster = {}
+        for stage in stage2cluster2rels:
+            stage2id2cluster[stage] = {}
+            for cluster in stage2cluster2rels[stage]:
+                found_clusters = len(stage2id2cluster[stage])
+                stage2id2cluster[stage][found_clusters] = cluster
+        return stage2id2cluster
+
+    def compute_stage2cluster2id(self, stage2id2cluster):
+        stage2cluster2id = {}
+        for stage in stage2id2cluster:
+            stage2cluster2id[stage] = {}
+            for id, cluster in stage2id2cluster[stage].items():
+                stage2cluster2id[stage][cluster] = id
+        return stage2cluster2id
+
     def preprocess_data(self):
+        self.maps_not_computed = True
         partitions = defaultdict(list)
         for partition_name in self.partition_names:
             partition_file = os.path.join(self.data_dir, partition_name + '.json')
@@ -43,8 +85,9 @@ class DataProcessor(object):
 
     def parse_data(self, data):
         parsed_data = []
-        num_rel = 0
         for idx, d in enumerate(data):
+            if d['relation'] == 'no_relation':
+                continue
             tokens = d['token']
             if self.config['lower']:
                 tokens = [t.lower() for t in tokens]
@@ -53,16 +96,16 @@ class DataProcessor(object):
             os, oe = d['obj_start'], d['obj_end']
             subject_type = 'SUBJ-' + d['subj_type']
             object_type = 'OBJ-' + d['obj_type']
-            subject_id = self.name2id['ent2id'][subject_type]
-            object_id = self.name2id['ent2id'][object_type]
-            self.name2id['subj2id'][subject_type] = subject_id
-            self.name2id['obj2id'][object_type] = object_id
+            subject_id = self.component2id['ent2id'][subject_type]
+            object_id = self.component2id['ent2id'][object_type]
+            self.component2id['subj2id'][subject_type] = subject_id
+            self.component2id['obj2id'][object_type] = object_id
             tokens[ss:se + 1] = [subject_type] * (se - ss + 1)
             tokens[os:oe + 1] = [object_type] * (oe - os + 1)
-            tokens = self.map_to_ids(tokens, self.name2id['ent2id'])
-            pos = self.map_to_ids(d['stanford_pos'], self.name2id['pos2id'])
-            ner = self.map_to_ids(d['stanford_ner'], self.name2id['ner2id'])
-            deprel = self.map_to_ids(d['stanford_deprel'], self.name2id['deprel2id'])
+            tokens = self.map_to_ids(tokens, self.component2id['ent2id'])
+            pos = self.map_to_ids(d['stanford_pos'], self.component2id['pos2id'])
+            ner = self.map_to_ids(d['stanford_ner'], self.component2id['ner2id'])
+            deprel = self.map_to_ids(d['stanford_deprel'], self.component2id['deprel2id'])
             l = len(tokens)
             subj_positions = self.get_positions(d['subj_start'], d['subj_end'], l)
             obj_positions = self.get_positions(d['obj_start'], d['obj_end'], l)
@@ -71,28 +114,10 @@ class DataProcessor(object):
             if self.config['typed_relations']:
                 relation_name = '{}:{}:{}'.format(d['subj_type'], d['relation'], d['obj_type'])
             # Relation ids
-            if relation_name not in self.name2id['rel2id']:
-                self.name2id['rel2id'][relation_name] = len(self.name2id['rel2id'])
-            relation_id = self.name2id['rel2id'][relation_name]
+            if relation_name not in self.component2id['rel2id']:
+                self.component2id['rel2id'][relation_name] = len(self.component2id['rel2id'])
+            relation_id = self.component2id['rel2id'][relation_name]
             triple = (subject_id, relation_id, object_id)
-            # binary relations
-            if relation_name == 'no_relation':
-                self.name2id['binary_rel2rels']['no_relation'].add(relation_id)
-            else:
-                self.name2id['binary_rel2rels']['has_relation'].add(relation_id)
-            # Type relations
-            if 'per' in relation_name:
-                self.name2id['subj2rels']['per:relation'].add(relation_id)
-            elif 'org' in relation_name:
-                self.name2id['subj2rels']['org:relation'].add(relation_id)
-            else:
-                self.name2id['subj2rels']['no_relation'].add(relation_id)
-            # subject & object relations
-            if relation_name != 'no_relation':
-                subj_objs = '{}:{}'.format(subject_type, object_type)
-                self.name2id['subj_obj2triples'][subj_objs].add(triple)
-            else:
-                self.name2id['subj_obj2triples']['no_relation'].add(triple)
 
             base_sample = {'tokens': tokens,
                            'pos': pos,
@@ -121,18 +146,13 @@ class DataProcessor(object):
             parsed_data.append(parsed_sample)
 
         # Calculate Curriculum mappings
-        self.name2id['id2rel'] = dict([(v, k) for (k, v) in self.name2id['rel2id'].items()])
-        self.name2id['rel2binary_rel'] = self.reverse_set_maps(self.name2id['binary_rel2rels'])
-        self.name2id['rel2subj'] = self.reverse_set_maps(self.name2id['subj2rels'])
-        self.name2id['triple2subj_obj'] = self.reverse_set_maps(self.name2id['subj_obj2triples'])
-        # Add unused triples to map to no_relation. This is performed so that if the model predicts
-        # an unseen triple, it does not fail. And instead is treated correctly.
-        all_possible_triples = self.create_all_possible_triples()
-        unused_triples = all_possible_triples - set(list(self.name2id['triple2subj_obj']))
-        self.add_unused_triples(unused_triples, self.name2id['triple2subj_obj'])
-
-        self.name2id['rel2ids'] = dict([(k, set([v])) for (k, v) in self.name2id['rel2id'].items()])
-        self.num_rel = len(self.name2id['rel2id'])
+        if self.maps_not_computed:
+            for stage in self.stage2cluster2rels:
+                self.stage2rel_id2cluster[stage] = self.reverse_set_maps(self.stage2cluster2rels[stage],  id_transform=True)
+            self.component2id['id2rel'] = dict([(v, k) for (k, v) in self.component2id['rel2id'].items()])
+            self.component2id['rel2ids'] = dict([(k, set([v])) for (k, v) in self.component2id['rel2id'].items()])
+            self.maps_not_computed = False
+        self.num_rel = len(self.component2id['rel2id'])
         return parsed_data
 
     def triple2rel(self, triple):
@@ -142,9 +162,9 @@ class DataProcessor(object):
         return triple
 
     def create_all_possible_triples(self):
-        subjects = self.name2id['subj2id'].values()
-        relations = self.name2id['rel2id'].values()
-        objects = self.name2id['obj2id'].values()
+        subjects = self.component2id['subj2id'].values()
+        relations = self.component2id['rel2id'].values()
+        objects = self.component2id['obj2id'].values()
 
         all_triples = set()
         for subject in subjects:
@@ -159,10 +179,12 @@ class DataProcessor(object):
             assert unused_triple not in mappings
             mappings[unused_triple] = 'no_relation'
 
-    def reverse_set_maps(self, dict2set):
+    def reverse_set_maps(self, dict2set, id_transform=False):
         id2id = {}
         for key, value_set in dict2set.items():
             for value in value_set:
+                if id_transform:
+                    value = self.component2id['rel2id'][value]
                 id2id[value] = key
         return id2id
 
@@ -209,10 +231,10 @@ class DataProcessor(object):
 
     def distribute_sample_size(self, sample_size):
         class2size = {}
-        class_sample_size = int(sample_size / len(self.name2id['rel2id']))
-        remainder = sample_size % len(self.name2id['rel2id'])
-        class_sample_bonus = np.random.choice(len(self.name2id['rel2id']), remainder, replace=False)
-        for rel_id in self.name2id['rel2id'].values():
+        class_sample_size = int(sample_size / len(self.component2id['rel2id']))
+        remainder = sample_size % len(self.component2id['rel2id'])
+        class_sample_bonus = np.random.choice(len(self.component2id['rel2id']), remainder, replace=False)
+        for rel_id in self.component2id['rel2id'].values():
             class2size[rel_id] = class_sample_size
             if rel_id in class_sample_bonus:
                 class2size[rel_id] += 1
@@ -225,45 +247,17 @@ class DataProcessor(object):
         if self.config['sample_size'] is not None:
             partition_data = self.perform_stratified_sampling(partition_data)
         # Specify curriculum
-        if curriculum_stage == 'binary':
-            id2label = self.name2id['rel2binary_rel']
-            label2id = self.name2id['binary_rel2rels']
-            triple2id_fn = self.triple2rel
-        elif curriculum_stage == 'subj_type':
-            id2label = self.name2id['rel2subj']
-            label2id = self.name2id['subj2rels']
-            triple2id_fn = self.triple2rel
-        elif curriculum_stage == 'subj_obj_type':
-            id2label = self.name2id['triple2subj_obj']
-            label2id = self.name2id['subj_obj2triples']
-            triple2id_fn = self.triple2triple
-        elif curriculum_stage == 'full':
-            id2label = self.name2id['id2rel']
-            label2id = self.name2id['rel2ids']
-            triple2id_fn = self.triple2rel
-        else:
-            raise ValueError('Curriculum stage unsupported.')
-
+        rel_id2cluster_label = self.stage2rel_id2cluster[curriculum_stage]
+        id2label = self.stage2id2cluster[curriculum_stage]
+        label2id = self.stage2cluster2id[curriculum_stage]
         for raw_sample in partition_data:
             sample = deepcopy(raw_sample)
             # Extract matched relations
             relation_id = sample['base']['relation']
 
-            subject_id = sample['base']['subj_id']
-            object_id = sample['base']['obj_id']
-            match_triple = (subject_id, relation_id, object_id)
-            id = triple2id_fn(match_triple)
-            relation_label = id2label[id]
-            if curriculum_stage == 'subj_obj_type':
-                matched_ids = list(map(lambda triple: triple[1], label2id[relation_label]))
-            else:
-                matched_ids = list(label2id[relation_label])
-            matched_ids = np.unique(matched_ids)
-
-            # Create binary relation vector for all correct relations at curriculum stage
-            activated_relations = np.zeros(self.num_rel, dtype=np.float32)
-            activated_relations[matched_ids] = 1.
-            sample['base']['activated_relations'] = activated_relations
+            cluster_label = rel_id2cluster_label[relation_id]
+            cluster_id = label2id[cluster_label]
+            sample['base']['cluster_id'] = cluster_id
 
             if config['relation_masking']:
                 subject, _, object = sample['supplemental']['relation_masking']
@@ -274,14 +268,12 @@ class DataProcessor(object):
         return Batcher(dataset=cleaned_data,
                        config=self.config,
                        id2label=id2label,
-                       triple2id_fn=triple2id_fn,
                        is_eval=is_eval,
                        batch_size=self.config['batch_size'])
 
 class Batcher(object):
-    def __init__(self, dataset, config, id2label, triple2id_fn, batch_size=50, is_eval=False):
+    def __init__(self, dataset, config, id2label, batch_size=50, is_eval=False):
         self.id2label = id2label
-        self.triple2id_fn = triple2id_fn
         self.batch_size = batch_size
         self.is_eval = is_eval
         self.config = config
@@ -289,11 +281,10 @@ class Batcher(object):
         if not self.is_eval:
             np.random.shuffle(dataset)
 
-        self.labels = [id2label[
-                           self.triple2id_fn(d['supplemental']['triple'])
-                       ] for d in dataset]
+        self.labels = [id2label[d['base']['cluster_id']] for d in dataset]
         self.num_examples = len(dataset)
         self.batches = self.create_batches(dataset, batch_size=batch_size)
+        self.num_classes = len(np.unique(self.labels))
 
     def create_batches(self, data, batch_size=50):
         batched_data = []
@@ -320,7 +311,7 @@ class Batcher(object):
             sample['deprel'],
             sample['subj_positions'],
             sample['obj_positions'],
-            sample['activated_relations']
+            sample['cluster_id']
         )
     
     def ready_base_batch(self, base_batch, batch_size):
@@ -346,7 +337,7 @@ class Batcher(object):
         subj_positions = self.get_long_tensor(batch[4], batch_size)
         obj_positions = self.get_long_tensor(batch[5], batch_size)
 
-        rels = self.get_long_tensor(batch[-1], batch_size).type(torch.float32)
+        rels = torch.LongTensor(batch[-1])
 
         merged_components = (words, masks, pos, ner, deprel, subj_positions, obj_positions, rels, orig_idx)
         return {'base': merged_components, 'sentence_lengths': lens}

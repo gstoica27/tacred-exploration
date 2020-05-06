@@ -10,31 +10,14 @@ import torch.nn.functional as F
 
 from utils import constant, torch_utils
 from model import layers
-from model.nas_rnn import DARTSModel
 from model.blocks import *
-from model.cpg_modules import ContextualParameterGenerator
-from model.link_prediction_models import *
-
-
-def choose_fact_checker(params):
-    name = params['name'].lower()
-    if name == 'distmult':
-        fact_checker = DistMult(params)
-    elif name == 'conve':
-        fact_checker = ConvE(params)
-    elif name == 'complex':
-        fact_checker = Complex(params)
-    else:
-        raise ValueError('Only, {distmult, conve, and complex}  are supported')
-    return fact_checker
 
 class RelationModel(object):
     """ A wrapper class for the training and evaluation of models. """
     def __init__(self, opt, emb_matrix=None):
         self.opt = opt
         self.model = PositionAwareRNN(opt, emb_matrix)
-        self.criterion = nn.BCEWithLogitsLoss()
-        self.label_fn = lambda x: x
+        self.criterion = nn.CrossEntropyLoss()
         main_model_parameters = [p for p in self.model.parameters() if p.requires_grad]
         self.parameters = main_model_parameters
         # self.parameters = [p for p in self.model.parameters() if p.requires_grad]
@@ -59,8 +42,8 @@ class RelationModel(object):
     def reset_optimizer(self):
         self.optimizer = torch_utils.get_optimizer(self.opt['optim'], self.parameters, self.opt['lr'])
 
-    def reset_decoder(self):
-        self.model.reset_decoder()
+    def reset_decoder(self, num_classes):
+        self.model.reset_decoder(num_classes)
 
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
@@ -83,8 +66,6 @@ class RelationModel(object):
         self.model.train()
         self.optimizer.zero_grad()
         logits, sentence_encs, token_encs, supplemental_losses = self.model(inputs)
-        # Apply binary cross entropy if doing no_relation vs any relation model
-        labels = self.label_fn(labels)
         main_loss = self.criterion(logits, labels)
 
         cumulative_loss = main_loss
@@ -185,15 +166,8 @@ class PositionAwareRNN(nn.Module):
         self.emb_matrix = emb_matrix
         self.init_weights()
 
-    # def load_decoder(self, model_path):
-    #     state_dict = torch.load(model_path)
-    #     relation_embs = state_dict['emb_rel.weight']
-    #     self.linear.weight.data.copy_(relation_embs)
-    #     if self.opt['kg_loss']['freeze_embeddings']:
-    #         self.linear.weight.requires_grad = False
-
-    def reset_decoder(self):
-        self.linear = nn.Linear(self.encoding_dim, self.opt['num_class'])
+    def reset_decoder(self, num_class):
+        self.linear = nn.Linear(self.encoding_dim, num_class)
         self.linear.bias.data.fill_(0)
         init.xavier_uniform_(self.linear.weight, gain=1)
         if self.opt['cuda']:
@@ -215,10 +189,6 @@ class PositionAwareRNN(nn.Module):
         init.xavier_uniform_(self.linear.weight, gain=1) # initialize linear layer
         if self.opt['attn']:
             self.pe_emb.weight.data.uniform_(-1.0, 1.0)
-        # if self.opt['kg_loss'] is not None:
-        #     load_path = self.opt['kg_loss']['model']['load_path']
-        #     if load_path is not None:
-        #         self.load_decoder(load_path)
         # decide finetuning
         if self.topn <= 0:
             print("Do not finetune word embedding layer.")
