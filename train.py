@@ -12,17 +12,13 @@ from shutil import copyfile
 import torch
 import pickle
 import yaml
-import torch.nn as nn
-import torch.optim as optim
 from copy import deepcopy
 
 from data.process_data import DataProcessor
-from utils.kg_vocab import KGVocab
 from model.rnn import RelationModel
-from utils import scorer, constant, helper
+from utils import scorer, helper
 from utils.vocab import Vocab
 from collections import defaultdict
-from configs.dict_with_attributes import AttributeDict
 
 def extract_preds(dataset, model):
     data_preds = []
