@@ -107,6 +107,14 @@ class RelationModel(object):
             # kg_loss = self.kg_criterion(batch_inputs=inputs, relations=sentence_encs)
             # cumulative_loss += self.opt['kg_loss']['lambda'] * kg_loss.sum()
             # losses['kg'] = kg_loss.data.item()
+        if self.opt['entropy_reg'] is not None:
+            log_probs = torch.log_softmax(logits, dim=-1)
+            neg_logits = log_probs[:, 0]
+            pos_logits = torch.logsumexp(log_probs[:, 1:], dim=-1)
+            neg_entropy = torch.mean(neg_logits * torch.exp(neg_logits) + pos_logits * torch.exp(pos_logits))
+            cumulative_loss += self.opt['entropy_reg'] * neg_entropy
+            losses.update({'neg_entropy': neg_entropy})
+
         # backward
         cumulative_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.opt['max_grad_norm'])
