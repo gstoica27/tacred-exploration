@@ -117,8 +117,9 @@ current_lr = opt['lr']
 
 best_cross_curriculum = {}
 # start training
+previous_stage = None
 curriculum_stage_names = data_processor.curriculum_stage_names
-train_lengths = [30, 50, 60]
+train_lengths = [1, 1, 1]
 for curriculum_stage, train_length in zip(curriculum_stage_names, train_lengths):
     print('#' * 80)
     print('Starting curriculum stage: {}. Training for {} epochs'.format(curriculum_stage, train_length))
@@ -149,11 +150,15 @@ for curriculum_stage, train_length in zip(curriculum_stage_names, train_lengths)
         curriculum_stage=curriculum_stage
     )
 
-    print('Resetting model optimizer..')
-    model.reset_optimizer()
+    # print('Resetting model optimizer..')
+    # model.reset_optimizer()
     print('Resetting model last layer...')
     model_classes = train_iterator.num_classes
-    model.reset_decoder(num_classes=model_classes)
+    if opt['upstage_initialization'] and previous_stage is not None:
+        upstage_mappings = data_processor.stage2prev_cluster2cluster[curriculum_stage]
+    else:
+        upstage_mappings = None
+    model.reset_decoder(num_classes=model_classes, upstage_mappings=upstage_mappings)
 
     global_step = 0
     global_start_time = time.time()
@@ -264,6 +269,9 @@ for curriculum_stage, train_length in zip(curriculum_stage_names, train_lengths)
     test_pred_ids = extract_preds(dataset=test_iterator, model=model)
     test_pred_labels = [test_iterator.id2label[pred_id] for pred_id in test_pred_ids]
     scorer.score(test_iterator.labels, test_pred_labels)
+
+    if opt['upstage_initialization']:
+        previous_stage = curriculum_stage
 
 print('#'*80)
 print('Performances across curriculum:')

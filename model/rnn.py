@@ -42,8 +42,8 @@ class RelationModel(object):
     def reset_optimizer(self):
         self.optimizer = torch_utils.get_optimizer(self.opt['optim'], self.parameters, self.opt['lr'])
 
-    def reset_decoder(self, num_classes):
-        self.model.reset_decoder(num_classes)
+    def reset_decoder(self, num_classes, upstage_mappings=None):
+        self.model.reset_decoder(num_classes, upstage_mappings=upstage_mappings)
 
     def maybe_place_batch_on_cuda(self, batch):
         base_batch = batch['base'][:7]
@@ -166,10 +166,36 @@ class PositionAwareRNN(nn.Module):
         self.emb_matrix = emb_matrix
         self.init_weights()
 
-    def reset_decoder(self, num_class):
+    def reset_decoder(self, num_class, upstage_mappings=None):
+        """
+        Rest decoder parameters.
+        :param num_class: Number of classes in output layer
+        :type num_class: int
+        :param upstage_mappings: Mappings from weight/bias indices of current decoder to indices of newly initialized
+            decoder. The idea here is to translate learned class embeddings to newly initialized ones so information
+            is not completely lossed.
+        :type upstage_mappings: {previous_class_1: [curr_class_1, curr_class_2, ..., curr_class_n], ...}
+        :return: None
+        """
+        upstage_weight = self.linear.weight.data.cpu()
+        upstage_bias = self.linear.bias.data.cpu()
         self.linear = nn.Linear(self.encoding_dim, num_class)
-        self.linear.bias.data.fill_(0)
-        init.xavier_uniform_(self.linear.weight, gain=1)
+        # {previous_cluster_1: [curr_cluster_1, curr_cluster_2, ..., curr_cluster_n], ...}
+        if upstage_mappings is not None:
+            linear_weight = np.zeros((num_class, self.encoding_dim), dtype=np.float32)
+            linear_bias = np.zeros(num_class, dtype=np.float32)
+
+            for previous_cluster_idx, current_clusters_idxs_set in upstage_mappings.items():
+                current_clusters_idxs = list(current_clusters_idxs_set)
+                linear_weight[current_clusters_idxs] = upstage_weight[previous_cluster_idx]
+                linear_bias[current_clusters_idxs] = upstage_bias[previous_cluster_idx]
+
+            self.linear.weight.data.copy_(torch.from_numpy(linear_weight))
+            self.linear.bias.data.copy_(torch.from_numpy(linear_bias))
+
+        else:
+            self.linear.bias.data.fill_(0)
+            init.xavier_uniform_(self.linear.weight, gain=1)
         if self.opt['cuda']:
             self.linear.cuda()
 

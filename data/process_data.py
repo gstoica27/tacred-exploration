@@ -31,9 +31,9 @@ class DataProcessor(object):
         self.stage2cluster2rels = self.process_clusters(curriculum_stages)
         # {stage_name: {relation_id: cluster_name}}
         self.stage2rel_id2cluster = defaultdict(lambda: defaultdict(lambda: set()))
-        # {stage name: {cluster_name: cluster_id}}
-        self.stage2id2cluster = self.compute_stage2id2cluster(self.stage2cluster2rels)
         # {stage name: {cluster_id: cluster_name}}
+        self.stage2id2cluster = self.compute_stage2id2cluster(self.stage2cluster2rels)
+        # {stage name: {cluster_name: cluster_id}}
         self.stage2cluster2id = self.compute_stage2cluster2id(self.stage2id2cluster)
 
         self.graph = {}
@@ -149,11 +149,28 @@ class DataProcessor(object):
         if self.maps_not_computed:
             for stage in self.stage2cluster2rels:
                 self.stage2rel_id2cluster[stage] = self.reverse_set_maps(self.stage2cluster2rels[stage],  id_transform=True)
+            self.stage2prev_cluster2cluster = self.connect_stages()
             self.component2id['id2rel'] = dict([(v, k) for (k, v) in self.component2id['rel2id'].items()])
             self.component2id['rel2ids'] = dict([(k, set([v])) for (k, v) in self.component2id['rel2id'].items()])
             self.maps_not_computed = False
         self.num_rel = len(self.component2id['rel2id'])
         return parsed_data
+
+    def connect_stages(self):
+        stage2prev_cluster2cluster = defaultdict(lambda: defaultdict(lambda: set()))
+        # Skip first stage because it has no previous
+        for stage_idx in range(1, len(self.curriculum_stage_names)):
+            previous_stage = self.curriculum_stage_names[stage_idx-1]
+            current_stage = self.curriculum_stage_names[stage_idx]
+            rel_id2prev_cluster = self.stage2rel_id2cluster[previous_stage]
+            rel_id2current_cluster = self.stage2rel_id2cluster[current_stage]
+            for rel_id in rel_id2prev_cluster:
+                prev_cluster_name = rel_id2prev_cluster[rel_id]
+                curr_cluster_name = rel_id2current_cluster[rel_id]
+                prev_cluster_id = self.stage2cluster2id[previous_stage][prev_cluster_name]
+                curr_cluster_id = self.stage2cluster2id[current_stage][curr_cluster_name]
+                stage2prev_cluster2cluster[current_stage][prev_cluster_id].add(curr_cluster_id)
+        return stage2prev_cluster2cluster
 
     def triple2rel(self, triple):
         return triple[1]

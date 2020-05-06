@@ -2,6 +2,7 @@ data_dir: '/Volumes/External HDD/dataset/tacred/data/json'
 vocab_dir: '/Volumes/External HDD/dataset/tacred/data/vocab'
 test_save_dir: '/Volumes/External HDD/dataset/tacred/test_perfs'
 save_dir: '/Volumes/External HDD/dataset/tacred/saved_models'
+curriculum_stages_path: /Users/georgestoica/Desktop/Research/TACRED_IC/data_analysis/models/PA-LSTM-Positive/curriculum_stages/curriculum_stages.pkl
 dataset:
   max_labels: 15
   negative_sample_ratio: 2.
@@ -37,4 +38,4 @@ eval_metric: 'f1'
 relation_masking: False
 typed_relations: False
 sample_size: 1000
-curriculum_stages_path: /Users/georgestoica/Desktop/Research/TACRED_IC/data_analysis/models/PA-LSTM-Positive/curriculum_stages/curriculum_stages.pkl
+upstage_initialization: True
