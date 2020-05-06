@@ -119,7 +119,7 @@ best_cross_curriculum = {}
 # start training
 previous_stage = None
 curriculum_stage_names = data_processor.curriculum_stage_names
-train_lengths = [1, 1, 1]
+train_lengths = [20, 30, 40]
 for curriculum_stage, train_length in zip(curriculum_stage_names, train_lengths):
     print('#' * 80)
     print('Starting curriculum stage: {}. Training for {} epochs'.format(curriculum_stage, train_length))

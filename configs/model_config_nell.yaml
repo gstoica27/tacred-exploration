@@ -38,4 +38,4 @@ eval_metric: 'f1'
 relation_masking: False
 typed_relations: False
 sample_size:
-  upstage_initialization: True
+upstage_initialization: True
