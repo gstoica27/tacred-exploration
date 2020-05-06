@@ -61,6 +61,8 @@ class DataLoader(object):
         data = self.preprocess(data, vocab, opt)
         # shuffle for training
         if not evaluation:
+            if self.opt['negative_factor'] is not None:
+                data = self.downsample_negatives(data, self.opt['negative_factor'])
             data = self.shuffle_data(data)
 
         id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
@@ -71,18 +73,43 @@ class DataLoader(object):
         self.data = data
         print("{} batches created for {}".format(len(data), filename))
 
-    def create_batches(self, data, batch_size):
-        batched_data = []
-        for batch_start in range(0, len(data['base']), batch_size):
+    def downsample_negatives(self, data, factor=4.0):
+        num_desired_negatives = min(len(data['base']), self.total_positives * factor)
+        num_negative_triples = len([t for t in self.triple2data_idxs if t[1] == 'no_relation'])
+        per_triple_sample_num = int(num_desired_negatives / num_negative_triples)
+        sorted_triple2data_idxs = {k: v for k, v in sorted(self.triple2data_idxs.items(),
+                                                           key=lambda item: len(item[1]))}
+        chosen_idxs = []
+        for (triple, data_idxs) in sorted_triple2data_idxs.items():
+            _, relation, _ = triple
+            if relation != 'no_relation':
+                chosen_idxs += data_idxs
+            else:
+                sample_num = min(len(data_idxs), per_triple_sample_num)
+                sampled_idxs = np.random.choice(data_idxs, sample_num, replace=False).tolist()
+                chosen_idxs += sampled_idxs
+                num_negative_triples -= 1
+                if num_negative_triples > 0:
+                    per_triple_sample_num = int((num_desired_negatives - sample_num) / num_negative_triples)
+        chosen_base_data = np.array(data['base'])[chosen_idxs]
+        chosen_supplemental_data = {}
+        for name, other_data in data['supplemental'].items():
+            chosen_supplemental_data[name] = np.array(other_data)[chosen_idxs]
+        chosen_data = {'base': chosen_base_data, 'supplemental': chosen_supplemental_data}
+        return chosen_data
 
-            batch_end = batch_start + batch_size
-            base_batch = data['base'][batch_start: batch_end]
-            data_batch = {'base': base_batch, 'supplemental': dict()}
-            supplemental_batch = data_batch['supplemental']
-            for component in data['supplemental']:
-                supplemental_batch[component] = data['supplemental'][component][batch_start: batch_end]
-            batched_data.append(data_batch)
-        return batched_data
+    def create_batches(self, data, batch_size):
+            batched_data = []
+            for batch_start in range(0, len(data['base']), batch_size):
+
+                batch_end = batch_start + batch_size
+                base_batch = data['base'][batch_start: batch_end]
+                data_batch = {'base': base_batch, 'supplemental': dict()}
+                supplemental_batch = data_batch['supplemental']
+                for component in data['supplemental']:
+                    supplemental_batch[component] = data['supplemental'][component][batch_start: batch_end]
+                batched_data.append(data_batch)
+            return batched_data
 
     def shuffle_data(self, data):
         indices = list(range(len(data['base'])))
@@ -112,10 +139,17 @@ class DataLoader(object):
         self.triple_idxs = []
         filtered_idxs = []
         filtered_data = []
+        self.total_positives = 0
+        self.triple2data_idxs = defaultdict(lambda: list())
         for idx, d in enumerate(data):
             subject_type = d['subj_type']
             object_type = d['obj_type']
             relation = d['relation']
+
+            self.triple2data_idxs[(subject_type, relation, object_type)].append(idx)
+
+            if relation != 'no_relation':
+                self.total_positives += 1
             # Exclude triple occurrences
             if (subject_type, relation, object_type) in self.exclude_triples and not self.eval:
                 num_excluded += 1
@@ -182,6 +216,8 @@ class DataLoader(object):
                 if not self.rel_graph_pre_exists:
                     self.e1e2_to_rel[(subject_id, object_id)].add(relation)
                 supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
+
+
 
         if self.opt['kg_loss'] is not None:
             component_data = supplemental_components['knowledge_graph']

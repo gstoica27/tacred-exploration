@@ -41,4 +41,5 @@ kg_loss:
 #  lambda_update_gap: 1 # number of epochs between lambda updates
 #  freeze_embeddings: False
 relation_masking: False
-no_relation_masking: True
+no_relation_masking: False
+negative_factor: 4.0
