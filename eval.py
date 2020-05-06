@@ -38,7 +38,7 @@ parser.add_argument('--binary_model_file', type=str,
                     default=os.path.join(base_load_dir, 'PA-LSTM-Binary'),
                     )
 parser.add_argument('--positive_model_file', type=str,
-                    default=os.path.join(base_load_dir, ' PA-LSTM-Positive')
+                    default=os.path.join(base_load_dir, 'PA-LSTM-Positive')
                     )
 
 parser.add_argument('--seed', type=int, default=1234)
@@ -96,7 +96,7 @@ train_iterator = data_processor.create_iterator(
         'binary_classification': False,
         'exclude_negative_data': False,
         'relation_masking': False,
-        'word_dropout': binary_model['word_dropout']
+        'word_dropout': binary_opt['word_dropout']
     },
     partition_name='train'
 )
@@ -130,7 +130,7 @@ id2label = dict([(v,k) for k,v in label2id.items()])
 def extract_eval_probs(dataset, model):
     data_probs = []
     for i, batch in enumerate(dataset):
-        batch_probs, _ = model.predict(batch)
+        batch_probs, _, _ = model.predict(batch)
         data_probs += batch_probs
     return np.array(data_probs)
 
