@@ -23,6 +23,8 @@ def score(key, prediction, verbose=False):
     correct_by_relation = Counter()
     guessed_by_relation = Counter()
     gold_by_relation    = Counter()
+    positive_guesses = Counter()
+
 
     actual_fn = 0
     actual_fp = 0
@@ -46,6 +48,7 @@ def score(key, prediction, verbose=False):
         elif NO_RELATION not in gold and NO_RELATION not in guess:
             guessed_by_relation[guess] += 1
             gold_by_relation[gold] += 1
+            positive_guesses[guess] += 1
             if gold == guess:
                 correct_by_relation[guess] += 1
 
@@ -92,6 +95,7 @@ def score(key, prediction, verbose=False):
     TP = float(sum(correct_by_relation.values()))
     FP = float(sum(guessed_by_relation.values())) - float(sum(correct_by_relation.values()))
     FN = float(sum(gold_by_relation.values())) - float(sum(correct_by_relation.values()))
+    total_positive_guessed = float(sum(positive_guesses.values()))
     if verbose:
         print("Final Score:")
     prec_micro = 1.0
@@ -103,14 +107,17 @@ def score(key, prediction, verbose=False):
     f1_micro = 0.0
     if prec_micro + recall_micro > 0.0:
         f1_micro = 2.0 * prec_micro * recall_micro / (prec_micro + recall_micro)
+    positive_accuracy = TP / total_positive_guessed
     print( "Precision (micro): {:.3%}".format(prec_micro) )
     print( "   Recall (micro): {:.3%}".format(recall_micro) )
     print( "       F1 (micro): {:.3%}".format(f1_micro) )
+    print(" Positive Accuracy: {:.3%}".format(positive_accuracy))
     metrics = {'precision': prec_micro,
                'recall': recall_micro,
                'f1': f1_micro,
                'TP': TP, 'FP': FP,
-               'FN': FN}
+               'FN': FN,
+               'pos_acc': positive_accuracy}
     print(metrics)
     return metrics
 
