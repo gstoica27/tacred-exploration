@@ -185,7 +185,8 @@ for epoch in range(1, opt['num_epoch']+1):
         predictions += preds
         train_eval_loss += loss
     predictions = [id2label[p] for p in predictions]
-    train_p, train_r, train_f1 = scorer.score(train_batch.gold(), predictions)
+    train_metrics = scorer.score(train_batch.gold(), predictions)
+    train_f1 = train_metrics['f1']
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
     train_eval_loss = train_eval_loss / train_batch.num_examples * opt['batch_size']
@@ -203,14 +204,14 @@ for epoch in range(1, opt['num_epoch']+1):
         predictions += preds
         dev_loss += loss
     dev_predictions = [id2label[p] for p in predictions]
-    dev_p, dev_r, dev_f1 = scorer.score(dev_batch.gold(), dev_predictions)
+    current_dev_metrics = scorer.score(dev_batch.gold(), dev_predictions)
+    dev_f1 = current_dev_metrics['f1']
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
     dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
     print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,\
             train_loss, dev_loss, dev_f1))
     file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_loss, dev_f1))
-    current_dev_metrics = {'f1': dev_f1, 'precision': dev_p, 'recall': dev_r}
 
     print("Evaluating on test set...")
     predictions = []
@@ -222,8 +223,12 @@ for epoch in range(1, opt['num_epoch']+1):
         test_loss += loss
         test_preds += probs
     predictions = [id2label[p] for p in predictions]
-    test_p, test_r, test_f1 = scorer.score(test_batch.gold(), predictions)
-    test_metrics_at_current_dev = {'f1': test_f1, 'precision': test_p, 'recall': test_r}
+    test_metrics_at_current_dev = scorer.score(test_batch.gold(), predictions)
+    test_f1 = test_metrics_at_current_dev['f1']
+
+    train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
+    print("epoch {}: test_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, test_loss, test_f1))
+    file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_loss, test_f1))
 
     if best_dev_metrics['f1'] <= current_dev_metrics['f1']:
         best_dev_metrics = current_dev_metrics
@@ -251,10 +256,6 @@ for epoch in range(1, opt['num_epoch']+1):
     print("Test Metrics at Best Dev | F1: {} | Precision: {} | Recall: {}".format(
         test_metrics_at_best_dev['f1'], test_metrics_at_best_dev['precision'], test_metrics_at_best_dev['recall']
     ))
-
-    train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
-    print("epoch {}: test_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, test_loss, test_f1))
-    file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_loss, test_f1))
 
     # save
     model_file = model_save_dir + '/checkpoint_epoch_{}.pt'.format(epoch)
