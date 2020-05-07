@@ -12,32 +12,45 @@ from collections import defaultdict
 
 NO_RELATION = "no_relation"
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Score a prediction file using the gold labels.')
     parser.add_argument('gold_file', help='The gold relation file; one relation per line')
-    parser.add_argument('pred_file', help='A prediction file; one relation per line, in the same order as the gold file.')
+    parser.add_argument('pred_file',
+                        help='A prediction file; one relation per line, in the same order as the gold file.')
     args = parser.parse_args()
     return args
+
 
 def score(key, prediction, verbose=False):
     correct_by_relation = Counter()
     guessed_by_relation = Counter()
-    gold_by_relation    = Counter()
+    gold_by_relation = Counter()
+    positive_guesses = Counter()
 
+    actual_fn = 0
+    actual_fp = 0
     # Loop over the data to compute a score
     for row in range(len(key)):
         gold = key[row]
         guess = prediction[row]
-         
-        if gold == NO_RELATION and guess == NO_RELATION:
+
+        # if gold == NO_RELATION and guess == NO_RELATION:
+        if NO_RELATION in gold and NO_RELATION in guess:
             pass
-        elif gold == NO_RELATION and guess != NO_RELATION:
+        # elif gold == NO_RELATION and guess != NO_RELATION:
+        elif NO_RELATION in gold and NO_RELATION not in guess:
             guessed_by_relation[guess] += 1
-        elif gold != NO_RELATION and guess == NO_RELATION:
+            actual_fp += 1
+        # elif gold != NO_RELATION and guess == NO_RELATION:
+        elif NO_RELATION not in gold and NO_RELATION in guess:
             gold_by_relation[gold] += 1
-        elif gold != NO_RELATION and guess != NO_RELATION:
+            actual_fn += 1
+        # elif gold != NO_RELATION and guess != NO_RELATION:
+        elif NO_RELATION not in gold and NO_RELATION not in guess:
             guessed_by_relation[guess] += 1
             gold_by_relation[gold] += 1
+            positive_guesses[guess] += 1
             if gold == guess:
                 correct_by_relation[guess] += 1
 
@@ -52,7 +65,7 @@ def score(key, prediction, verbose=False):
             # (compute the score)
             correct = correct_by_relation[relation]
             guessed = guessed_by_relation[relation]
-            gold    = gold_by_relation[relation]
+            gold = gold_by_relation[relation]
             prec = 1.0
             if guessed > 0:
                 prec = float(correct) / float(guessed)
@@ -81,21 +94,35 @@ def score(key, prediction, verbose=False):
         print("")
 
     # Print the aggregate score
+    TP = float(sum(correct_by_relation.values()))
+    FP = float(sum(guessed_by_relation.values())) - float(sum(correct_by_relation.values()))
+    FN = float(sum(gold_by_relation.values())) - float(sum(correct_by_relation.values()))
+    total_positive_guessed = float(sum(positive_guesses.values()))
     if verbose:
         print("Final Score:")
     prec_micro = 1.0
     if sum(guessed_by_relation.values()) > 0:
-        prec_micro   = float(sum(correct_by_relation.values())) / float(sum(guessed_by_relation.values()))
+        prec_micro = float(sum(correct_by_relation.values())) / float(sum(guessed_by_relation.values()))
     recall_micro = 0.0
     if sum(gold_by_relation.values()) > 0:
         recall_micro = float(sum(correct_by_relation.values())) / float(sum(gold_by_relation.values()))
     f1_micro = 0.0
     if prec_micro + recall_micro > 0.0:
         f1_micro = 2.0 * prec_micro * recall_micro / (prec_micro + recall_micro)
-    print( "Precision (micro): {:.3%}".format(prec_micro) )
-    print( "   Recall (micro): {:.3%}".format(recall_micro) )
-    print( "       F1 (micro): {:.3%}".format(f1_micro) )
-    return prec_micro, recall_micro, f1_micro
+    positive_accuracy = TP / total_positive_guessed
+    print("Precision (micro): {:.3%}".format(prec_micro))
+    print("   Recall (micro): {:.3%}".format(recall_micro))
+    print("       F1 (micro): {:.3%}".format(f1_micro))
+    print(" Positive Accuracy: {:.3%}".format(positive_accuracy))
+    metrics = {'precision': prec_micro,
+               'recall': recall_micro,
+               'f1': f1_micro,
+               'TP': TP, 'FP': FP,
+               'FN': FN,
+               'pos_acc': positive_accuracy}
+    print(metrics)
+    return metrics
+
 
 def compute_confusion_matrices(ground_truth, predictions):
     confusion_matrix = {}
@@ -116,9 +143,10 @@ if __name__ == "__main__":
 
     # Check that the lengths match
     if len(prediction) != len(key):
-        print("Gold and prediction file must have same number of elements: %d in gold vs %d in prediction" % (len(key), len(prediction)))
+        print("Gold and prediction file must have same number of elements: %d in gold vs %d in prediction" % (
+        len(key), len(prediction)))
         exit(1)
-    
+
     # Score the predictions
     score(key, prediction, verbose=True)
 
