@@ -111,9 +111,9 @@ def score(key, prediction, verbose=False):
     print( "Precision (micro): {:.3%}".format(prec_micro) )
     print( "   Recall (micro): {:.3%}".format(recall_micro) )
     print( "       F1 (micro): {:.3%}".format(f1_micro) )
-    print("               TP: {:.3f}")
-    print("               FP: {:.3f}")
-    print("               FN: {:.3f}")
+    print("               TP: {:.3f}".format(TP))
+    print("               FP: {:.3f}".format(FP))
+    print("               FN: {:.3f}".format(FN))
     print("Positive Accuracy: {:.3%}".format(positive_accuracy))
     metrics = {'precision': prec_micro,
                'recall': recall_micro,
