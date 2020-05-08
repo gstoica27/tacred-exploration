@@ -250,12 +250,14 @@ for epoch in range(1, opt['num_epoch']+1):
         with open(dev_confusion_save_file, 'wb') as handle:
             pickle.dump(dev_confusion_matrix, handle)
 
-    print("Best Dev Metrics | F1: {} | Precision: {} | Recall: {}".format(
-        best_dev_metrics['f1'], best_dev_metrics['precision'], best_dev_metrics['recall']
-    ))
-    print("Test Metrics at Best Dev | F1: {} | Precision: {} | Recall: {}".format(
-        test_metrics_at_best_dev['f1'], test_metrics_at_best_dev['precision'], test_metrics_at_best_dev['recall']
-    ))
+    print_str = 'Best Dev Metrics |'
+    for name, value in best_dev_metrics.items():
+        print_str += ' {}: {} |'.format(name, value)
+    print(print_str)
+    print_str = 'Test Metrics at Best Dev |'
+    for name, value in test_metrics_at_best_dev.items():
+        print_str += ' {}: {} |'.format(name, value)
+    print(print_str)
 
     # save
     model_file = model_save_dir + '/checkpoint_epoch_{}.pt'.format(epoch)
