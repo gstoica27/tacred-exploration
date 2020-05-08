@@ -171,7 +171,8 @@ def evaluate_joint_models(dataset, binary_model, positive_model, negative_model,
     test_labels = []
     for binary_label, positive_label, negative_label in zip(binary_labels, positive_labels, negative_labels):
         if binary_label == 'no_relation':
-            test_labels.append(negative_label)
+            # test_labels.append(negative_label)
+            test_labels.append(binary_label)
         else:
             test_labels.append(positive_label)
     metrics = scorer.score(dataset.labels, test_labels)
