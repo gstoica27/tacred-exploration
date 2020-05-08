@@ -125,7 +125,7 @@ config={
 
 helper.print_config(binary_opt)
 helper.print_config(positive_opt)
-binary_label2id = data_processor.name2id['binary_rel2id']
+binary_label2id = {'has_relation': 1, 'no_relation': 0}
 binary_id2label = dict([(v, k) for k, v in binary_label2id.items()])
 label2id = data_processor.name2id['rel2id']
 id2label = dict([(v,k) for k,v in label2id.items()])
