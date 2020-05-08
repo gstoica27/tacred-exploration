@@ -19,14 +19,14 @@ from utils import scorer, helper
 from utils.vocab import Vocab
 from collections import defaultdict
 
-def save_filtered_data(data_dir, filter_idxs):
+def save_filtered_data(data_dir, filter_idxs, filename='train_positives.json'):
     print('There are: {} elements in filter'.format(len(filter_idxs)))
     data_file = os.path.join(data_dir, 'train.json')
     with open(data_file, 'rb') as handle:
         data_data = json.load(handle)
     data_data = np.array(data_data)
     filtered_data = data_data[filter_idxs].tolist()
-    filtered_file = os.path.join(data_dir, 'train_hard.json')
+    filtered_file = os.path.join(data_dir, filename)
     json.dump(filtered_data, open(filtered_file, 'w'))
 
 
@@ -245,14 +245,18 @@ for epoch in range(1, opt['num_epoch']+1):
         train_binary_preds = (train_binary_probs >= train_threshold).astype(int)
         train_labels = [train_iterator.id2label[p] for p in train_binary_preds]
         positive_idxs = []
+        negative_idxs = []
         incorrect_idxs = []
         for idx, (data_idx, pred_label) in enumerate(zip(data_idxs, train_labels)):
             if pred_label == 'has_relation':
                 positive_idxs.append(data_idx)
+            elif pred_label == 'no_relation':
+                negative_idxs.append(data_idx)
             if train_iterator.labels[idx] != pred_label:
                 incorrect_idxs.append(data_idx)
 
         train_metrics['positive_idxs'] = positive_idxs
+        train_metrics['negative_idxs'] = negative_idxs
         train_metrics['incorrect_idxs'] = incorrect_idxs
 
         print('Length of positive predicted elements: {} | unique: {} | Num Incorrect: {}'.format(
@@ -360,7 +364,8 @@ for epoch in range(1, opt['num_epoch']+1):
     print("")
 
 print('Filtering Training Data...')
-#if opt['experiment_type'] == 'binary':
- #   save_filtered_data(opt['data_dir'], train_metrics_at_best_dev['incorrect_idxs'])
+if opt['experiment_type'] == 'binary':
+   save_filtered_data(opt['data_dir'], train_metrics_at_best_dev['positive_idxs'], filename='train_positives.json')
+   save_filtered_data(opt['data_dir'], train_metrics_at_best_dev['negative_idxs'], filename='train_negatives.json')
 print("Training ended with {} epochs.".format(epoch))
 
