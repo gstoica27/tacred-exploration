@@ -178,6 +178,9 @@ def evaluate_joint_models(dataset, binary_model, positive_model, negative_model,
     return metrics
 
 threshold = 0.5096710324287415 # Fill this in
+print('#'*80)
+print('Train Dataset Performance')
+print('#'*80)
 evaluate_joint_models(
     dataset=train_iterator,
     binary_model=binary_model,
@@ -187,6 +190,9 @@ evaluate_joint_models(
     binary_id2label=binary_id2label,
     threshold=threshold
 )
+print('#'*80)
+print('Dev Dataset Performance')
+print('#'*80)
 evaluate_joint_models(
     dataset=dev_iterator,
     binary_model=binary_model,
@@ -196,6 +202,9 @@ evaluate_joint_models(
     binary_id2label=binary_id2label,
     threshold=threshold
 )
+print('#'*80)
+print('Test Dataset Performance')
+print('#'*80)
 evaluate_joint_models(
     dataset=test_iterator,
     binary_model=binary_model,
