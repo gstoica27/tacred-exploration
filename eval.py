@@ -7,6 +7,7 @@ import random
 import argparse
 import pickle
 import torch
+from copy import deepcopy
 
 from model.rnn import RelationModel
 from utils import torch_utils, scorer, constant, helper
@@ -38,8 +39,10 @@ parser.add_argument('--binary_model_file', type=str,
                     default=os.path.join(base_load_dir, 'PA-LSTM-Binary'),
                     )
 parser.add_argument('--positive_model_file', type=str,
-                    default=os.path.join(base_load_dir, 'PA-LSTM-Positive-Filtered-Exclude_Negs')
+                    default=os.path.join(base_load_dir, 'PA-LSTM-Full-TACRED_Positives')
                     )
+parser.add_argument('--negative_model_file', type=str,
+                    default=os.path.join(base_load_dir, 'PA-LSTM-Full-TACRED_Negatives'))
 
 parser.add_argument('--seed', type=int, default=1234)
 parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
@@ -53,34 +56,34 @@ if args.cpu:
 elif args.cuda:
     torch.cuda.manual_seed(args.seed)
 
+def load_model(model_file, is_binary=False, num_class=42):
+    print("Loading model from {}".format(model_file))
+    opt = torch_utils.load_config(model_file)
+    opt['apply_binary_classification'] = is_binary
+    opt['cuda'] = torch.cuda.is_available()
+    opt['num_class'] = num_class
+    model = RelationModel(opt)
+    model.load(model_file)
+    model.opt['cuda'] = torch.cuda.is_available()
+    return model, opt
+
 # Load binary model
 binary_model_file = os.path.join(args.binary_model_file, args.model)
-print("Loading model from {}".format(binary_model_file))
-binary_opt = torch_utils.load_config(binary_model_file)
-binary_opt['apply_binary_classification'] = True
-binary_opt['cuda'] = torch.cuda.is_available()
-binary_model = RelationModel(binary_opt)
-binary_model.load(binary_model_file)
-binary_model.opt['cuda'] = torch.cuda.is_available()
+binary_model, binary_opt = load_model(model_file=binary_model_file, is_binary=True, num_class=1)
 # Load positive model
 positive_model_file = os.path.join(args.positive_model_file, args.model)
-print("Loading model from {}".format(positive_model_file))
-positive_opt = torch_utils.load_config(positive_model_file)
-positive_opt['apply_binary_classification'] = False
-positive_opt['num_class'] = 42
-positive_opt['cuda'] = torch.cuda.is_available()
-positive_model = RelationModel(positive_opt)
-positive_model.load(positive_model_file)
-positive_model.opt['cuda'] = torch.cuda.is_available()
-
+positive_model, positive_opt = load_model(model_file=positive_model_file, is_binary=False, num_class=42)
+# Load negative model
+negative_model_file = os.path.join(args.negative_model_file, args.model)
+negative_model, negative_opt = load_model(model_file=negative_model_file, is_binary=False, num_class=42)
 # load vocab
 vocab_file = args.vocab_dir + '/vocab.pkl'
 vocab = Vocab(vocab_file, load=True)
 print('config vocab size: {} | actual size: {}'.format(
     binary_opt['vocab_size'], vocab.size
 ))
-print('Binary config: {}'.format(binary_opt))
-print('Positive config: {}'.format(positive_opt))
+# print('Binary config: {}'.format(binary_opt))
+# print('Positive config: {}'.format(positive_opt))
 assert binary_opt['vocab_size'] == vocab.size, "Vocab size must match that in the saved model."
 # TODO: May be necessary to save and load the mappings for each data iterator from the training.
 #  I don't think this is neeeded atm because the data is loaded in exactly the same way between
@@ -134,30 +137,44 @@ def extract_eval_probs(dataset, model):
         data_probs += batch_probs
     return np.array(data_probs)
 
-def evaluate_joint_models(dataset, binary_model, positive_model, id2label, binary_id2label, threshold):
-    binary_probs = extract_eval_probs(dataset=dataset, model=binary_model)
-    positive_probs = extract_eval_probs(dataset=dataset, model=positive_model)
-    binary_preds = (binary_probs > threshold).astype(int)
-    print('Binary performance...')
-    binary_labels = np.array([binary_id2label[p] for p in binary_preds])
-    binary_gold = ['has_relation' if label != 'no_relation' else label for label in dataset.labels]
-    print(scorer.score(binary_gold, binary_labels))
-
+def compute_positive_accuracy(dataset, pred_probs):
+    positive_probs = deepcopy(pred_probs)
     positive_probs[:, constant.LABEL_TO_ID['no_relation']] = -np.inf
     positive_preds = np.argmax(positive_probs, axis=-1)
     positive_labels = np.array([id2label[p] for p in positive_preds])
     positive_gold = [label for label in dataset.labels if label != 'no_relation']
     filtered_positives = [label for label, gold_label in zip(positive_labels, dataset.labels) if gold_label != 'no_relation']
-    print(scorer.score(positive_gold, filtered_positives))
+    scorer.score(positive_gold, filtered_positives)
+
+def evaluate_joint_models(dataset, binary_model, positive_model, negative_model, id2label, binary_id2label, threshold):
+    binary_probs = extract_eval_probs(dataset=dataset, model=binary_model)
+    positive_probs = extract_eval_probs(dataset=dataset, model=positive_model)
+    negative_probs = extract_eval_probs(dataset=dataset, model=negative_model)
+
+    positive_preds = np.argmax(positive_probs, axis=-1)
+    positive_labels = np.array([id2label[p] for p in positive_preds])
+    negative_preds = np.argmax(negative_probs, axis=-1)
+    negative_labels = np.array([id2label[p] for p in negative_preds])
+
+    binary_preds = (binary_probs > threshold).astype(int)
+    print('Binary performance...')
+    binary_labels = np.array([binary_id2label[p] for p in binary_preds])
+    binary_gold = ['has_relation' if label != 'no_relation' else label for label in dataset.labels]
+    scorer.score(binary_gold, binary_labels)
+    print('Positive Model Positive Accuracy:')
+    compute_positive_accuracy(dataset, pred_probs=positive_probs)
+    scorer.score(dataset.labels, positive_labels)
+    print('Negative Model Positive Accuracy:')
+    compute_positive_accuracy(dataset, pred_probs=negative_probs)
+    scorer.score(dataset.labels, negative_labels)
 
     test_labels = []
-    for binary_label, positive_label in zip(binary_labels, positive_labels):
+    for binary_label, positive_label, negative_label in zip(binary_labels, positive_labels, negative_labels):
         if binary_label == 'no_relation':
-            test_labels.append(binary_label)
+            test_labels.append(negative_label)
         else:
             test_labels.append(positive_label)
     metrics = scorer.score(dataset.labels, test_labels)
-    print(metrics)
     return metrics
 
 threshold = 0.5096710324287415 # Fill this in
@@ -165,6 +182,7 @@ evaluate_joint_models(
     dataset=train_iterator,
     binary_model=binary_model,
     positive_model=positive_model,
+    negative_model=negative_model,
     id2label=id2label,
     binary_id2label=binary_id2label,
     threshold=threshold
@@ -173,6 +191,7 @@ evaluate_joint_models(
     dataset=dev_iterator,
     binary_model=binary_model,
     positive_model=positive_model,
+    negative_model=negative_model,
     id2label=id2label,
     binary_id2label=binary_id2label,
     threshold=threshold
@@ -181,47 +200,11 @@ evaluate_joint_models(
     dataset=test_iterator,
     binary_model=binary_model,
     positive_model=positive_model,
+    negative_model=negative_model,
     id2label=id2label,
     binary_id2label=binary_id2label,
     threshold=threshold
 )
-
-# predictions = []
-# all_probs = []
-# data = []
-# correct_predictions = []
-# incorrect_predictions = []
-# for i, b in enumerate(batch):
-#     preds, probs, _ = model.predict(b)
-#     predictions += preds
-#     all_probs += probs
-#
-# predictions = [id2label[p] for p in predictions]
-# p, r, f1 = scorer.score(batch.gold(), predictions, verbose=True)
-
-# is_correct = np.array(predictions) == np.array(batch.gold())
-# is_incorrect = np.array(predictions) != np.array(batch.gold())
-# correct_predictions = np.arange(len(predictions))[is_correct]
-# incorrect_predictions = np.arange(len(predictions))[is_incorrect]
-# with open(data_file, 'rb') as handle:
-#     data = np.array(json.load(handle))
-# correct_data = data[correct_predictions].tolist()
-# incorrect_data = data[incorrect_predictions].tolist()
-
-# save_dir = os.path.join(opt['test_save_dir'], opt['id'], 'correctness')
-# os.makedirs(save_dir, exist_ok=True)
-# with open(os.path.join(save_dir, 'correct_data.pkl'), 'wb') as handle:
-#     pickle.dump(correct_data, handle)
-# with open(os.path.join(save_dir, 'incorrect_data.pkl'), 'wb') as handle:
-#     pickle.dump(incorrect_data, handle)
-
-
-# # save probability scores
-# if len(args.out) > 0:
-#     helper.ensure_dir(os.path.dirname(args.out))
-#     with open(args.out, 'wb') as outfile:
-#         pickle.dump(all_probs, outfile)
-#     print("Prediction scores saved to {}.".format(args.out))
 
 print("Evaluation ended.")
 
