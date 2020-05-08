@@ -157,17 +157,31 @@ def evaluate_joint_models(dataset, binary_model, positive_model, negative_model,
     negative_labels = np.array([id2label[p] for p in negative_preds])
 
     binary_preds = (binary_probs > threshold).astype(int)
+    print('-'*80)
     print('Binary performance...')
+    print('-' * 80)
     binary_labels = np.array([binary_id2label[p] for p in binary_preds])
     binary_gold = ['has_relation' if label != 'no_relation' else label for label in dataset.labels]
     scorer.score(binary_gold, binary_labels)
-    print('Positive Model Positive Accuracy:')
+    print('-' * 80)
+    print('Positive Model Positive Performance:')
+    print('-' * 80)
     compute_positive_accuracy(dataset, pred_probs=positive_probs)
+    print('-' * 80)
+    print('Positive Model Overall Performance:')
+    print('-' * 80)
     scorer.score(dataset.labels, positive_labels)
+    print('-' * 80)
     print('Negative Model Positive Accuracy:')
+    print('-' * 80)
     compute_positive_accuracy(dataset, pred_probs=negative_probs)
+    print('-' * 80)
+    print("Negative Model Overall Performance")
+    print('-' * 80)
     scorer.score(dataset.labels, negative_labels)
-
+    print('-' * 80)
+    print("Aggregate Performance")
+    print('-' * 80)
     test_labels = []
     for binary_label, positive_label, negative_label in zip(binary_labels, positive_labels, negative_labels):
         if binary_label == 'no_relation':

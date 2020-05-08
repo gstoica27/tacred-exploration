@@ -111,14 +111,16 @@ def score(key, prediction, verbose=False):
     print( "Precision (micro): {:.3%}".format(prec_micro) )
     print( "   Recall (micro): {:.3%}".format(recall_micro) )
     print( "       F1 (micro): {:.3%}".format(f1_micro) )
-    print(" Positive Accuracy: {:.3%}".format(positive_accuracy))
+    print("               TP: {:.3f}")
+    print("               FP: {:.3f}")
+    print("               FN: {:.3f}")
+    print("Positive Accuracy: {:.3%}".format(positive_accuracy))
     metrics = {'precision': prec_micro,
                'recall': recall_micro,
                'f1': f1_micro,
                'TP': TP, 'FP': FP,
                'FN': FN,
                'pos_acc': positive_accuracy}
-    print(metrics)
     return metrics
 
 def compute_confusion_matrices(ground_truth, predictions):
