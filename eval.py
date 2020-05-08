@@ -183,13 +183,31 @@ def evaluate_joint_models(dataset, binary_model, positive_model, negative_model,
     print("Aggregate Performance")
     print('-' * 80)
     test_labels = []
-    for binary_label, positive_label, negative_label in zip(binary_labels, positive_labels, negative_labels):
+    binary_neg_labels = []
+    binary_neg_gold_labels = []
+    binary_pos_labels = []
+    binary_pos_gold_labels = []
+    for binary_label, positive_label, negative_label, gold_label in zip(binary_labels, positive_labels, negative_labels, dataset.labels):
         if binary_label == 'no_relation':
-            # test_labels.append(negative_label)
-            test_labels.append(binary_label)
+            test_labels.append(negative_label)
+            # test_labels.append(binary_label)
+            binary_neg_labels.append(negative_label)
+            binary_neg_gold_labels.append(gold_label)
         else:
             test_labels.append(positive_label)
+            binary_pos_labels.append(positive_label)
+            binary_pos_gold_labels.append(gold_label)
+
     metrics = scorer.score(dataset.labels, test_labels)
+    print('-'*80)
+    print('Positive Model Binary Positive Predictions Performance:')
+    print('-' * 80)
+    scorer.score(binary_pos_gold_labels, binary_pos_labels)
+    print('-' * 80)
+    print('Negative Model Binary Negative Predictions Performance:')
+    print('-' * 80)
+    scorer.score(binary_neg_gold_labels, binary_neg_labels)
+
     return metrics
 
 threshold = 0.5096710324287415 # Fill this in
