@@ -131,7 +131,7 @@ print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['
 data_processor = DataProcessor(config=opt,
                                vocab=vocab,
                                data_dir = opt['data_dir'],
-                               partition_names=['train_negatives', 'dev', 'test'])
+                               partition_names=['train_split', 'test_split', 'test'])
 if opt['experiment_type'] == 'binary':
     config = {
         'binary_classification': True,
@@ -149,11 +149,11 @@ else:
 
 train_iterator = data_processor.create_iterator(
         config=config,
-        partition_name='train_negatives'
+        partition_name='train_split'
     )
 dev_iterator = data_processor.create_iterator(
     config=config,
-    partition_name='dev'
+    partition_name='test_split'
 )
 test_iterator = data_processor.create_iterator(
     config=config,
