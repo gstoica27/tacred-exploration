@@ -187,12 +187,14 @@ def evaluate_joint_models(dataset, binary_model, positive_model, negative_model,
     binary_neg_gold_labels = []
     binary_pos_labels = []
     binary_pos_gold_labels = []
+    binary_labels = []
     for binary_label, positive_label, negative_label, gold_label in zip(binary_labels, positive_labels, negative_labels, dataset.labels):
         if binary_label == 'no_relation':
             test_labels.append(negative_label)
             # test_labels.append(binary_label)
             binary_neg_labels.append(negative_label)
             binary_neg_gold_labels.append(gold_label)
+            binary_labels.append(binary_label)
         else:
             test_labels.append(positive_label)
             binary_pos_labels.append(positive_label)
@@ -207,6 +209,10 @@ def evaluate_joint_models(dataset, binary_model, positive_model, negative_model,
     print('Negative Model Binary Negative Predictions Performance:')
     print('-' * 80)
     scorer.score(binary_neg_gold_labels, binary_neg_labels)
+    print('-' * 80)
+    print('Binary Model Binary Negative Predictions Performance:')
+    print('-' * 80)
+    scorer.score(binary_neg_gold_labels, binary_labels)
 
     return metrics
 
