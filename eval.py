@@ -198,7 +198,7 @@ def evaluate_joint_models(dataset, binary_model, positive_model, negative_model,
         else:
             test_labels.append(positive_label)
             binary_pos_labels.append(positive_label)
-            binary_pred_labels.append(gold_label)
+            binary_pos_gold_labels.append(gold_label)
 
     metrics = scorer.score(dataset.labels, test_labels)
     print('-'*80)
