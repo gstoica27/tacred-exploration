@@ -9,20 +9,23 @@ def load_data(data_file):
         data = json.load(handle)
     return data
 
-def group_by_relation(data):
-    relation2data = defaultdict(lambda: list())
+def group_by_triple(data):
+    triple2data = defaultdict(lambda: list())
     for example in data:
         relation = example['relation']
-        relation2data[relation].append(example)
+        subject_type = example['subj_type']
+        object_type = example['obj_type']
+        triple = (subject_type, relation, object_type)
+        triple2data[triple].append(example)
 
-    for relation, examples in relation2data.items():
-        relation2data[relation] = np.array(examples)
-    return relation2data
+    for triple, examples in triple2data.items():
+        triple2data[triple] = np.array(examples)
+    return triple2data
 
 def stratify_sampling(relation2data, split_prop=.3):
     large_split = []
     small_split = []
-    for relation, examples in relation2data.items():
+    for triple, examples in relation2data.items():
         sample_amount = int(len(examples) * split_prop)
         if sample_amount == 0:
             continue
@@ -45,7 +48,7 @@ file_to_split = os.path.join(source_dir, 'train_negatives.json')
 split_proportion = .3333
 
 data = load_data(file_to_split)
-grouped_data = group_by_relation(data)
+grouped_data = group_by_triple(data)
 small_split, large_split = stratify_sampling(grouped_data, split_prop=split_proportion)
 save_data(small_split, os.path.join(source_dir, 'test_split.json'))
 save_data(large_split, os.path.join(source_dir, 'train_split.json'))
