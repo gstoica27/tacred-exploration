@@ -46,7 +46,7 @@ def save_data(data, save_file):
 source_dir = '/usr0/home/gis/data/tacred/data/json/'
 # source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
 file_to_split = os.path.join(source_dir, 'train_negatives.json')
-split_proportion = .1
+split_proportion = .001
 
 data = load_data(file_to_split)
 grouped_data = group_by_triple(data)
