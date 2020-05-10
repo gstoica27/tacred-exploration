@@ -43,8 +43,8 @@ def save_data(data, save_file):
     with open(save_file, 'w') as handle:
         json.dump(data, handle)
 
-# source_dir = '/usr0/home/gis/data/tacred/data/json/'
-source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
+source_dir = '/usr0/home/gis/data/tacred/data/json/'
+# source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
 file_to_split = os.path.join(source_dir, 'train_negatives.json')
 split_proportion = .1
 
