@@ -50,6 +50,6 @@ split_proportion = .3333
 data = load_data(file_to_split)
 grouped_data = group_by_triple(data)
 small_split, large_split = stratify_sampling(grouped_data, split_prop=split_proportion)
-save_data(small_split, os.path.join(source_dir, 'test_split.json'))
-save_data(large_split, os.path.join(source_dir, 'train_split.json'))
+save_data(small_split, os.path.join(source_dir, f'test_split-{split_proportion}.json'))
+save_data(large_split, os.path.join(source_dir, f'train_split-{split_proportion}.json'))
 
