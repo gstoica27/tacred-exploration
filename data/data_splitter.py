@@ -28,6 +28,7 @@ def stratify_sampling(relation2data, split_prop=.3):
     for triple, examples in relation2data.items():
         sample_amount = int(len(examples) * split_prop)
         if sample_amount == 0:
+            large_split += examples.tolist()
             continue
         example_indices = np.arange(len(examples))
         sampled_indices = np.random.choice(example_indices, sample_amount, replace=False)
@@ -42,8 +43,8 @@ def save_data(data, save_file):
     with open(save_file, 'w') as handle:
         json.dump(data, handle)
 
-source_dir = '/usr0/home/gis/data/tacred/data/json/'
-# source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
+# source_dir = '/usr0/home/gis/data/tacred/data/json/'
+source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
 file_to_split = os.path.join(source_dir, 'train_negatives.json')
 split_proportion = .1
 
