@@ -40,4 +40,4 @@ threshold_metric: f1
 sample_size:
 hard_disjoint: True
 experiment_type: 'positive'
-exclude_negatives:
+exclude_negatives: False
