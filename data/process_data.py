@@ -33,6 +33,7 @@ class DataProcessor(object):
             print('Loading: {}'.format(partition_file))
             with open(partition_file, 'rb') as handle:
                 partition_data = json.load(handle)
+                print(f'{len(partition_data)} total samples in {partition_file}')
                 partition_parsed = self.parse_data(partition_data)
                 partitions[partition_name] = partition_parsed
                 self.partition_data[partition_name] = partition_data
@@ -215,6 +216,7 @@ class Batcher(object):
         self.labels = [id2label[d['base']['relation']] for d in dataset]
         self.num_examples = len(dataset)
         self.batches = self.create_batches(dataset, batch_size=batch_size)
+        print(f'{len(self.batches)} created')
 
     def create_batches(self, data, batch_size=50):
         batched_data = []
