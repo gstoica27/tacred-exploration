@@ -128,10 +128,12 @@ opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
+train_type = 'train_split-0.0001'
+dev_type = 'test'
 data_processor = DataProcessor(config=opt,
                                vocab=vocab,
                                data_dir = opt['data_dir'],
-                               partition_names=['train_split-0.1', 'test_split-0.1', 'test'])
+                               partition_names=[train_type, dev_type, 'test'])
 if opt['experiment_type'] == 'binary':
     config = {
         'binary_classification': True,
@@ -149,11 +151,11 @@ else:
 
 train_iterator = data_processor.create_iterator(
         config=config,
-        partition_name='train_split-0.1'
+        partition_name=train_type
     )
 dev_iterator = data_processor.create_iterator(
     config=config,
-    partition_name='test_split-0.1'
+    partition_name=dev_type
 )
 test_iterator = data_processor.create_iterator(
     config=config,
