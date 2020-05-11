@@ -263,7 +263,7 @@ for epoch in range(1, opt['num_epoch']+1):
             len(positive_idxs), len(np.unique(positive_idxs)), len(incorrect_idxs)))
     else:
         train_preds = np.argmax(extract_eval_probs(dataset=train_iterator, model=model), axis=1)
-        train_labels = [train_iterator.id2label[p] for p in train_preds]
+        train_labels = [opt['id2label'][p] for p in train_preds]
     train_metrics.update(scorer.score(train_iterator.labels, train_labels))
 
     print("epoch {}: train_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch, train_loss, train_metrics['f1']))
@@ -277,7 +277,7 @@ for epoch in range(1, opt['num_epoch']+1):
         gold_ids = [data_processor.name2id['binary_rel2id'][l] for l in dev_iterator.labels]
         dev_threshold = find_binary_threshold(gold_ids=gold_ids, prediction_probs=dev_binary_probs, threshold_metric='f1')
         dev_binary_preds = (dev_binary_probs >= dev_threshold).astype(int)
-        dev_labels = [dev_iterator.id2label[p] for p in dev_binary_preds]
+        dev_labels = [opt['id2label'][p] for p in dev_binary_preds]
         current_dev_metrics['threshold'] = dev_threshold
     else:
         dev_preds = np.argmax(extract_eval_probs(dataset=dev_iterator, model=model), axis=1)
@@ -297,7 +297,7 @@ for epoch in range(1, opt['num_epoch']+1):
         test_labels = [test_iterator.id2label[p] for p in test_preds]
     else:
         test_preds = np.argmax(extract_eval_probs(dataset=test_iterator, model=model), axis=1)
-        test_labels = [test_iterator.id2label[p] for p in test_preds]
+        test_labels = [opt['id2label'][p] for p in test_preds]
 
     test_metrics_at_current_dev = scorer.score(test_iterator.labels, test_labels)
 
