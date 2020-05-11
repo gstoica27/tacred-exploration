@@ -43,6 +43,36 @@ def save_data(data, save_file):
     with open(save_file, 'w') as handle:
         json.dump(data, handle)
 
+def compute_id2info(data):
+    id2info = {}
+    for d in data:
+        d_id = d['id']
+        id2info[d_id] = d
+    return id2info
+
+def are_splits_correct(orig_data, split1, split2):
+    orig_id2info = compute_id2info(orig_data)
+    split1_id2info = compute_id2info(split1)
+    split2_id2info = compute_id2info(split2)
+
+    incorrect_data = []
+    for sample_id in orig_id2info.keys():
+        sample_orig = orig_id2info[sample_id]
+        if sample_id in split1_id2info:
+            sample_split1 = split1_id2info[sample_id]
+            if sample_orig != sample_split1:
+                incorrect_data.append({'orig': sample_orig, 'split1': sample_split1})
+        if sample_id in split2_id2info:
+            sample_split2 = split2_id2info[sample_id]
+            if sample_orig != sample_split2:
+                incorrect_data.append({'orig': sample_orig, 'split2': sample_split2})
+        elif sample_id not in split1_id2info and sample_id not in split2_id2info:
+            sample_split1 = split1_id2info[sample_id]
+            sample_split2 = split2_id2info[sample_id]
+            incorrect_data.append({'orig': sample_orig, 'split1': sample_split1, 'split2': sample_split2})
+    return incorrect_data
+
+
 source_dir = '/usr0/home/gis/data/tacred/data/json/'
 # source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
 file_to_split = os.path.join(source_dir, 'train_negatives.json')
@@ -51,6 +81,7 @@ split_proportion = .001
 data = load_data(file_to_split)
 grouped_data = group_by_triple(data)
 small_split, large_split = stratify_sampling(grouped_data, split_prop=split_proportion)
+assert(len(are_splits_correct(orig_data=data, split1=large_split, split2=small_split)) == 0)
 save_data(small_split, os.path.join(source_dir, f'test_split-{split_proportion}.json'))
 save_data(large_split, os.path.join(source_dir, f'train_split-{split_proportion}.json'))
 
