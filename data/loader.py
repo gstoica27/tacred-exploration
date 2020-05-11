@@ -49,6 +49,7 @@ class DataLoader(object):
 
         with open(filename) as infile:
             data = json.load(infile)
+        print(f'{len(data)} total samples in {filename}')
         np.random.shuffle(data)
         data = self.preprocess(data, vocab, opt)
 
