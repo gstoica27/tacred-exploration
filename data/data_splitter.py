@@ -57,6 +57,15 @@ def stratify_sampling(relation2data, split_prop=.3):
         large_split += remaining_examples.tolist()
     return small_split, large_split
 
+def reorder_split(orig_data, split):
+    orig_id2info = compute_id2info(orig_data)
+    split_id2info = compute_id2info(split)
+    ordered_split = []
+    for id in orig_id2info:
+        if id in split_id2info:
+            ordered_split.append(split_id2info[id])
+    return ordered_split
+
 def save_data(data, save_file):
     with open(save_file, 'w') as handle:
         json.dump(data, handle)
@@ -91,14 +100,16 @@ def are_splits_correct(orig_data, split1, split2):
     return incorrect_data
 
 
-# source_dir = '/usr0/home/gis/data/tacred/data/json/'
-source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
+source_dir = '/usr0/home/gis/data/tacred/data/json/'
+# source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
 file_to_split = os.path.join(source_dir, 'train_negatives.json')
 split_proportion = .0
 
 data = load_data(file_to_split)
 grouped_data = group_by_triple(data)
 small_split, large_split = stratify_sampling(grouped_data, split_prop=split_proportion)
+small_split = reorder_split(orig_data=data, split=small_split)
+large_split = reorder_split(orig_data=data, split=large_split)
 assert(len(are_splits_correct(orig_data=data, split1=large_split, split2=small_split)) == 0)
 save_data(small_split, os.path.join(source_dir, f'test_split-{split_proportion}.json'))
 save_data(large_split, os.path.join(source_dir, f'train_split-{split_proportion}.json'))
