@@ -9,6 +9,24 @@ def load_data(data_file):
         data = json.load(handle)
     return data
 
+def find_blocks(relations):
+    blocks = []
+    idx = 0
+    start_relation = None
+    relation_counter = 0
+    while idx < len(relations):
+        current_relation = relations[idx]
+        if start_relation is None:
+            start_relation = current_relation
+        elif current_relation != start_relation:
+            blocks.append((start_relation, relation_counter))
+            start_relation = current_relation
+            relation_counter = 0
+        relation_counter += 1
+        idx += 1
+    blocks.append((start_relation, relation_counter))
+    return blocks
+
 def group_by_triple(data):
     triple2data = defaultdict(lambda: list())
     for example in data:
@@ -73,8 +91,8 @@ def are_splits_correct(orig_data, split1, split2):
     return incorrect_data
 
 
-source_dir = '/usr0/home/gis/data/tacred/data/json/'
-# source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
+# source_dir = '/usr0/home/gis/data/tacred/data/json/'
+source_dir = '/Volumes/External HDD/dataset/tacred/data/json'
 file_to_split = os.path.join(source_dir, 'train_negatives.json')
 split_proportion = .0
 

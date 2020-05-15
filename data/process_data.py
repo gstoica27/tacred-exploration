@@ -121,7 +121,7 @@ class DataProcessor(object):
     def create_iterator(self, config, partition_name='train'):
         partition_data = self.partitions[partition_name]
         cleaned_data = []
-        is_eval = True if partition_name != 'train' else False
+        is_eval = True if 'train' not in partition_name else False
         if self.config['sample_size'] is not None:
             partition_data = self.perform_stratified_sampling(partition_data)
         if config['binary_classification']:
