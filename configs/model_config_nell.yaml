@@ -42,5 +42,5 @@ kg_loss:
 #  freeze_embeddings: False
 relation_masking: False
 no_relation_masking: False
-negative_factor: 4.0
+negative_factor:
 entropy_reg:
