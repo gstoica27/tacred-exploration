@@ -44,3 +44,4 @@ relation_masking: False
 no_relation_masking: False
 negative_factor:
 entropy_reg:
+word_emb_dropout: 0.
