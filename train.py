@@ -128,8 +128,8 @@ opt['subj_idxs'] = vocab.subj_idxs
 opt['obj_idxs'] = vocab.obj_idxs
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_type = 'train_split-0.0001'
-dev_type = 'test'
+train_type = 'train'
+dev_type = 'dev'
 data_processor = DataProcessor(config=opt,
                                vocab=vocab,
                                data_dir = opt['data_dir'],
