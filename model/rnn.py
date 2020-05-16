@@ -14,6 +14,7 @@ from model.nas_rnn import DARTSModel
 from model.blocks import *
 from model.cpg_modules import ContextualParameterGenerator
 from model.link_prediction_models import *
+from model.dropouts import EmbeddingDropout
 
 
 def choose_fact_checker(params):
@@ -180,6 +181,7 @@ class PositionAwareRNN(nn.Module):
         super(PositionAwareRNN, self).__init__()
 
         self.drop = nn.Dropout(opt['dropout'])
+        self.emb_dropout = EmbeddingDropout(opt['dropout'])
         self.emb = nn.Embedding(opt['vocab_size'], opt['emb_dim'], padding_idx=constant.PAD_ID)
         # Initialize relation embeddings. Note: these will be used as the decoder in the PA-LSTM,
         # and as the relation embeddings in the KG model simultaneously.
@@ -279,13 +281,15 @@ class PositionAwareRNN(nn.Module):
         batch_size = words.size()[0]
         
         # embedding lookup
-        word_inputs = self.emb(words)
+        # word_inputs = self.emb(words)
+        word_inputs = self.emb_dropout(self.emb, words)
         inputs = [word_inputs]
         if self.opt['pos_dim'] > 0:
             inputs += [self.pos_emb(pos)]
         if self.opt['ner_dim'] > 0:
             inputs += [self.ner_emb(ner)]
-        inputs = self.drop(torch.cat(inputs, dim=2)) # add dropout to input
+        # inputs = self.drop(torch.cat(inputs, dim=2)) # add dropout to input
+        inputs = torch.cat(inputs, dim=2)
 
         # rnn
         h0, c0 = self.zero_state(batch_size)
