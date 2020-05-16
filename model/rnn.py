@@ -281,15 +281,15 @@ class PositionAwareRNN(nn.Module):
         batch_size = words.size()[0]
         
         # embedding lookup
-        # word_inputs = self.emb(words)
-        word_inputs = self.emb_dropout(self.emb, words)
+        word_inputs = self.emb(words)
+        # word_inputs = self.emb_dropout(self.emb, words)
         inputs = [word_inputs]
         if self.opt['pos_dim'] > 0:
             inputs += [self.pos_emb(pos)]
         if self.opt['ner_dim'] > 0:
             inputs += [self.ner_emb(ner)]
-        # inputs = self.drop(torch.cat(inputs, dim=2)) # add dropout to input
-        inputs = torch.cat(inputs, dim=2)
+        inputs = self.drop(torch.cat(inputs, dim=2)) # add dropout to input
+        # inputs = torch.cat(inputs, dim=2)
 
         # rnn
         h0, c0 = self.zero_state(batch_size)
