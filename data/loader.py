@@ -62,7 +62,9 @@ class DataLoader(object):
         # shuffle for training
         if not evaluation:
             if self.opt['negative_factor'] is not None:
-                data = self.downsample_negatives(data, self.opt['negative_factor'])
+                data = self.downsample_data(data, self.opt['negative_factor'], partition='negatives')
+            if self.opt['positive_factor'] is not None:
+                data = self.downsample_data(data, self.opt['positive_factor'], partition='positives')
             data = self.shuffle_data(data)
 
         id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
@@ -73,24 +75,33 @@ class DataLoader(object):
         self.data = data
         print("{} batches created for {}".format(len(data), filename))
 
-    def downsample_negatives(self, data, factor=4.0):
-        num_desired_negatives = min(len(data['base']), self.total_positives * factor)
-        num_negative_triples = len([t for t in self.triple2data_idxs if t[1] == 'no_relation'])
-        per_triple_sample_num = int(num_desired_negatives / num_negative_triples)
+    def downsample_data(self, data, factor=4.0, partition='negatives'):
+        if partition == 'negatives':
+            num_desired = min(len(data['base']), self.total_positives * factor)
+            num_triples = len([t for t in self.triple2data_idxs if t[1] == 'no_relation'])
+        else:
+            num_desired = min(len(data['base']), self.total_negatives * factor)
+            num_triples = len([t for t in self.triple2data_idxs if t[1] != 'no_relation'])
+
+        per_triple_sample_num = int(num_desired / num_triples)
         sorted_triple2data_idxs = {k: v for k, v in sorted(self.triple2data_idxs.items(),
                                                            key=lambda item: len(item[1]))}
         chosen_idxs = []
+        num_roi = 0
         for (triple, data_idxs) in sorted_triple2data_idxs.items():
             _, relation, _ = triple
-            if relation != 'no_relation':
+            if relation != 'no_relation' and partition == 'negatives':
+                chosen_idxs += data_idxs
+            elif relation == 'no_relation' and partition == 'positives':
                 chosen_idxs += data_idxs
             else:
                 sample_num = min(len(data_idxs), per_triple_sample_num)
+                num_roi += sample_num
                 sampled_idxs = np.random.choice(data_idxs, sample_num, replace=False).tolist()
                 chosen_idxs += sampled_idxs
-                num_negative_triples -= 1
-                if num_negative_triples > 0:
-                    per_triple_sample_num = int((num_desired_negatives - sample_num) / num_negative_triples)
+                num_triples -= 1
+                if num_triples > 0:
+                    per_triple_sample_num = int((num_desired - num_roi) / num_triples)
         chosen_base_data = np.array(data['base'])[chosen_idxs]
         chosen_supplemental_data = {}
         for name, other_data in data['supplemental'].items():
@@ -140,6 +151,7 @@ class DataLoader(object):
         filtered_idxs = []
         filtered_data = []
         self.total_positives = 0
+        self.total_negatives = 0
         self.triple2data_idxs = defaultdict(lambda: list())
         for idx, d in enumerate(data):
             subject_type = d['subj_type']
@@ -150,6 +162,8 @@ class DataLoader(object):
 
             if relation != 'no_relation':
                 self.total_positives += 1
+            else:
+                self.total_negatives += 1
             # Exclude triple occurrences
             if (subject_type, relation, object_type) in self.exclude_triples and not self.eval:
                 num_excluded += 1
