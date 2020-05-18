@@ -25,7 +25,7 @@ max_grad_norm: 5.0  # Gradient Clipping.
 log_step: 20  # Print log every k steps.
 log:  'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
-id: 'PA-LSTM-PosDownSample_.06' # Model ID under which to save models.
+id: 'PA-LSTM-Pos_.15-Neg_.85' # Model ID under which to save models.
 info: ''  # Optional info for the experiment.
 seed: 1234  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
@@ -44,6 +44,6 @@ kg_loss:
 relation_masking: False
 no_relation_masking: False
 negative_factor:
-positive_factor: .06
+positive_factor: 0.176
 entropy_reg:
 
