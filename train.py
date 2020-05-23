@@ -27,15 +27,6 @@ from configs.dict_with_attributes import AttributeDict
 def str2bool(v):
     return v.lower() in ('true')
 
-def add_kg_model_params(cfg_dict):
-    fact_checking_config = os.path.join(cwd, 'configs', 'fact_checking_configs.yaml')
-    with open(fact_checking_config, 'r') as file:
-        fact_checking_config_dict = yaml.load(file)
-    fact_checking_model = cfg_dict['kg_loss']['model']
-    params = fact_checking_config_dict[fact_checking_model]
-    params['name'] = fact_checking_model
-    return params
-
 def add_encoding_config(cfg_dict):
     if cfg_dict['encoding_type'] == 'BiLSTM':
         cfg_dict['encoding_dim'] = cfg_dict['hidden_dim'] * 2
@@ -44,6 +35,15 @@ def add_encoding_config(cfg_dict):
         cfg_dict['encoding_dim'] = cfg_dict['hidden_dim']
         cfg_dict['bidirectional_encoding'] = False
 
+def evaluate_predictions(predicted_probs):
+    predicted_probs = np.array(predicted_probs)
+    no_relation_probs = np.prod(1 - predicted_probs,axis=1)
+    no_relations = np.ones(predicted_probs.shape[0]) * 41
+    best_relation = np.argmax(predicted_probs, axis=1)
+    best_probs = np.max(predicted_probs, axis=1)
+    replace_preds = no_relation_probs > best_probs
+    best_relation[replace_preds] = no_relations[replace_preds]
+    return best_relation
 
 cwd = os.getcwd()
 on_server = 'Desktop' not in cwd
@@ -54,9 +54,6 @@ with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 
 add_encoding_config(cfg_dict)
-if cfg_dict['kg_loss'] is not None:
-    cfg_dict['kg_loss']['model'] = add_kg_model_params(cfg_dict)
-    cfg_dict['kg_loss']['model']['freeze_embeddings'] = cfg_dict['kg_loss']['freeze_embeddings']
 
 opt = cfg_dict#AttributeDict(cfg_dict)
 opt['cuda'] = torch.cuda.is_available()
@@ -70,7 +67,7 @@ elif opt['cuda']:
     torch.cuda.manual_seed(opt['seed'])
 
 # opt = vars(args)
-opt['num_class'] = len(constant.LABEL_TO_ID)
+opt['num_class'] = len(constant.LABEL_TO_ID) -1
 
 # load vocab
 vocab_file = opt['vocab_dir'] + '/vocab.pkl'
@@ -105,18 +102,13 @@ dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
                        opt,
                        vocab,
                        evaluation=True,
-                       kg_graph=train_batch.kg_graph,
                        rel_graph=train_batch.e1e2_to_rel)
 test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         opt['batch_size'],
                         opt,
                         vocab,
                         evaluation=True,
-                        kg_graph=train_batch.kg_graph,
                         rel_graph=train_batch.e1e2_to_rel)
-if cfg_dict['kg_loss'] is not None:
-    cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
-    cfg_dict['kg_loss']['model']['num_relations'] = len(constant.LABEL_TO_ID)
 
 model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
 model_save_dir = os.path.join(opt['save_dir'], model_id)
@@ -157,8 +149,8 @@ test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
 # start training
 for epoch in range(1, opt['num_epoch']+1):
     train_loss = 0
-    for i, batch in enumerate(train_batch):
-    # for i in range(0):
+    # for i, batch in enumerate(train_batch):
+    for i in range(0):
         start_time = time.time()
         global_step += 1
         losses = model.update(batch)
@@ -172,18 +164,18 @@ for epoch in range(1, opt['num_epoch']+1):
                 loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
             print(print_info + loss_prints)
 
-    # update lambda if needed
-    if opt['kg_loss'] is not None and epoch % opt['kg_loss']['lambda_update_gap'] == 0:
-        model.update_lambda_term()
+
 
     print("Evaluating on train set...")
     predictions = []
+    all_probs = []
     train_eval_loss = 0
     for i, batch in enumerate(train_batch):
-    # for i, _ in enumerate([]):
-        preds, _, loss = model.predict(batch)
+        preds, probs, loss = model.predict(batch)
         predictions += preds
         train_eval_loss += loss
+        all_probs += probs
+    predictions = evaluate_predictions(all_probs)
     predictions = [id2label[p] for p in predictions]
     train_metrics = scorer.score(train_batch.gold(), predictions)
     train_f1 = train_metrics['f1']
@@ -198,11 +190,14 @@ for epoch in range(1, opt['num_epoch']+1):
     # eval on dev
     print("Evaluating on dev set...")
     predictions = []
+    all_probs = []
     dev_loss = 0
     for i, batch in enumerate(dev_batch):
-        preds, _, loss = model.predict(batch)
+        preds, probs, loss = model.predict(batch)
         predictions += preds
         dev_loss += loss
+        all_probs += probs
+    predictions = evaluate_predictions(all_probs)
     dev_predictions = [id2label[p] for p in predictions]
     current_dev_metrics = scorer.score(dev_batch.gold(), dev_predictions)
     dev_f1 = current_dev_metrics['f1']
@@ -222,6 +217,7 @@ for epoch in range(1, opt['num_epoch']+1):
         predictions += preds
         test_loss += loss
         test_preds += probs
+    predictions = evaluate_predictions(test_preds)
     predictions = [id2label[p] for p in predictions]
     test_metrics_at_current_dev = scorer.score(test_batch.gold(), predictions)
     test_f1 = test_metrics_at_current_dev['f1']

@@ -25,32 +25,13 @@ class DataLoader(object):
         self.relations = set()
         # Triples to exclude for Triple isolation checking
         self.exclude_triples = exclude_triples
-        # Knowledge graph vocabulary (optional)
-        if self.opt['kg_loss'] is not None:
-            # Extract file name without path or extension
-            self.partition_name = os.path.splitext(os.path.basename(filename))[0]
-            if kg_graph is not None:
-                self.kg_graph = deepcopy(kg_graph)
-                # Add entities and relations to data partition
-                for (e1, rel), e2s in self.kg_graph.items():
-                    self.entities.add(-e1)
-                    self.entities = self.entities.union(e2s)
-                    self.relations.add(rel)
-            else:
-                self.kg_graph = defaultdict(lambda: set())
+        # Graph already created in training dataset. Don't create new one b/c it wouldn't be correct.
+        if rel_graph is not None:
+            self.e1e2_to_rel = rel_graph
+            self.rel_graph_pre_exists = True
         else:
-            self.kg_graph = None
-
-        if self.opt['relation_masking']:
-            # Graph already created in training dataset. Don't create new one b/c it wouldn't be correct.
-            if rel_graph is not None:
-                self.e1e2_to_rel = rel_graph
-                self.rel_graph_pre_exists = True
-            else:
-                self.e1e2_to_rel = defaultdict(lambda: set())
-                self.rel_graph_pre_exists = False
-        else:
-            self.e1e2_to_rel = None
+            self.e1e2_to_rel = defaultdict(lambda: set())
+            self.rel_graph_pre_exists = False
 
         self.eval = evaluation
         self.remove_entity_types = opt['remove_entity_types']
@@ -196,56 +177,22 @@ class DataLoader(object):
             subj_positions = get_positions(d['subj_start'], d['subj_end'], l)
             obj_positions = get_positions(d['obj_start'], d['obj_end'], l)
             relation = constant.LABEL_TO_ID[d['relation']]
-
             base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
-            # Use KG component
-            if self.opt['kg_loss'] is not None:
-                subject_type = 'SUBJ-' + d['subj_type']
-                object_type = 'OBJ-' + d['obj_type']
-                if not self.eval:
-                    self.entities.add(subject_type)
-                    self.entities.add(object_type)
-                    self.relations.add(relation)
-                # Subtract offsets where needed. The way this works is that to find the corresponding subject or
-                # object embedding from the tokens, an embedding lookup is performed on the pretrained word2vec
-                # embedding matrix. The lookup only involves the subject, so the corresponding mapping utilizes
-                # the original subject token position in the vocab. However, the object ids will yield binary
-                # labels indicating whether a respective object is a valid answer to the (subj, rel) pair. Thus,
-                # We offset the object id so that it results in a zero-indexed binary labeling downstream. Note,
-                # the offset is 4 because the vocab order is: ['PAD', 'UNK', 'SUBJ-_', 'SUBJ-_', 'OBJ-*']. So
-                # objects are at index 4 onwards.
-                subject_id = vocab.word2id[subject_type]
-                object_id = vocab.word2id[object_type] - 4
-                self.kg_graph[(subject_id, relation)].add(object_id)
-                supplemental_components['knowledge_graph'] += [(subject_id, relation, object_id)]
-                # Extract all known answers for subject type, relation pair in KG
-                # supplemental_components['knowledge_graph'] += [(subject_id, known_object_types)]
-            if self.opt['relation_masking']:
-                # Find all possible correct relations, and mask out those which do not appear in training set
-                subject_type = 'SUBJ-' + d['subj_type']
-                object_type = 'OBJ-' + d['obj_type']
-                subject_id = vocab.word2id[subject_type]
-                object_id = vocab.word2id[object_type] - 4
-                # Relation Graph doesn't exist yet. Complete it
-                if not self.rel_graph_pre_exists:
-                    self.e1e2_to_rel[(subject_id, object_id)].add(relation)
-                supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
+            # Find all possible correct relations, and mask out those which do not appear in training set
+            subject_type = 'SUBJ-' + d['subj_type']
+            object_type = 'OBJ-' + d['obj_type']
+            subject_id = vocab.word2id[subject_type]
+            object_id = vocab.word2id[object_type]
+            # Relation Graph doesn't exist yet. Complete it
+            if not self.rel_graph_pre_exists:
+                self.e1e2_to_rel[(subject_id, object_id)].add(relation)
+            supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
 
-
-
-        if self.opt['kg_loss'] is not None:
-            component_data = supplemental_components['knowledge_graph']
-            for idx in range(len(component_data)):
-                instance_subj, instance_rel, instance_obj = component_data[idx]
-                known_objects = self.kg_graph[(instance_subj, instance_rel)]
-                component_data[idx] = (instance_subj, instance_rel, known_objects)
-
-        if self.opt['relation_masking']:
-            component_data = supplemental_components['relation_masks']
-            for idx in range(len(component_data)):
-                instance_subj, instance_rel, instance_obj = component_data[idx]
-                known_relations = self.e1e2_to_rel[(instance_subj, instance_obj)]
-                component_data[idx] = (known_relations,)
+        component_data = supplemental_components['relation_masks']
+        for idx in range(len(component_data)):
+            instance_subj, instance_rel, instance_obj = component_data[idx]
+            known_relations = self.e1e2_to_rel[(instance_subj, instance_obj)]
+            component_data[idx] = (known_relations,)
         # transform to arrays for easier manipulations
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
@@ -282,6 +229,7 @@ class DataLoader(object):
         subj_positions = get_long_tensor(batch[4], batch_size)
         obj_positions = get_long_tensor(batch[5], batch_size)
 
+        # 'no_relation' is automatically 'masked' out
         rels = torch.LongTensor(batch[6])
 
         merged_components = (words, masks, pos, ner, deprel, subj_positions, obj_positions, rels, orig_idx)
@@ -297,71 +245,13 @@ class DataLoader(object):
         merged_components = (subj_masks, obj_masks)
         return merged_components
 
-    def ready_knowledge_graph_batch(self, kg_batch, sentence_lengths):
-        # Offset because we don't include the 2 subject entities
-        num_ent = len(self.entities) - 2
-        batch = list(zip(*kg_batch))
-        batch, _ = sort_all(batch, sentence_lengths)
-        subjects, relations, known_objects = batch
-        subjects = torch.LongTensor(subjects)
-        relations = torch.LongTensor(relations)
-        labels = []
-        lookup_idxs = []
-        for known_objs in known_objects:
-            binary_labels = np.zeros(num_ent, dtype=np.float32)
-            binary_labels[list(known_objs)] = 1.
-
-            if 'train' in self.partition_name:
-                max_labels = self.opt['dataset']['max_labels']
-                negative_sample_ratio = self.opt['dataset']['negative_sample_ratio']
-                assert  max_labels < num_ent, "max labels: {} must be smaller than num ent: {}".format(
-                    max_labels, num_ent
-                )
-                num_pos = len(known_objs)
-                num_neg_needed = negative_sample_ratio * num_pos
-                if num_neg_needed + num_pos > max_labels:
-                    num_pos_needed = int(num_pos / negative_sample_ratio)
-                    num_neg_needed = max_labels - num_pos_needed
-                    if num_pos_needed > num_pos:
-                        num_neg_needed += num_pos_needed - num_pos
-                        num_pos_needed = num_pos
-                    if num_neg_needed > num_ent - num_pos:
-                        num_neg_needed = num_ent - num_pos
-                        num_pos_needed = max_labels - num_neg_needed
-                else:
-                    num_neg_needed = max_labels - num_pos
-                    num_pos_needed = num_pos
-                known_objs = list(known_objs)
-                np.random.shuffle(known_objs)
-                known_idxs = known_objs[:num_pos_needed]
-                unknown_objects = np.where(binary_labels == 0)[0]
-                np.random.shuffle(unknown_objects)
-                unknown_idxs = unknown_objects[:num_neg_needed]
-                collective_idxs = np.concatenate((known_idxs, unknown_idxs), axis=0)
-                collective_labels = binary_labels[collective_idxs]
-                assert len(collective_idxs) == max_labels, 'lookup idxs: {} must match max labels: {}'.format(
-                    len(collective_idxs), max_labels
-                )
-            else:
-                collective_labels = binary_labels
-                # Make dummy lookup indexes
-                collective_idxs = np.ones(num_ent)
-
-            labels.append(collective_labels)
-            lookup_idxs.append(collective_idxs)
-        labels = np.stack(labels, axis=0)
-        labels = torch.FloatTensor(labels)
-        lookup_idxs = np.stack(lookup_idxs, axis=0)
-        lookup_idxs = torch.LongTensor(lookup_idxs)
-        merged_components = (subjects, relations, labels, lookup_idxs)
-        return merged_components
-
     def ready_relation_masks_batch(self, mask_batch, sentence_lengths):
-        num_rel = 42
+        num_rel = 41
         batch = list(zip(*mask_batch))
         known_relations, _ = sort_all(batch, sentence_lengths)
         labels = []
         for sample_labels in known_relations[0]:
+            sample_labels = set(sample_labels) - set([41])
             binary_labels = np.zeros(num_rel, dtype=np.float32)
             binary_labels[list(sample_labels)] = 1.
             labels.append(binary_labels)
@@ -375,19 +265,9 @@ class DataLoader(object):
         readied_batch['supplemental'] = dict()
         readied_supplemental = readied_batch['supplemental']
         for name, supplemental_batch in batch['supplemental'].items():
-            if name == 'entity_masks':
-                readied_supplemental[name] = self.ready_masks_batch(
-                    masks_batch=supplemental_batch,
-                    batch_size=batch_size,
-                    sentence_lengths=readied_batch['sentence_lengths'])
-            elif name == 'knowledge_graph':
-                readied_supplemental[name] = self.ready_knowledge_graph_batch(
-                    kg_batch=supplemental_batch,
-                    sentence_lengths=readied_batch['sentence_lengths'])
-            elif name == 'relation_masks':
-                readied_supplemental[name] = self.ready_relation_masks_batch(
-                    mask_batch=supplemental_batch,
-                    sentence_lengths=readied_batch['sentence_lengths'])
+            readied_supplemental[name] = self.ready_relation_masks_batch(
+                mask_batch=supplemental_batch,
+                sentence_lengths=readied_batch['sentence_lengths'])
         return readied_batch
 
     def __getitem__(self, key):
