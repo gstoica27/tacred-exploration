@@ -17,12 +17,14 @@ class DataLoader(object):
     Load data from json files, preprocess and prepare batches.
     """
     def __init__(self, filename, batch_size, opt, vocab, evaluation=False,
-                 kg_graph=None, rel_graph=None, exclude_triples=set()):
+                 pair2verb=None, rel_graph=None, exclude_triples=set()):
         self.batch_size = batch_size
         self.opt = opt
         self.vocab = vocab
         self.entities = set()
         self.relations = set()
+        self.pair2verb = pair2verb
+        self.pair2verb_exists = self.pair2verb is not None
         # Triples to exclude for Triple isolation checking
         self.exclude_triples = exclude_triples
         # Graph already created in training dataset. Don't create new one b/c it wouldn't be correct.
@@ -134,6 +136,8 @@ class DataLoader(object):
         self.total_positives = 0
         self.total_negatives = 0
         self.triple2data_idxs = defaultdict(lambda: list())
+        if not self.pair2verb_exists:
+            self.pair2verb = {}
         for idx, d in enumerate(data):
             subject_type = d['subj_type']
             object_type = d['obj_type']
@@ -156,7 +160,21 @@ class DataLoader(object):
 
             filtered_idxs.append(idx)
             filtered_data.append(d)
+            # Find all possible correct relations, and mask out those which do not appear in training set
+            subject_type = 'SUBJ-' + d['subj_type']
+            object_type = 'OBJ-' + d['obj_type']
+            pos = d['stanford_pos']
             tokens = d['token']
+            # Replace word with verb mapping word
+            pair = (subject_type, object_type)
+            for idx, token_pos in enumerate(pos):
+                if self.pair2verb_exists and token_pos in constant.VERB_TAGS:
+                    tokens[idx] = self.pair2verb[pair]
+                elif not self.pair2verb_exists and token_pos in constant.VERB_TAGS:
+                    if pair not in self.pair2verb:
+                        self.pair2verb[pair] = defaultdict(lambda: 0)
+                    self.pair2verb[pair][tokens[idx]] += 1
+
             if opt['lower']:
                 tokens = [t.lower() for t in tokens]
             # anonymize tokens
@@ -169,8 +187,8 @@ class DataLoader(object):
                 tokens[ss:se+1] = ['SUBJ-'+d['subj_type']] * (se-ss+1)
                 tokens[os:oe+1] = ['OBJ-'+d['obj_type']] * (oe-os+1)
 
+            pos = map_to_ids(pos, constant.POS_TO_ID)
             tokens = map_to_ids(tokens, vocab.word2id)
-            pos = map_to_ids(d['stanford_pos'], constant.POS_TO_ID)
             ner = map_to_ids(d['stanford_ner'], constant.NER_TO_ID)
             deprel = map_to_ids(d['stanford_deprel'], constant.DEPREL_TO_ID)
             l = len(tokens)
@@ -178,9 +196,6 @@ class DataLoader(object):
             obj_positions = get_positions(d['obj_start'], d['obj_end'], l)
             relation = constant.LABEL_TO_ID[d['relation']]
             base_processed += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
-            # Find all possible correct relations, and mask out those which do not appear in training set
-            subject_type = 'SUBJ-' + d['subj_type']
-            object_type = 'OBJ-' + d['obj_type']
             subject_id = vocab.word2id[subject_type]
             object_id = vocab.word2id[object_type]
             # Relation Graph doesn't exist yet. Complete it
@@ -196,6 +211,11 @@ class DataLoader(object):
         # transform to arrays for easier manipulations
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
+        if not self.pair2verb_exists:
+            for pair, verb2counts in self.pair2verb.items():
+                sorted_counts = sorted(verb2counts.items(), key=lambda item: item[1], reverse=True)
+                best_verb = sorted_counts[0][0]
+                self.pair2verb[pair] = best_verb
 
         return {'base': np.array(base_processed), 'supplemental': supplemental_components}
 

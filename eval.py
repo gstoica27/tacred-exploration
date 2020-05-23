@@ -14,11 +14,13 @@ from data.loader import DataLoader
 from model.rnn import RelationModel
 from utils import torch_utils, scorer, constant, helper
 from utils.vocab import Vocab
+import numpy as np
 
 parser = argparse.ArgumentParser()
-parser.add_argument('model_dir', type=str, help='Directory of the model.')
-parser.add_argument('--model', type=str, default='best_model.pt', help='Name of the model file.')
-parser.add_argument('--data_dir', type=str, default='dataset/tacred')
+parser.add_argument('--model_dir', type=str, help='Directory of the model.',
+                    default='/Users/georgestoica/Desktop/Research/tacred-exploration/saved_models/PA-LSTM-Baseline')
+parser.add_argument('--model', type=str, default='checkpoint_epoch_50.pt', help='Name of the model file.')
+parser.add_argument('--data_dir', type=str, default='/Volumes/External HDD/dataset/tacred/data/json')
 parser.add_argument('--dataset', type=str, default='test', help="Evaluate on dev or test.")
 parser.add_argument('--out', type=str, default='', help="Save model predictions to this dir.")
 
@@ -34,12 +36,26 @@ if args.cpu:
 elif args.cuda:
     torch.cuda.manual_seed(args.seed)
 
+def evaluate_predictions(predicted_probs):
+    predicted_probs = np.array(predicted_probs)
+    no_relation_probs = np.max(1 - predicted_probs,axis=1)
+    no_relations = np.ones(predicted_probs.shape[0]) * 41
+    best_relation = np.argmax(predicted_probs, axis=1)
+    best_probs = np.max(predicted_probs, axis=1)
+    replace_preds = no_relation_probs > best_probs
+    best_relation[replace_preds] = no_relations[replace_preds]
+    return best_relation
+
 # load opt
 model_file = args.model_dir + '/' + args.model
 print("Loading model from {}".format(model_file))
 opt = torch_utils.load_config(model_file)
+opt['cuda'] = torch.cuda.is_available()
+opt['cpu'] = not torch.cuda.is_available()
 model = RelationModel(opt)
 model.load(model_file)
+model.opt['cuda'] = torch.cuda.is_available()
+model.opt['cpu'] = not torch.cuda.is_available()
 
 # load vocab
 vocab_file = args.model_dir + '/vocab.pkl'
@@ -51,8 +67,9 @@ print('config: {}'.format(opt))
 assert opt['vocab_size'] == vocab.size, "Vocab size must match that in the saved model."
 
 # load data
-data_file = opt['data_dir'] + '/{}.json'.format(args.dataset)
+data_file = args.data_dir + '/{}.json'.format(args.dataset)
 print("Loading data from {} with batch size {}...".format(data_file, opt['batch_size']))
+# train_batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True)
 batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True)
 
 helper.print_config(opt)
@@ -64,8 +81,17 @@ for i, b in enumerate(batch):
     preds, probs, _ = model.predict(b)
     predictions += preds
     all_probs += probs
+predictions = evaluate_predictions(all_probs)
 predictions = [id2label[p] for p in predictions]
-p, r, f1 = scorer.score(batch.gold(), predictions, verbose=True)
+metrics = scorer.score(batch.gold(), predictions, verbose=True)
+
+predictions = np.array(predictions)
+gold = np.array(batch.gold())
+is_wrong = predictions != gold
+wrong_gold = gold[is_wrong]
+fp = np.array(all_probs)[is_wrong][wrong_gold == 'no_relation']
+fn = np.array(all_probs)[is_wrong][wrong_gold != 'no_relation']
+
 
 # save probability scores
 if len(args.out) > 0:

@@ -32,3 +32,13 @@ DEPREL_TO_ID = {PAD_TOKEN: 0, UNK_TOKEN: 1, 'punct': 2, 'compound': 3, 'case': 4
 LABEL_TO_ID = {'per:title': 0, 'org:top_members/employees': 1, 'per:employee_of': 2, 'org:alternate_names': 3, 'org:country_of_headquarters': 4, 'per:countries_of_residence': 5, 'org:city_of_headquarters': 6, 'per:cities_of_residence': 7, 'per:age': 8, 'per:stateorprovinces_of_residence': 9, 'per:origin': 10, 'org:subsidiaries': 11, 'org:parents': 12, 'per:spouse': 13, 'org:stateorprovince_of_headquarters': 14, 'per:children': 15, 'per:other_family': 16, 'per:alternate_names': 17, 'org:members': 18, 'per:siblings': 19, 'per:schools_attended': 20, 'per:parents': 21, 'per:date_of_death': 22, 'org:member_of': 23, 'org:founded_by': 24, 'org:website': 25, 'per:cause_of_death': 26, 'org:political/religious_affiliation': 27, 'org:founded': 28, 'per:city_of_death': 29, 'org:shareholders': 30, 'org:number_of_employees/members': 31, 'per:date_of_birth': 32, 'per:city_of_birth': 33, 'per:charges': 34, 'per:stateorprovince_of_death': 35, 'per:religion': 36, 'per:stateorprovince_of_birth': 37, 'per:country_of_birth': 38, 'org:dissolved': 39, 'per:country_of_death': 40, 'no_relation': 41}
 
 INFINITY_NUMBER = 1e12
+
+VERB_TAGS = {
+    'VBG',
+    'MD',
+    'VBN',
+    'VBD',
+    'VBP',
+    'VBZ',
+    'VB',
+}
