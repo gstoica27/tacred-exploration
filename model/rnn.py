@@ -167,7 +167,11 @@ class RelationModel(object):
 
     def load(self, filename):
         try:
-            checkpoint = torch.load(filename)
+            if torch.cuda.is_available():
+                checkpoint = torch.load(filename)
+            else:
+                checkpoint = torch.load(filename, map_location=torch.device('cpu'))
+            # checkpoint = torch.load(filename)
         except BaseException:
             print("Cannot load model from {}".format(filename))
             exit()
