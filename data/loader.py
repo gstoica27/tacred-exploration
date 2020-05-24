@@ -58,6 +58,7 @@ class DataLoader(object):
         with open(filename) as infile:
             data = json.load(infile)
         np.random.shuffle(data)
+        self.raw_data = data
         data = self.preprocess(data, vocab, opt)
         # shuffle for training
         if not evaluation:
@@ -248,14 +249,16 @@ class DataLoader(object):
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
 
-        eight_rel_indices = []
+        seven_rel_indices = []
         for idx, known_rels in enumerate(component_data):
             if len(known_rels[0]) == 7:
-                eight_rel_indices.append(idx)
-
-        base_processed = np.array(base_processed)[eight_rel_indices]
+                seven_rel_indices.append(idx)
+        
+        self.seven_rel_indices = seven_rel_indices
+        self.raw_data = np.array(self.raw_data)[seven_rel_indices]
+        base_processed = np.array(base_processed)[seven_rel_indices]
         supplemental_components['relation_masks'] = np.array(supplemental_components['relation_masks'])[
-            eight_rel_indices]
+            seven_rel_indices]
 
         return {'base': np.array(base_processed), 'supplemental': supplemental_components}
 

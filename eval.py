@@ -14,6 +14,8 @@ from data.loader import DataLoader
 from model.rnn import RelationModel
 from utils import torch_utils, scorer, constant, helper
 from utils.vocab import Vocab
+from utils.visualize_features import plot_histogram
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', type=str, help='Directory of the model.',
@@ -39,8 +41,13 @@ elif args.cuda:
 model_file = args.model_dir + '/' + args.model
 print("Loading model from {}".format(model_file))
 opt = torch_utils.load_config(model_file)
+with_cuda = torch.cuda.is_available()
+opt['cuda'] = with_cuda
+opt['cpu'] = not with_cuda
 model = RelationModel(opt)
 model.load(model_file)
+model.opt['cuda'] = with_cuda
+model.opt['cpu'] = not with_cuda
 
 # load vocab
 vocab_file = args.model_dir + '/vocab.pkl'
@@ -52,9 +59,10 @@ print('config: {}'.format(opt))
 assert opt['vocab_size'] == vocab.size, "Vocab size must match that in the saved model."
 
 # load data
-data_file = opt['data_dir'] + '/{}.json'.format(args.dataset)
+data_file = args.data_dir + '/{}.json'.format(args.dataset)
 print("Loading data from {} with batch size {}...".format(data_file, opt['batch_size']))
-batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True)
+train_batch = DataLoader(os.path.join(args.data_dir, 'train.json'), opt['batch_size'], opt, vocab, evaluation=True)
+batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True, rel_graph=train_batch.e1e2_to_rel)
 
 helper.print_config(opt)
 id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
@@ -66,7 +74,19 @@ for i, b in enumerate(batch):
     predictions += preds
     all_probs += probs
 predictions = [id2label[p] for p in predictions]
-p, r, f1 = scorer.score(batch.gold(), predictions, verbose=True)
+metrics = scorer.score(batch.gold(), predictions, verbose=True)
+
+predictions = np.array(predictions)
+gold = np.array(batch.gold())
+is_wrong = predictions != gold
+
+all_probs = np.array(all_probs)
+is_fp = (predictions != 'no_relation') * (gold == 'no_relation')
+is_fn = (predictions == 'no_relation') * (gold != 'no_relation')
+
+eval_data = np.array(batch.raw_data)
+plot_histogram(data=eval_data, are_wrong=is_wrong, pair2rels=train_batch.e1e2_to_rel, vocab=vocab)
+
 
 # save probability scores
 if len(args.out) > 0:

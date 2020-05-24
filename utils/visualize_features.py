@@ -9,7 +9,7 @@ def plot_histogram(data, are_wrong, pair2rels, vocab):
     for (d, is_wrong) in zip(data, are_wrong):
         subj_type = 'SUBJ-' + d['subj_type']
         obj_type = 'OBJ-' + d['obj_type']
-        subject, object = vocab.word2id[subj_type], vocab.word2id[obj_type]
+        subject, object = vocab.word2id[subj_type], vocab.word2id[obj_type] - 4
         num_rels = len(pair2rels[(subject, object)])
         if num_rels not in num_rels2correctness.keys():
             num_rels2correctness[num_rels] = {'correct': 0, 'incorrect': 0}
