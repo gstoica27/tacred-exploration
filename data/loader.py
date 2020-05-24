@@ -210,13 +210,17 @@ class DataLoader(object):
             known_relations = self.e1e2_to_rel[(instance_subj, instance_obj)]
             component_data[idx] = (known_relations,)
         # transform to arrays for easier manipulations
+
+        eight_rel_indices = []
+        for idx, known_rels in enumerate(component_data):
+            if len(known_rels[0]) == 7:
+                eight_rel_indices.append(idx)
+
+        base_processed = np.array(base_processed)[eight_rel_indices]
+        supplemental_components['relation_masks'] = np.array(supplemental_components['relation_masks'])[eight_rel_indices]
+
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
-        if not self.pair2verb_exists:
-            for pair, verb2counts in self.pair2verb.items():
-                sorted_counts = sorted(verb2counts.items(), key=lambda item: item[1], reverse=True)
-                best_verb = sorted_counts[0][0]
-                self.pair2verb[pair] = best_verb
 
         return {'base': np.array(base_processed), 'supplemental': supplemental_components}
 
