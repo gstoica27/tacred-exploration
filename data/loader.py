@@ -251,7 +251,7 @@ class DataLoader(object):
 
         seven_rel_indices = []
         for idx, known_rels in enumerate(component_data):
-            if len(known_rels[0]) == 7:
+            if len(known_rels[0]) != 7:
                 seven_rel_indices.append(idx)
         
         self.seven_rel_indices = seven_rel_indices
