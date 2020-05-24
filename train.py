@@ -40,8 +40,8 @@ def evaluate_predictions(predicted_probs):
     no_relations = np.ones(predicted_probs.shape[0]) * 41
     best_relation = np.argmax(predicted_probs, axis=1)
     best_probs = np.max(predicted_probs, axis=1)
-    # no_relation_probs = 1 - best_probs
-    no_relation_probs = np.prod(1 - predicted_probs, axis=1)
+    no_relation_probs = 1 - best_probs
+    # no_relation_probs = np.prod(1 - predicted_probs, axis=1)
     replace_preds = no_relation_probs > best_probs
     best_relation[replace_preds] = no_relations[replace_preds]
     return best_relation
