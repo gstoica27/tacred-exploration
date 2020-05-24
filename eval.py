@@ -15,6 +15,7 @@ from model.rnn import RelationModel
 from utils import torch_utils, scorer, constant, helper
 from utils.vocab import Vocab
 import numpy as np
+from collections import defaultdict
 from utils.visualize_features import plot_histogram
 
 parser = argparse.ArgumentParser()
@@ -39,13 +40,35 @@ elif args.cuda:
 
 def evaluate_predictions(predicted_probs):
     predicted_probs = np.array(predicted_probs)
-    no_relation_probs = np.max(1 - predicted_probs,axis=1)
+    no_relation_probs = np.prod(1 - predicted_probs,axis=1)
     no_relations = np.ones(predicted_probs.shape[0]) * 41
     best_relation = np.argmax(predicted_probs, axis=1)
     best_probs = np.max(predicted_probs, axis=1)
     replace_preds = no_relation_probs > best_probs
     best_relation[replace_preds] = no_relations[replace_preds]
     return best_relation
+
+def get_num_rels2probs(probs, data, pair2rels, vocab, are_fp, are_fn):
+    num_rels2data = defaultdict(lambda: defaultdict(lambda: list()))
+    for d, prob,  is_fp, is_fn, in zip(data, probs, are_fp, are_fn):
+        subj_type = 'SUBJ-' + d['subj_type']
+        obj_type = 'OBJ-' + d['obj_type']
+        subject, object = vocab.word2id[subj_type], vocab.word2id[obj_type]
+        num_rels = len(pair2rels[(subject, object)])
+        if is_fp:
+            num_rels2data[num_rels]['fp'].append(prob)
+        elif is_fn:
+            num_rels2data[num_rels]['fn'].append(prob)
+
+    for num_rels, fp_fn2probs in num_rels2data.items():
+        for mistake, prob in fp_fn2probs.items():
+            prob = np.array(prob)
+            no_rel_prob = np.prod(1 - prob, axis=1).mean()
+            best_prob = np.max(prob, axis=1).mean()
+            num_rels2data[num_rels][mistake] = {'no_relation': no_rel_prob, 'relation': best_prob}
+            print(f'{num_rels} | {mistake} | no_relation: {no_rel_prob}, relation: {best_prob}')
+    return num_rels2data
+
 
 # load opt
 model_file = args.model_dir + '/' + args.model
@@ -89,9 +112,15 @@ metrics = scorer.score(batch.gold(), predictions, verbose=True)
 predictions = np.array(predictions)
 gold = np.array(batch.gold())
 is_wrong = predictions != gold
-wrong_gold = gold[is_wrong]
 
-plot_histogram(data=batch.raw_data, are_correct=is_wrong, pair2rels=train_batch.e1e2_to_rel, vocab=vocab)
+all_probs = np.array(all_probs)
+is_fp = (predictions != 'no_relation') * (gold == 'no_relation')
+is_fn = (predictions == 'no_relation') * (gold != 'no_relation')
+
+get_num_rels2probs(probs=all_probs, data=batch.raw_data,
+                   pair2rels=train_batch.e1e2_to_rel,
+                   vocab=vocab, are_fp=is_fp, are_fn=is_fn)
+plot_histogram(data=batch.raw_data, are_wrong=is_wrong, pair2rels=train_batch.e1e2_to_rel, vocab=vocab)
 
 # save probability scores
 if len(args.out) > 0:
