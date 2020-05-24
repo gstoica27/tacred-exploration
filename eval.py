@@ -15,6 +15,7 @@ from model.rnn import RelationModel
 from utils import torch_utils, scorer, constant, helper
 from utils.vocab import Vocab
 import numpy as np
+from utils.visualize_features import plot_histogram
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', type=str, help='Directory of the model.',
@@ -69,7 +70,7 @@ assert opt['vocab_size'] == vocab.size, "Vocab size must match that in the saved
 # load data
 data_file = args.data_dir + '/{}.json'.format(args.dataset)
 print("Loading data from {} with batch size {}...".format(data_file, opt['batch_size']))
-# train_batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True)
+train_batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True)
 batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True)
 
 helper.print_config(opt)
@@ -89,9 +90,8 @@ predictions = np.array(predictions)
 gold = np.array(batch.gold())
 is_wrong = predictions != gold
 wrong_gold = gold[is_wrong]
-fp = np.array(all_probs)[is_wrong][wrong_gold == 'no_relation']
-fn = np.array(all_probs)[is_wrong][wrong_gold != 'no_relation']
 
+plot_histogram(data=batch.raw_data, are_correct=is_wrong, pair2rels=train_batch.e1e2_to_rel, vocab=vocab)
 
 # save probability scores
 if len(args.out) > 0:
