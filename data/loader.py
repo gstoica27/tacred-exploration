@@ -251,7 +251,7 @@ class DataLoader(object):
 
         roi_indices = []
         for idx, known_rels in enumerate(component_data):
-            if len(known_rels[0]) == 6:
+            if len(known_rels[0]) == 11:
                 roi_indices.append(idx)
         self.roi_indices = roi_indices
         self.raw_data = np.array(self.raw_data)[roi_indices]
