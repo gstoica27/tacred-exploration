@@ -16,9 +16,10 @@ from utils import torch_utils, scorer, constant, helper
 from utils.vocab import Vocab
 
 parser = argparse.ArgumentParser()
-parser.add_argument('model_dir', type=str, help='Directory of the model.')
+parser.add_argument('--model_dir', type=str, help='Directory of the model.',
+                    default='/Users/georgestoica/Desktop/Research/tacred-exploration/saved_models/PA-LSTM-7Only')
 parser.add_argument('--model', type=str, default='best_model.pt', help='Name of the model file.')
-parser.add_argument('--data_dir', type=str, default='dataset/tacred')
+parser.add_argument('--data_dir', type=str, default='/Volumes/External HDD/dataset/tacred/data/json')
 parser.add_argument('--dataset', type=str, default='test', help="Evaluate on dev or test.")
 parser.add_argument('--out', type=str, default='', help="Save model predictions to this dir.")
 
