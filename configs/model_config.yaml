@@ -43,4 +43,4 @@ kg_loss:
 relation_masking: False
 no_relation_masking: False
 negative_factor:
-positive_factor: .1
+positive_factor:

@@ -108,7 +108,7 @@ class RelationModel(object):
             # kg_loss = self.kg_criterion(batch_inputs=inputs, relations=sentence_encs)
             # cumulative_loss += self.opt['kg_loss']['lambda'] * kg_loss.sum()
             # losses['kg'] = kg_loss.data.item()
-        if self.opt['entropy_reg'] is not None:
+        if self.opt.get('entropy_reg', None) is not None:
             log_probs = torch.log_softmax(logits, dim=-1)
             neg_logits = log_probs[:, 0]
             pos_logits = torch.logsumexp(log_probs[:, 1:], dim=-1)
@@ -181,7 +181,7 @@ class PositionAwareRNN(nn.Module):
         super(PositionAwareRNN, self).__init__()
 
         self.drop = nn.Dropout(opt['dropout'])
-        self.emb_dropout = EmbeddingDropout(opt['word_emb_dropout'])
+        # self.emb_dropout = EmbeddingDropout(opt['word_emb_dropout'])
         self.emb = nn.Embedding(opt['vocab_size'], opt['emb_dim'], padding_idx=constant.PAD_ID)
         # Initialize relation embeddings. Note: these will be used as the decoder in the PA-LSTM,
         # and as the relation embeddings in the KG model simultaneously.
@@ -281,8 +281,8 @@ class PositionAwareRNN(nn.Module):
         batch_size = words.size()[0]
         
         # embedding lookup
-        # word_inputs = self.emb(words)
-        word_inputs = self.emb_dropout(self.emb, words)
+        word_inputs = self.emb(words)
+        # word_inputs = self.emb_dropout(self.emb, words)
         inputs = [word_inputs]
         if self.opt['pos_dim'] > 0:
             inputs += [self.pos_emb(pos)]

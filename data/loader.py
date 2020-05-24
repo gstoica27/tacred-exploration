@@ -41,16 +41,16 @@ class DataLoader(object):
         else:
             self.kg_graph = None
 
-        if self.opt['relation_masking']:
-            # Graph already created in training dataset. Don't create new one b/c it wouldn't be correct.
-            if rel_graph is not None:
-                self.e1e2_to_rel = rel_graph
-                self.rel_graph_pre_exists = True
-            else:
-                self.e1e2_to_rel = defaultdict(lambda: set())
-                self.rel_graph_pre_exists = False
+        # if self.opt['relation_masking']:
+        # Graph already created in training dataset. Don't create new one b/c it wouldn't be correct.
+        if rel_graph is not None:
+            self.e1e2_to_rel = rel_graph
+            self.rel_graph_pre_exists = True
         else:
-            self.e1e2_to_rel = None
+            self.e1e2_to_rel = defaultdict(lambda: set())
+            self.rel_graph_pre_exists = False
+        # else:
+        #     self.e1e2_to_rel = None
 
         self.eval = evaluation
         self.remove_entity_types = opt['remove_entity_types']
@@ -220,18 +220,16 @@ class DataLoader(object):
                 supplemental_components['knowledge_graph'] += [(subject_id, relation, object_id)]
                 # Extract all known answers for subject type, relation pair in KG
                 # supplemental_components['knowledge_graph'] += [(subject_id, known_object_types)]
-            if self.opt['relation_masking']:
-                # Find all possible correct relations, and mask out those which do not appear in training set
-                subject_type = 'SUBJ-' + d['subj_type']
-                object_type = 'OBJ-' + d['obj_type']
-                subject_id = vocab.word2id[subject_type]
-                object_id = vocab.word2id[object_type] - 4
-                # Relation Graph doesn't exist yet. Complete it
-                if not self.rel_graph_pre_exists:
-                    self.e1e2_to_rel[(subject_id, object_id)].add(relation)
-                supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
-
-
+            # if self.opt['relation_masking']:
+            # Find all possible correct relations, and mask out those which do not appear in training set
+            subject_type = 'SUBJ-' + d['subj_type']
+            object_type = 'OBJ-' + d['obj_type']
+            subject_id = vocab.word2id[subject_type]
+            object_id = vocab.word2id[object_type] - 4
+            # Relation Graph doesn't exist yet. Complete it
+            if not self.rel_graph_pre_exists:
+                self.e1e2_to_rel[(subject_id, object_id)].add(relation)
+            supplemental_components['relation_masks'] += [(subject_id, relation, object_id)]
 
         if self.opt['kg_loss'] is not None:
             component_data = supplemental_components['knowledge_graph']
@@ -240,15 +238,24 @@ class DataLoader(object):
                 known_objects = self.kg_graph[(instance_subj, instance_rel)]
                 component_data[idx] = (instance_subj, instance_rel, known_objects)
 
-        if self.opt['relation_masking']:
-            component_data = supplemental_components['relation_masks']
-            for idx in range(len(component_data)):
-                instance_subj, instance_rel, instance_obj = component_data[idx]
-                known_relations = self.e1e2_to_rel[(instance_subj, instance_obj)]
-                component_data[idx] = (known_relations,)
+        # if self.opt['relation_masking']:
+        component_data = supplemental_components['relation_masks']
+        for idx in range(len(component_data)):
+            instance_subj, instance_rel, instance_obj = component_data[idx]
+            known_relations = self.e1e2_to_rel[(instance_subj, instance_obj)]
+            component_data[idx] = (known_relations,)
         # transform to arrays for easier manipulations
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
+
+        eight_rel_indices = []
+        for idx, known_rels in enumerate(component_data):
+            if len(known_rels[0]) == 7:
+                eight_rel_indices.append(idx)
+
+        base_processed = np.array(base_processed)[eight_rel_indices]
+        supplemental_components['relation_masks'] = np.array(supplemental_components['relation_masks'])[
+            eight_rel_indices]
 
         return {'base': np.array(base_processed), 'supplemental': supplemental_components}
 
