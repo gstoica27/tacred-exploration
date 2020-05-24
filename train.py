@@ -37,7 +37,7 @@ def add_encoding_config(cfg_dict):
 
 def evaluate_predictions(predicted_probs):
     predicted_probs = np.array(predicted_probs)
-    no_relation_probs = np.prod(1 - predicted_probs,axis=1)
+    no_relation_probs = np.max(1 - predicted_probs,axis=1)
     no_relations = np.ones(predicted_probs.shape[0]) * 41
     best_relation = np.argmax(predicted_probs, axis=1)
     best_probs = np.max(predicted_probs, axis=1)
@@ -230,10 +230,10 @@ for epoch in range(1, opt['num_epoch']+1):
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
         # Compute Confusion Matrices over triples excluded in Training
-        test_triple_preds = np.array(predictions)[test_batch.triple_idxs]
-        test_triple_gold = np.array(test_batch.gold())[test_batch.triple_idxs]
-        dev_triple_preds = np.array(dev_predictions)[dev_batch.triple_idxs]
-        dev_triple_gold = np.array(dev_batch.gold())[dev_batch.triple_idxs]
+        test_triple_preds = np.array(predictions)
+        test_triple_gold = np.array(test_batch.gold())
+        dev_triple_preds = np.array(dev_predictions)
+        dev_triple_gold = np.array(dev_batch.gold())
         test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_triple_gold,
                                                                   predictions=test_triple_preds)
         dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_triple_gold,
