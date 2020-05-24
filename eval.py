@@ -94,8 +94,8 @@ assert opt['vocab_size'] == vocab.size, "Vocab size must match that in the saved
 # load data
 data_file = args.data_dir + '/{}.json'.format(args.dataset)
 print("Loading data from {} with batch size {}...".format(data_file, opt['batch_size']))
-train_batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True)
-batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True)
+train_batch = DataLoader(os.path.join(args.data_dir, 'train.json'), opt['batch_size'], opt, vocab, evaluation=True)
+batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True, rel_graph=train_batch.e1e2_to_rel)
 
 helper.print_config(opt)
 id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])

@@ -211,13 +211,13 @@ class DataLoader(object):
             component_data[idx] = (known_relations,)
         # transform to arrays for easier manipulations
 
-        eight_rel_indices = []
-        for idx, known_rels in enumerate(component_data):
-            if len(known_rels[0]) == 7:
-                eight_rel_indices.append(idx)
-
-        base_processed = np.array(base_processed)[eight_rel_indices]
-        supplemental_components['relation_masks'] = np.array(supplemental_components['relation_masks'])[eight_rel_indices]
+        # eight_rel_indices = []
+        # for idx, known_rels in enumerate(component_data):
+        #     if len(known_rels[0]) == 7:
+        #         eight_rel_indices.append(idx)
+        #
+        # base_processed = np.array(base_processed)[eight_rel_indices]
+        # supplemental_components['relation_masks'] = np.array(supplemental_components['relation_masks'])[eight_rel_indices]
 
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
