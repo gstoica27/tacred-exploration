@@ -270,7 +270,7 @@ class DataLoader(object):
         self.racket2pairs = defaultdict(lambda: set())
         for (e1_id, e2_id), rels in self.e1e2_to_rel.items():
             e1 = vocab.id2word[e1_id]
-            e2 = vocab.id2word[e`2_id + 4]
+            e2 = vocab.id2word[e2_id + 4]
             pair = (e1, e2)
             self.bracket2pairs[len(rels)].add(pair)
 
