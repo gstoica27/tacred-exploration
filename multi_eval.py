@@ -55,13 +55,17 @@ def get_bracket2model(models_dir, relation_brackets):
         model_name = f'PA-LSTM-{relation_bracket}Only'
         model_file = os.path.join(models_dir, model_name, 'best_model.pt')
         bracket2model[relation_bracket], opt = load_model(model_file)
+    bracket2model['rest'], _ = load_model(os.path.join(models_dir, 'PA-LSTM', 'best_model.pt'))
     return bracket2model, opt
 
 def multi_model_eval(bracket2model, data_loader):
     all_predictions = []
     gold_labels = []
     for bracket, batches in data_loader.bracket2batch.items():
-        model = bracket2model[bracket]
+        if bracket not in bracket2model:
+            model = bracket2model['rest']
+        else:
+            model = bracket2model[bracket]
         labels = data_loader.bracket2labels[bracket]
         bracket_predictions = []
         gold_labels += labels
@@ -80,7 +84,8 @@ def multi_model_eval(bracket2model, data_loader):
     return metrics
 
 # load opt
-relation_brackets = [2,3,4,5,6,7,11]
+# relation_brackets = [2,3,4,5,6,7,11]
+relation_brackets = [2, 3, 7]
 model_names = set([f'PA-LSTM-{i}Only' for i in [2,3,4,5,6,7,11]])
 bracket2model, opt = get_bracket2model(models_dir=args.models_dir, relation_brackets=relation_brackets)
 # load vocab
