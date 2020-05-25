@@ -266,6 +266,14 @@ class DataLoader(object):
             supplemental_data = component2data['supplemental']
             for component, component_data in supplemental_data.items():
                 supplemental_data[component] = np.array(component_data)
+
+        self.racket2pairs = defaultdict(lambda: set())
+        for (e1_id, e2_id), rels in self.e1e2_to_rel.items():
+            e1 = vocab.id2word[e1_id]
+            e2 = vocab.id2word[e`2_id + 4]
+            pair = (e1, e2)
+            self.bracket2pairs[len(rels)].add(pair)
+
         return bracket2data
 
     def gold(self):
