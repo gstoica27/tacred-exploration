@@ -59,22 +59,29 @@ class DataLoader(object):
             data = json.load(infile)
         np.random.shuffle(data)
         self.raw_data = data
-        data = self.preprocess(data, vocab, opt)
+        bracket2data = self.preprocess(data, vocab, opt)
         # shuffle for training
         if not evaluation:
-            if self.opt['negative_factor'] is not None:
-                data = self.downsample_data(data, self.opt['negative_factor'], partition='negatives')
-            if self.opt['positive_factor'] is not None:
-                data = self.downsample_data(data, self.opt['positive_factor'], partition='positives')
-            data = self.shuffle_data(data)
+            for bracket, data in bracket2data.items():
+                data = self.shuffle_data(data)
+                bracket2data[bracket] = data
 
         id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
-        self.labels = [id2label[d[-1]] for d in data['base']]
-        self.num_examples = len(data['base'])
+
+        self.bracket2labels = defaultdict(lambda: list())
+        for bracket, data in bracket2data.items():
+            labels = [id2label[d[-1]] for d in data['base']]
+            self.bracket2labels[bracket] = labels
+
+        self.num_examples = len(self.raw_data)
         # chunk into batches
-        data = self.create_batches(data=data, batch_size=batch_size)
-        self.data = data
-        print("{} batches created for {}".format(len(data), filename))
+        self.bracket2batch = defaultdict(lambda: list())
+        for bracket, data in bracket2data.items():
+            batches = self.create_batches(data=data, batch_size=batch_size)
+            self.bracket2batch[bracket] = batches
+            print("{} batches created for bracket {}, file {}".format(len(batches), bracket, filename))
+        # self.data = data
+
 
     def downsample_data(self, data, factor=4.0, partition='negatives'):
         if partition == 'negatives':
@@ -249,24 +256,24 @@ class DataLoader(object):
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
 
-        roi_indices = []
-        for idx, known_rels in enumerate(component_data):
-            if len(known_rels[0]) == 11:
-                roi_indices.append(idx)
-        self.roi_indices = roi_indices
-        self.raw_data = np.array(self.raw_data)[roi_indices]
-        base_processed = np.array(base_processed)[roi_indices]
-        supplemental_components['relation_masks'] = np.array(supplemental_components['relation_masks'])[
-            roi_indices]
-
-        return {'base': np.array(base_processed), 'supplemental': supplemental_components}
+        bracket2data = defaultdict(lambda: {'base': [], 'supplemental': {'relation_masks': []}})
+        for base_data, known_relations in zip(base_processed, supplemental_components['relation_masks']):
+            bracket = len(known_relations[0])
+            bracket2data[bracket]['base'].append(base_data)
+            bracket2data[bracket]['supplemental']['relation_masks'].append(known_relations)
+        for bracket, component2data in bracket2data.items():
+            component2data['base'] = np.array(component2data['base'])
+            supplemental_data = component2data['supplemental']
+            for component, component_data in supplemental_data.items():
+                supplemental_data[component] = np.array(component_data)
+        return bracket2data
 
     def gold(self):
         """ Return gold labels as a list. """
-        return self.labels
+        return self.bracket2label
 
-    def __len__(self):
-        return len(self.data)
+    def __len__(self, bracket):
+        return len(self.bracket2batch[bracket])
 
     def ready_base_batch(self, base_batch, batch_size):
         batch = list(zip(*base_batch))
@@ -306,65 +313,6 @@ class DataLoader(object):
         merged_components = (subj_masks, obj_masks)
         return merged_components
 
-    def ready_knowledge_graph_batch(self, kg_batch, sentence_lengths):
-        # Offset because we don't include the 2 subject entities
-        num_ent = len(self.entities) - 2
-        batch = list(zip(*kg_batch))
-        batch, _ = sort_all(batch, sentence_lengths)
-        subjects, relations, known_objects = batch
-        subjects = torch.LongTensor(subjects)
-        relations = torch.LongTensor(relations)
-        labels = []
-        lookup_idxs = []
-        for known_objs in known_objects:
-            binary_labels = np.zeros(num_ent, dtype=np.float32)
-            binary_labels[list(known_objs)] = 1.
-
-            if 'train' in self.partition_name:
-                max_labels = self.opt['dataset']['max_labels']
-                negative_sample_ratio = self.opt['dataset']['negative_sample_ratio']
-                assert  max_labels < num_ent, "max labels: {} must be smaller than num ent: {}".format(
-                    max_labels, num_ent
-                )
-                num_pos = len(known_objs)
-                num_neg_needed = negative_sample_ratio * num_pos
-                if num_neg_needed + num_pos > max_labels:
-                    num_pos_needed = int(num_pos / negative_sample_ratio)
-                    num_neg_needed = max_labels - num_pos_needed
-                    if num_pos_needed > num_pos:
-                        num_neg_needed += num_pos_needed - num_pos
-                        num_pos_needed = num_pos
-                    if num_neg_needed > num_ent - num_pos:
-                        num_neg_needed = num_ent - num_pos
-                        num_pos_needed = max_labels - num_neg_needed
-                else:
-                    num_neg_needed = max_labels - num_pos
-                    num_pos_needed = num_pos
-                known_objs = list(known_objs)
-                np.random.shuffle(known_objs)
-                known_idxs = known_objs[:num_pos_needed]
-                unknown_objects = np.where(binary_labels == 0)[0]
-                np.random.shuffle(unknown_objects)
-                unknown_idxs = unknown_objects[:num_neg_needed]
-                collective_idxs = np.concatenate((known_idxs, unknown_idxs), axis=0)
-                collective_labels = binary_labels[collective_idxs]
-                assert len(collective_idxs) == max_labels, 'lookup idxs: {} must match max labels: {}'.format(
-                    len(collective_idxs), max_labels
-                )
-            else:
-                collective_labels = binary_labels
-                # Make dummy lookup indexes
-                collective_idxs = np.ones(num_ent)
-
-            labels.append(collective_labels)
-            lookup_idxs.append(collective_idxs)
-        labels = np.stack(labels, axis=0)
-        labels = torch.FloatTensor(labels)
-        lookup_idxs = np.stack(lookup_idxs, axis=0)
-        lookup_idxs = torch.LongTensor(lookup_idxs)
-        merged_components = (subjects, relations, labels, lookup_idxs)
-        return merged_components
-
     def ready_relation_masks_batch(self, mask_batch, sentence_lengths):
         num_rel = 42
         batch = list(zip(*mask_batch))
@@ -384,16 +332,7 @@ class DataLoader(object):
         readied_batch['supplemental'] = dict()
         readied_supplemental = readied_batch['supplemental']
         for name, supplemental_batch in batch['supplemental'].items():
-            if name == 'entity_masks':
-                readied_supplemental[name] = self.ready_masks_batch(
-                    masks_batch=supplemental_batch,
-                    batch_size=batch_size,
-                    sentence_lengths=readied_batch['sentence_lengths'])
-            elif name == 'knowledge_graph':
-                readied_supplemental[name] = self.ready_knowledge_graph_batch(
-                    kg_batch=supplemental_batch,
-                    sentence_lengths=readied_batch['sentence_lengths'])
-            elif name == 'relation_masks':
+            if name == 'relation_masks':
                 readied_supplemental[name] = self.ready_relation_masks_batch(
                     mask_batch=supplemental_batch,
                     sentence_lengths=readied_batch['sentence_lengths'])
