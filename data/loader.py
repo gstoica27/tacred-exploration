@@ -248,15 +248,15 @@ class DataLoader(object):
         for name in supplemental_components.keys():
             supplemental_components[name] = np.array(supplemental_components[name])
 
-        # roi_indices = []
-        # for idx, known_rels in enumerate(component_data):
-        #     if len(known_rels[0]) == 11:
-        #         roi_indices.append(idx)
-        # self.roi_indices = roi_indices
-        # self.raw_data = np.array(self.raw_data)[roi_indices]
-        # base_processed = np.array(base_processed)[roi_indices]
-        # supplemental_components['relation_masks'] = np.array(supplemental_components['relation_masks'])[
-        #     roi_indices]
+        roi_indices = []
+        for idx, known_rels in enumerate(component_data):
+            if len(known_rels[0]) in [4,5,6,11]:
+                roi_indices.append(idx)
+        self.roi_indices = roi_indices
+        self.raw_data = np.array(self.raw_data)[roi_indices]
+        base_processed = np.array(base_processed)[roi_indices]
+        supplemental_components['relation_masks'] = np.array(supplemental_components['relation_masks'])[
+            roi_indices]
 
         return {'base': np.array(base_processed), 'supplemental': supplemental_components}
 
