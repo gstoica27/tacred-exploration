@@ -16,10 +16,11 @@ from utils import torch_utils, scorer, constant, helper
 from utils.vocab import Vocab
 from utils.visualize_features import plot_histogram
 import numpy as np
+from collections import defaultdict
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', type=str, help='Directory of the model.',
-                    default='/Users/georgestoica/Desktop/Research/tacred-exploration/saved_models/PA-LSTM-7Only')
+                    default='/Users/georgestoica/Desktop/Research/tacred-exploration/saved_models/PA-LSTM')
 parser.add_argument('--model', type=str, default='best_model.pt', help='Name of the model file.')
 parser.add_argument('--data_dir', type=str, default='/Volumes/External HDD/dataset/tacred/data/json')
 parser.add_argument('--dataset', type=str, default='test', help="Evaluate on dev or test.")
@@ -75,6 +76,23 @@ for i, b in enumerate(batch):
     all_probs += probs
 predictions = [id2label[p] for p in predictions]
 metrics = scorer.score(batch.gold(), predictions, verbose=True)
+
+bracket2preds = defaultdict(lambda: list())
+bracket2labels = defaultdict(lambda: list())
+
+for (sample, pred, label) in zip(batch.raw_data, predictions, batch.gold()):
+    subj_type = 'SUBJ-' + sample['subj_type']
+    obj_type = 'OBJ-' + sample['obj_type']
+    subject, object = vocab.word2id[subj_type], vocab.word2id[obj_type] - 4
+    num_rels = len(train_batch.e1e2_to_rel[(subject, object)])
+    bracket2preds[num_rels].append(pred)
+    bracket2labels[num_rels].append(label)
+
+for bracket in bracket2preds.keys():
+    bracket_preds = bracket2preds[bracket]
+    bracket_labels = bracket2labels[bracket]
+    print(f'Performance for bracket {bracket}')
+    scorer.score(bracket_labels, bracket_preds, verbose=False)
 
 predictions = np.array(predictions)
 gold = np.array(batch.gold())
