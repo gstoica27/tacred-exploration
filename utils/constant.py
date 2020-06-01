@@ -3,7 +3,13 @@
 Define constants for semeval-10 task.
 """
 EMB_INIT_RANGE = 1.0
+# TRAIN_JSON = 'train.json'
+# DEV_JSON = 'dev.json'
+# TEST_JSON = 'test.json'
 
+GLOVE_DIR = 'dataset/glove'
+
+MAX_LEN = 100
 # vocab
 PAD_TOKEN = '<PAD>'
 PAD_ID = 0
