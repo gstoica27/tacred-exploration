@@ -8,9 +8,9 @@ import argparse
 import sys
 from collections import Counter
 import numpy as np
-from collections import defaultdict
 
-NO_RELATION = "no_relation"
+NO_RELATION = 'Other'
+dataset = 'dataset/semeval'
 
 
 def parse_arguments():
@@ -26,31 +26,21 @@ def score(key, prediction, verbose=False):
     correct_by_relation = Counter()
     guessed_by_relation = Counter()
     gold_by_relation = Counter()
-    positive_guesses = Counter()
 
-    actual_fn = 0
-    actual_fp = 0
     # Loop over the data to compute a score
     for row in range(len(key)):
         gold = key[row]
         guess = prediction[row]
 
-        # if gold == NO_RELATION and guess == NO_RELATION:
-        if NO_RELATION in gold and NO_RELATION in guess:
+        if gold == NO_RELATION and guess == NO_RELATION:
             pass
-        # elif gold == NO_RELATION and guess != NO_RELATION:
-        elif NO_RELATION in gold and NO_RELATION not in guess:
+        elif gold == NO_RELATION and guess != NO_RELATION:
             guessed_by_relation[guess] += 1
-            actual_fp += 1
-        # elif gold != NO_RELATION and guess == NO_RELATION:
-        elif NO_RELATION not in gold and NO_RELATION in guess:
+        elif gold != NO_RELATION and guess == NO_RELATION:
             gold_by_relation[gold] += 1
-            actual_fn += 1
-        # elif gold != NO_RELATION and guess != NO_RELATION:
-        elif NO_RELATION not in gold and NO_RELATION not in guess:
+        elif gold != NO_RELATION and guess != NO_RELATION:
             guessed_by_relation[guess] += 1
             gold_by_relation[gold] += 1
-            positive_guesses[guess] += 1
             if gold == guess:
                 correct_by_relation[guess] += 1
 
@@ -94,35 +84,24 @@ def score(key, prediction, verbose=False):
         print("")
 
     # Print the aggregate score
-    TP = float(sum(correct_by_relation.values()))
-    FP = float(sum(guessed_by_relation.values())) - float(sum(correct_by_relation.values()))
-    FN = float(sum(gold_by_relation.values())) - float(sum(correct_by_relation.values()))
-    total_positive_guessed = float(sum(positive_guesses.values()))
     if verbose:
         print("Final Score:")
-    prec_micro = 1.0
-    if sum(guessed_by_relation.values()) > 0:
-        prec_micro = float(sum(correct_by_relation.values())) / float(sum(guessed_by_relation.values()))
-    recall_micro = 0.0
-    if sum(gold_by_relation.values()) > 0:
-        recall_micro = float(sum(correct_by_relation.values())) / float(sum(gold_by_relation.values()))
-    f1_micro = 0.0
-    if prec_micro + recall_micro > 0.0:
-        f1_micro = 2.0 * prec_micro * recall_micro / (prec_micro + recall_micro)
-    positive_accuracy = TP / max(total_positive_guessed, 1)
-    print("Precision (micro): {:.3%}".format(prec_micro))
-    print("   Recall (micro): {:.3%}".format(recall_micro))
-    print("       F1 (micro): {:.3%}".format(f1_micro))
-    print(" Positive Accuracy: {:.3%}".format(positive_accuracy))
-    metrics = {'precision': prec_micro,
-               'recall': recall_micro,
-               'f1': f1_micro,
-               'TP': TP, 'FP': FP,
-               'FN': FN,
-               'pos_acc': positive_accuracy}
-    print(metrics)
-    return metrics
 
+    prec = []
+    for k in guessed_by_relation.keys():
+        prec.append(float(correct_by_relation[k]) / (float(guessed_by_relation[k]) + 0.0001))
+    recall = []
+    for k in gold_by_relation.keys():
+        recall.append(float(correct_by_relation[k]) / (float(gold_by_relation[k]) + 0.0001))
+    prec_macro = np.mean(prec)
+    recall_macro = np.mean(recall)
+    f1_macro = 0.0
+    if prec_macro + recall_macro > 0.0:
+        f1_macro = 2.0 * prec_macro * recall_macro / (prec_macro + recall_macro)
+    print("Precision (macro): {:.3%}".format(prec_macro))
+    print("   Recall (macro): {:.3%}".format(recall_macro))
+    print("       F1 (macro): {:.3%}".format(f1_macro))
+    return prec_macro, recall_macro, f1_macro
 
 def compute_confusion_matrices(ground_truth, predictions):
     confusion_matrix = {}
