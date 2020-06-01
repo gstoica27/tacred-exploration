@@ -74,8 +74,8 @@ class DistMult(torch.nn.Module):
 class ConvE(torch.nn.Module):
     def __init__(self, args):
         super(ConvE, self).__init__()
-        self.emb_e = torch.nn.Embedding(args['num_entities'],
-                                        args['embedding_dim'])
+        # self.emb_e = torch.nn.Embedding(args['num_entities'],
+        #                                 args['embedding_dim'])
         # self.emb_rel = torch.nn.Embedding(args['num_relations'],
         #                                   args['embedding_dim'])
 
@@ -99,7 +99,7 @@ class ConvE(torch.nn.Module):
         self.bn1 = torch.nn.BatchNorm2d(32)
         self.bn2 = torch.nn.BatchNorm1d(args['embedding_dim'])
         # offset b/c we don't include subjects in calculation
-        self.register_parameter('b', Parameter(torch.zeros((args['num_entities'] - 2))))
+        self.register_parameter('b', Parameter(torch.zeros((args['num_entities']))))
         self.fc = torch.nn.Linear(output_size,args['embedding_dim'])
         # load model if exists
         # if args['load_path'] is not None:
@@ -108,7 +108,7 @@ class ConvE(torch.nn.Module):
         # else:
         #     self.is_pretrained = False
 
-    def forward(self, e1, rel, e2s, lookup_idxs=None):
+    def forward(self, e1, rel, e2s):
         #print('Are cuda? | e1: {} | emb_e: {} | rel: {}'.format(e1.is_cuda, self.emb_e.weight.is_cuda, rel.is_cuda))
         # e1_embedded = self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
         e1_embedded = e1.view(-1, 1, self.emb_dim1, self.emb_dim2)
@@ -128,16 +128,21 @@ class ConvE(torch.nn.Module):
         x = self.hidden_drop(x)
         x = self.bn2(x)
         x = F.relu(x)
-        # x = torch.mm(x, self.emb_e.weight.transpose(1, 0))
-        if len(e2s.shape) == 3:
-            x = torch.einsum('ij,ijk->ik', [x, e2s.permute(0, 2, 1)])
-            x += self.b[lookup_idxs].expand_as(x)
-        else:
-            x = torch.mm(x, e2s.transpose(1, 0))
-            x += self.b.expand_as(x)
+        x = torch.mm(x, e2s.transpose(1, 0))
+        x += self.b.expand_as(x)
         pred = torch.sigmoid(x)
 
         return pred
+        # # x = torch.mm(x, self.emb_e.weight.transpose(1, 0))
+        # if len(e2s.shape) == 3:
+        #     x = torch.einsum('ij,ijk->ik', [x, e2s.permute(0, 2, 1)])
+        #     x += self.b[lookup_idxs].expand_as(x)
+        # else:
+        #     x = torch.mm(x, e2s.transpose(1, 0))
+        #     x += self.b.expand_as(x)
+        # pred = torch.sigmoid(x)
+        #
+        # return pred
 
     # def load_model(self, model_path):
     #     state_dict = torch.load(model_path)

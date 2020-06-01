@@ -297,7 +297,7 @@ class DataLoader(object):
 
     def ready_knowledge_graph_batch(self, kg_batch, sentence_lengths):
         # Offset because we don't include the 2 subject entities
-        num_ent = len(self.entities) - 2
+        num_ent = len(constant.OBJ_NER_TO_ID) - 2
         batch = list(zip(*kg_batch))
         batch, _ = sort_all(batch, sentence_lengths)
         subjects, relations, known_objects = batch
@@ -309,49 +309,51 @@ class DataLoader(object):
             binary_labels = np.zeros(num_ent, dtype=np.float32)
             binary_labels[list(known_objs)] = 1.
 
-            if 'train' in self.partition_name:
-                max_labels = self.opt['dataset']['max_labels']
-                negative_sample_ratio = self.opt['dataset']['negative_sample_ratio']
-                assert  max_labels < num_ent, "max labels: {} must be smaller than num ent: {}".format(
-                    max_labels, num_ent
-                )
-                num_pos = len(known_objs)
-                num_neg_needed = negative_sample_ratio * num_pos
-                if num_neg_needed + num_pos > max_labels:
-                    num_pos_needed = int(num_pos / negative_sample_ratio)
-                    num_neg_needed = max_labels - num_pos_needed
-                    if num_pos_needed > num_pos:
-                        num_neg_needed += num_pos_needed - num_pos
-                        num_pos_needed = num_pos
-                    if num_neg_needed > num_ent - num_pos:
-                        num_neg_needed = num_ent - num_pos
-                        num_pos_needed = max_labels - num_neg_needed
-                else:
-                    num_neg_needed = max_labels - num_pos
-                    num_pos_needed = num_pos
-                known_objs = list(known_objs)
-                np.random.shuffle(known_objs)
-                known_idxs = known_objs[:num_pos_needed]
-                unknown_objects = np.where(binary_labels == 0)[0]
-                np.random.shuffle(unknown_objects)
-                unknown_idxs = unknown_objects[:num_neg_needed]
-                collective_idxs = np.concatenate((known_idxs, unknown_idxs), axis=0)
-                collective_labels = binary_labels[collective_idxs]
-                assert len(collective_idxs) == max_labels, 'lookup idxs: {} must match max labels: {}'.format(
-                    len(collective_idxs), max_labels
-                )
-            else:
-                collective_labels = binary_labels
-                # Make dummy lookup indexes
-                collective_idxs = np.ones(num_ent)
+            # if 'train' in self.partition_name:
+            #     max_labels = self.opt['dataset']['max_labels']
+            #     negative_sample_ratio = self.opt['dataset']['negative_sample_ratio']
+            #     assert  max_labels < num_ent, "max labels: {} must be smaller than num ent: {}".format(
+            #         max_labels, num_ent
+            #     )
+            #     num_pos = len(known_objs)
+            #     num_neg_needed = negative_sample_ratio * num_pos
+            #     if num_neg_needed + num_pos > max_labels:
+            #         num_pos_needed = int(num_pos / negative_sample_ratio)
+            #         num_neg_needed = max_labels - num_pos_needed
+            #         if num_pos_needed > num_pos:
+            #             num_neg_needed += num_pos_needed - num_pos
+            #             num_pos_needed = num_pos
+            #         if num_neg_needed > num_ent - num_pos:
+            #             num_neg_needed = num_ent - num_pos
+            #             num_pos_needed = max_labels - num_neg_needed
+            #     else:
+            #         num_neg_needed = max_labels - num_pos
+            #         num_pos_needed = num_pos
+            #     known_objs = list(known_objs)
+            #     np.random.shuffle(known_objs)
+            #     known_idxs = known_objs[:num_pos_needed]
+            #     unknown_objects = np.where(binary_labels == 0)[0]
+            #     np.random.shuffle(unknown_objects)
+            #     unknown_idxs = unknown_objects[:num_neg_needed]
+            #     collective_idxs = np.concatenate((known_idxs, unknown_idxs), axis=0)
+            #     collective_labels = binary_labels[collective_idxs]
+            #     assert len(collective_idxs) == max_labels, 'lookup idxs: {} must match max labels: {}'.format(
+            #         len(collective_idxs), max_labels
+            #     )
+            # else:
+            #     collective_labels = binary_labels
+            #     # Make dummy lookup indexes
+            #     collective_idxs = np.ones(num_ent)
 
-            labels.append(collective_labels)
-            lookup_idxs.append(collective_idxs)
+            # labels.append(collective_labels)
+            labels.append(binary_labels)
+            # lookup_idxs.append(collective_idxs)
         labels = np.stack(labels, axis=0)
         labels = torch.FloatTensor(labels)
-        lookup_idxs = np.stack(lookup_idxs, axis=0)
-        lookup_idxs = torch.LongTensor(lookup_idxs)
-        merged_components = (subjects, relations, labels, lookup_idxs)
+        # lookup_idxs = np.stack(lookup_idxs, axis=0)
+        # lookup_idxs = torch.LongTensor(lookup_idxs)
+        # merged_components = (subjects, relations, labels, lookup_idxs)
+        merged_components = (subjects, relations, labels)
         return merged_components
 
     def ready_relation_masks_batch(self, mask_batch, sentence_lengths):
