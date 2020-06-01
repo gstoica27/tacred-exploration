@@ -101,7 +101,8 @@ def score(key, prediction, verbose=False):
     print("Precision (macro): {:.3%}".format(prec_macro))
     print("   Recall (macro): {:.3%}".format(recall_macro))
     print("       F1 (macro): {:.3%}".format(f1_macro))
-    return prec_macro, recall_macro, f1_macro
+    return {'precision': prec_macro, 'recall': recall_macro, 'f1': f1_macro}
+    # return prec_macro, recall_macro, f1_macro
 
 def compute_confusion_matrices(ground_truth, predictions):
     confusion_matrix = {}
