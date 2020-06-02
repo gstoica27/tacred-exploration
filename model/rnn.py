@@ -214,17 +214,15 @@ class PositionAwareRNN(nn.Module):
             dropout=opt['dropout'], bidirectional=self.bidirectional_encoding)
 
         if opt['attn']:
-            if opt['kg_loss'] is not None:
-                self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
-                                                                opt['hidden_dim'], 2 * opt['pe_dim'],
-                                                                opt['kg_loss']['model']['rel_emb_dim'])
-            else:
-                self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
-                    opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
+            self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
+                opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
         self.linear = nn.Linear(self.encoding_dim, opt['num_class'], bias=False)
         #self.register_parameter('class_bias', torch.nn.Parameter(torch.zeros((opt['num_class']))))
+
+        if opt['kg_loss'] is not None:
+            self.rel_encoder = nn.Linear(opt['hidden_dim'], opt['kg_loss']['model']['rel_emb_dim'])
 
         self.opt = opt
         self.topn = float(self.opt.get('topn', 1e10))
@@ -328,7 +326,7 @@ class PositionAwareRNN(nn.Module):
             relation_embs = self.rel_emb(relations)
             # Forward pass through both relation and sentence KGLP
             relation_kg_preds = self.kg_model.forward(subject_embs, relation_embs, e2s)
-            sentence_kg_preds = self.kg_model.forward(subject_embs, final_hidden, e2s)
+            sentence_kg_preds = self.kg_model.forward(subject_embs, self.rel_encoder(final_hidden), e2s)
             # Compute each loss term
             relation_kg_loss = self.kg_model.loss(relation_kg_preds, labels)
             sentence_kg_preds = self.kg_model.loss(sentence_kg_preds, labels)
