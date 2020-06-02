@@ -173,8 +173,8 @@ for epoch in range(1, opt['num_epoch']+1):
             print(print_info + loss_prints)
 
     # update lambda if needed
-    if opt['kg_loss'] is not None and epoch % opt['kg_loss']['lambda_update_gap'] == 0:
-        model.update_lambda_term()
+    # if opt['kg_loss'] is not None and epoch % opt['kg_loss']['lambda_update_gap'] == 0:
+    #     model.update_lambda_term()
 
     print("Evaluating on train set...")
     predictions = []
