@@ -116,12 +116,12 @@ class ConvE(torch.nn.Module):
         #     self.is_pretrained = False
 
     def forward(self, e1, rel, e2s):
-        #print('Are cuda? | e1: {} | emb_e: {} | rel: {}'.format(e1.is_cuda, self.emb_e.weight.is_cuda, rel.is_cuda))
         # e1_embedded = self.emb_e(e1).view(-1, 1, self.emb_dim1, self.emb_dim2)
         e1_embedded = e1.view(-1, 1, self.ent_emb_dim1, self.ent_emb_dim2)
         # rel_embedded = self.emb_rel(rel).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # Assume relation is already encoded form RE model
         rel_embedded = rel.view(-1, 1, self.rel_emb_dim1, self.rel_emb_dim2)
+        print('e1 shape: {} | rel shape: {}'.format(e1_embedded.shape, rel_embedded.shape))
         stacked_inputs = torch.cat([e1_embedded, rel_embedded], 2)
 
         stacked_inputs = self.bn0(stacked_inputs)
