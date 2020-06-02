@@ -67,7 +67,7 @@ class RelationModel(object):
         supplemental_inputs = batch_inputs['supplemental']
         subjects, labels = supplemental_inputs['knowledge_graph']
         label_smoothing = self.opt['kg_loss']['label_smoothing']
-        labels =  ((1.0 - label_smoothing) * labels) + (1.0 / labels.size(1))
+        # labels =  ((1.0 - label_smoothing) * labels) + (1.0 / labels.size(1))
         predicted_objects = self.fact_checker.forward(subjects, relations)
         loss = self.fact_checker.loss(predicted_objects, labels)
         return loss
