@@ -121,7 +121,7 @@ class ConvE(torch.nn.Module):
         # rel_embedded = self.emb_rel(rel).view(-1, 1, self.emb_dim1, self.emb_dim2)
         # Assume relation is already encoded form RE model
         rel_embedded = rel.view(-1, 1, self.rel_emb_dim1, self.rel_emb_dim2)
-        print('e1 shape: {} | rel shape: {}'.format(e1_embedded.shape, rel_embedded.shape))
+        # print('e1 shape: {} | rel shape: {}'.format(e1_embedded.shape, rel_embedded.shape))
         stacked_inputs = torch.cat([e1_embedded, rel_embedded], 2)
 
         stacked_inputs = self.bn0(stacked_inputs)
