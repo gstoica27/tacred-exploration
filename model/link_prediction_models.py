@@ -107,7 +107,7 @@ class ConvE(torch.nn.Module):
         # self.fc = torch.nn.Linear(output_size, args['ent_emb_dim'])
         # offset b/c we don't include subjects in calculation
         self.register_parameter('b', Parameter(torch.zeros((args['num_entities']))))
-        self.fc = torch.nn.Linear(output_size,args['embedding_dim'])
+        self.fc = torch.nn.Linear(output_size,args['ent_emb_dim'])
         # load model if exists
         # if args['load_path'] is not None:
         #     self.load_model(args['load_path'])
