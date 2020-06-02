@@ -191,7 +191,7 @@ class PositionAwareRNN(nn.Module):
         # and as the relation embeddings in the KG model simultaneously.
         if opt['kg_loss'] is not None:
             self.rel_emb = nn.Embedding(opt['kg_loss']['model']['num_relations'],
-                                        opt['kg_loss']['model']['embedding_dim'])
+                                        opt['kg_loss']['model']['rel_emb_dim'])
             self.object_indexes = torch.from_numpy(np.array(opt['obj_idxs']))
             if opt['cuda']:
                 self.object_indexes = self.object_indexes.cuda()
