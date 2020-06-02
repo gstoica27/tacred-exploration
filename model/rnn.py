@@ -318,6 +318,7 @@ class PositionAwareRNN(nn.Module):
             final_hidden = hidden
 
         if self.opt['kg_loss'] is not None:
+            final_hidden = self.rel_encoder(final_hidden)
             subjects, relations, labels = supplemental_inputs['knowledge_graph']
             # object indices to compare against
             e2s = self.emb(self.object_indexes)
@@ -326,7 +327,7 @@ class PositionAwareRNN(nn.Module):
             relation_embs = self.rel_emb(relations)
             # Forward pass through both relation and sentence KGLP
             relation_kg_preds = self.kg_model.forward(subject_embs, relation_embs, e2s)
-            sentence_kg_preds = self.kg_model.forward(subject_embs, self.rel_encoder(final_hidden), e2s)
+            sentence_kg_preds = self.kg_model.forward(subject_embs, final_hidden, e2s)
             # Compute each loss term
             relation_kg_loss = self.kg_model.loss(relation_kg_preds, labels)
             sentence_kg_preds = self.kg_model.loss(sentence_kg_preds, labels)
