@@ -14,6 +14,10 @@ import pickle
 import yaml
 import torch.nn as nn
 import torch.optim as optim
+import ray
+from ray import tune
+from ray.tune import track
+from ray.tune.schedulers import AsyncHyperBandScheduler
 
 from data.loader import DataLoader, map_to_ids
 from utils.kg_vocab import KGVocab
@@ -154,10 +158,9 @@ max_steps = len(train_batch) * opt['num_epoch']
 best_dev_metrics = defaultdict(lambda: -np.inf)
 test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
 
-# start training
-for epoch in range(1, opt['num_epoch']+1):
+def train_epoch(model, train_data, opt, global_step):
     train_loss = 0
-    for i, batch in enumerate(train_batch):
+    for i, batch in enumerate(train_data):
     # for i in range(0):
         start_time = time.time()
         global_step += 1
@@ -172,64 +175,94 @@ for epoch in range(1, opt['num_epoch']+1):
                 loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
             print(print_info + loss_prints)
 
+def evaluate_model(model, test_data, opt, epoch, eval_type='dev'):
+    predictions = []
+    aggregate_loss = 0
+    for i, batch in enumerate(test_data):
+        batch_preds, _, batch_loss = model.predict(batch)
+        predictions += batch_preds
+        aggregate_loss += batch_loss
+    pred_labels = [id2label[p] for p in predictions]
+    metrics = scorer.score(test_data.gold(), pred_labels)
+    f1 = metrics['f1']
+
+    mean_loss = aggregate_loss / test_data.num_examples * opt['batch_size']  # avg loss per batch
+    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(
+        epoch, train_loss, dev_loss, dev_f1))
+    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, mean_loss, f1))
+    print(f"Epoch: {epoch} | Eval: {eval_type} | F1: {f1}")
+    return f1
+
+# start training
+for epoch in range(1, opt['num_epoch']+1):
+    train_loss = 0
+    train_epoch(model=model, train_data=train_batch, opt=opt, global_step=global_step)
+    print("Evaluating on train set...")
+    train_f1 = evaluate_model(model=model, test_data=train_batch, opt=opt, epoch=epoch, eval_type='train')
+    print("Evaluating on dev set...")
+    dev_f1 = evaluate_model(model=model, test_data=dev_batch, opt=opt, epoch=epoch, eval_type='dev')
+    print("Evaluating on test set...")
+    test_f1 = evaluate_model(model=model, test_data=test_batch, opt=opt, epoch=epoch, eval_type='test')
+    tune.track.log(mean_accuracy=dev_f1)
+
     # update lambda if needed
     # if opt['kg_loss'] is not None and epoch % opt['kg_loss']['lambda_update_gap'] == 0:
     #     model.update_lambda_term()
 
-    print("Evaluating on train set...")
-    predictions = []
-    train_eval_loss = 0
-    for i, batch in enumerate(train_batch):
-    # for i, _ in enumerate([]):
-        preds, _, loss = model.predict(batch)
-        predictions += preds
-        train_eval_loss += loss
-    predictions = [id2label[p] for p in predictions]
-    train_metrics = scorer.score(train_batch.gold(), predictions)
-    train_f1 = train_metrics['f1']
-
-    train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
-    train_eval_loss = train_eval_loss / train_batch.num_examples * opt['batch_size']
-    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,
-                                                                                     train_loss,
-                                                                                     train_eval_loss, train_f1))
-    file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_eval_loss, train_f1))
-
-    # eval on dev
-    print("Evaluating on dev set...")
-    predictions = []
-    dev_loss = 0
-    for i, batch in enumerate(dev_batch):
-        preds, _, loss = model.predict(batch)
-        predictions += preds
-        dev_loss += loss
-    dev_predictions = [id2label[p] for p in predictions]
-    current_dev_metrics = scorer.score(dev_batch.gold(), dev_predictions)
-    dev_f1 = current_dev_metrics['f1']
-
-    train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
-    dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
-    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,\
-            train_loss, dev_loss, dev_f1))
-    file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_loss, dev_f1))
-
-    print("Evaluating on test set...")
-    predictions = []
-    test_loss = 0
-    test_preds = []
-    for i, batch in enumerate(test_batch):
-        preds, probs, loss = model.predict(batch)
-        predictions += preds
-        test_loss += loss
-        test_preds += probs
-    predictions = [id2label[p] for p in predictions]
-    test_metrics_at_current_dev = scorer.score(test_batch.gold(), predictions)
-    test_f1 = test_metrics_at_current_dev['f1']
-
-    train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
-    print("epoch {}: test_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, test_loss, test_f1))
-    file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_loss, test_f1))
-
+    # print("Evaluating on train set...")
+    # predictions = []
+    # train_eval_loss = 0
+    # for i, batch in enumerate(train_batch):
+    # # for i, _ in enumerate([]):
+    #     preds, _, loss = model.predict(batch)
+    #     predictions += preds
+    #     train_eval_loss += loss
+    # predictions = [id2label[p] for p in predictions]
+    # train_metrics = scorer.score(train_batch.gold(), predictions)
+    # train_f1 = train_metrics['f1']
+    #
+    # train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
+    # train_eval_loss = train_eval_loss / train_batch.num_examples * opt['batch_size']
+    # print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,
+    #                                                                                  train_loss,
+    #                                                                                  train_eval_loss, train_f1))
+    # file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, train_eval_loss, train_f1))
+    #
+    # # eval on dev
+    # print("Evaluating on dev set...")
+    # predictions = []
+    # dev_loss = 0
+    # for i, batch in enumerate(dev_batch):
+    #     preds, _, loss = model.predict(batch)
+    #     predictions += preds
+    #     dev_loss += loss
+    # dev_predictions = [id2label[p] for p in predictions]
+    # current_dev_metrics = scorer.score(dev_batch.gold(), dev_predictions)
+    # dev_f1 = current_dev_metrics['f1']
+    #
+    # train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
+    # dev_loss = dev_loss / dev_batch.num_examples * opt['batch_size']
+    # print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(epoch,\
+    #         train_loss, dev_loss, dev_f1))
+    # file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, dev_loss, dev_f1))
+    #
+    # print("Evaluating on test set...")
+    # predictions = []
+    # test_loss = 0
+    # test_preds = []
+    # for i, batch in enumerate(test_batch):
+    #     preds, probs, loss = model.predict(batch)
+    #     predictions += preds
+    #     test_loss += loss
+    #     test_preds += probs
+    # predictions = [id2label[p] for p in predictions]
+    # test_metrics_at_current_dev = scorer.score(test_batch.gold(), predictions)
+    # test_f1 = test_metrics_at_current_dev['f1']
+    #
+    # train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch
+    # print("epoch {}: test_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, test_loss, test_f1))
+    # file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_loss, test_f1))
+    #
     if best_dev_metrics['f1'] <= current_dev_metrics['f1']:
         best_dev_metrics = current_dev_metrics
         test_metrics_at_best_dev = test_metrics_at_current_dev
@@ -249,33 +282,33 @@ for epoch in range(1, opt['num_epoch']+1):
             pickle.dump(test_confusion_matrix, handle)
         with open(dev_confusion_save_file, 'wb') as handle:
             pickle.dump(dev_confusion_matrix, handle)
-
-    print_str = 'Best Dev Metrics |'
-    for name, value in best_dev_metrics.items():
-        print_str += ' {}: {} |'.format(name, value)
-    print(print_str)
-    print_str = 'Test Metrics at Best Dev |'
-    for name, value in test_metrics_at_best_dev.items():
-        print_str += ' {}: {} |'.format(name, value)
-    print(print_str)
-
-    # save
-    model_file = model_save_dir + '/checkpoint_epoch_{}.pt'.format(epoch)
-    model.save(model_file, epoch)
-    if epoch == 1 or dev_f1 > max(dev_f1_history):
-        copyfile(model_file, model_save_dir + '/best_model.pt')
-        print("new best model saved.")
-    if epoch % opt['save_epoch'] != 0:
-        os.remove(model_file)
-    
-    # lr schedule
-    if len(dev_f1_history) > 10 and dev_f1 <= dev_f1_history[-1] and \
-            opt['optim'] in ['sgd', 'adagrad']:
-        current_lr *= opt['lr_decay']
-        model.update_lr(current_lr)
-
-    dev_f1_history += [dev_f1]
-    print("")
+    #
+    # print_str = 'Best Dev Metrics |'
+    # for name, value in best_dev_metrics.items():
+    #     print_str += ' {}: {} |'.format(name, value)
+    # print(print_str)
+    # print_str = 'Test Metrics at Best Dev |'
+    # for name, value in test_metrics_at_best_dev.items():
+    #     print_str += ' {}: {} |'.format(name, value)
+    # print(print_str)
+    #
+    # # save
+    # model_file = model_save_dir + '/checkpoint_epoch_{}.pt'.format(epoch)
+    # model.save(model_file, epoch)
+    # if epoch == 1 or dev_f1 > max(dev_f1_history):
+    #     copyfile(model_file, model_save_dir + '/best_model.pt')
+    #     print("new best model saved.")
+    # if epoch % opt['save_epoch'] != 0:
+    #     os.remove(model_file)
+    #
+    # # lr schedule
+    # if len(dev_f1_history) > 10 and dev_f1 <= dev_f1_history[-1] and \
+    #         opt['optim'] in ['sgd', 'adagrad']:
+    #     current_lr *= opt['lr_decay']
+    #     model.update_lr(current_lr)
+    #
+    # dev_f1_history += [dev_f1]
+    # print("")
 
 print("Training ended with {} epochs.".format(epoch))
 
