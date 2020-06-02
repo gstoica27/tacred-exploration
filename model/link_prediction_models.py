@@ -103,8 +103,8 @@ class ConvE(torch.nn.Module):
         self.bn1 = torch.nn.BatchNorm2d(args['filter_channels'])
         self.bn2 = torch.nn.BatchNorm1d(args['ent_emb_dim'])
         # offset b/c we don't include subjects in calculation
-        self.register_parameter('b', Parameter(torch.zeros((args['num_objects']))))
-        self.fc = torch.nn.Linear(output_size, args['ent_emb_dim'])
+        # self.register_parameter('b', Parameter(torch.zeros((args['num_entities']))))
+        # self.fc = torch.nn.Linear(output_size, args['ent_emb_dim'])
         # offset b/c we don't include subjects in calculation
         self.register_parameter('b', Parameter(torch.zeros((args['num_entities']))))
         self.fc = torch.nn.Linear(output_size,args['embedding_dim'])
