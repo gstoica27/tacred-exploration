@@ -214,7 +214,12 @@ class PositionAwareRNN(nn.Module):
             dropout=opt['dropout'], bidirectional=self.bidirectional_encoding)
 
         if opt['attn']:
-            self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
+            if opt['link_prediction'] is not None:
+                self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
+                                                                opt['hidden_dim'], 2 * opt['pe_dim'],
+                                                                opt['link_prediction']['model']['rel_emb_dim'])
+            else:
+                self.attn_layer = layers.PositionAwareAttention(self.encoding_dim,
                     opt['hidden_dim'], 2*opt['pe_dim'], opt['attn_dim'])
             self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, opt['pe_dim'])
 
