@@ -338,10 +338,13 @@ class PositionAwareRNN(nn.Module):
                 if self.opt['cuda']:
                     mask = mask.cuda()
                 loss_mask = (mask + labels).eq(0).eq(0)
+                total_nonzero = loss_mask.sum()
                 relation_kg_loss *= loss_mask
                 sentence_kg_preds *= loss_mask
-            relation_kg_loss = relation_kg_loss.mean()
-            sentence_kg_preds = sentence_kg_preds.mean()
+            else:
+                total_nonzero = labels.shape[0] * labels.shape[1]
+            relation_kg_loss = relation_kg_loss / total_nonzero
+            sentence_kg_preds = sentence_kg_preds / total_nonzero
 
             supplemental_losses = {'relation':relation_kg_loss, 'sentence': sentence_kg_preds}
             # Remove gradient from flowing to the relation embeddings in the main loss calculation
