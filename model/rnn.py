@@ -343,8 +343,8 @@ class PositionAwareRNN(nn.Module):
                 sentence_kg_preds *= loss_mask
             else:
                 total_nonzero = labels.shape[0] * labels.shape[1]
-            relation_kg_loss = relation_kg_loss / total_nonzero
-            sentence_kg_preds = sentence_kg_preds / total_nonzero
+            relation_kg_loss = relation_kg_loss.sum() / total_nonzero
+            sentence_kg_preds = sentence_kg_preds.sum() / total_nonzero
 
             supplemental_losses = {'relation':relation_kg_loss, 'sentence': sentence_kg_preds}
             # Remove gradient from flowing to the relation embeddings in the main loss calculation
