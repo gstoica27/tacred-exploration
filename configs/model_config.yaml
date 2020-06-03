@@ -40,6 +40,7 @@ kg_loss:
   lambda_decay: .9
   lambda_update_gap: 1 # number of epochs between lambda updates
   freeze_embeddings: False
+  negative_sampling_prop: .8
 relation_masking: False
 no_relation_masking: False
 negative_factor:

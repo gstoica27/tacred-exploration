@@ -331,6 +331,18 @@ class PositionAwareRNN(nn.Module):
             # Compute each loss term
             relation_kg_loss = self.kg_model.loss(relation_kg_preds, labels)
             sentence_kg_preds = self.kg_model.loss(sentence_kg_preds, labels)
+
+            if self.opt['kg_loss']['negative_sampling_prop'] is not None:
+                prop = self.opt['kg_loss']['negative_sampling_prop']
+                mask = torch.empty_like(relation_kg_loss).bernoulli(prop)
+                if self.opt['cuda']:
+                    mask = mask.cuda()
+                loss_mask = (mask + labels).eq(0).eq(0)
+                relation_kg_loss *= loss_mask
+                sentence_kg_preds *= loss_mask
+            relation_kg_loss = relation_kg_loss.mean()
+            sentence_kg_preds = sentence_kg_preds.mean()
+
             supplemental_losses = {'relation':relation_kg_loss, 'sentence': sentence_kg_preds}
             # Remove gradient from flowing to the relation embeddings in the main loss calculation
             logits = torch.mm(final_hidden, self.rel_emb.weight.transpose(1, 0))
