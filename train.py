@@ -54,7 +54,7 @@ def create_model_name(cfg_dict):
     )
     if cfg_dict['kg_loss'] is not None:
         kglp_task_cfg = cfg_dict['kg_loss']
-        kglp_task = '{}-{}-{}'.format(
+        kglp_task = '{}-{}-{}-{}'.format(
             kglp_task_cfg['label_smoothing'], kglp_task_cfg['lambda'],
             kglp_task_cfg['freeze_embeddings'], #kglp_task_cfg['without_no_relation'],
             # kglp_task_cfg['lambda_scalar'],
