@@ -238,7 +238,7 @@ def match_tune2opt(opt, tune_params):
 
 tune_params = {
     'lambda': tune.grid_search([.1, .2, .5, .7, 1.]),
-    # 'label_smoothing': tune.grid_search([.0, .01, .05, .1]),
+    'label_smoothing': tune.grid_search([.0, .01, .05, .1]),
     # 'lr': tune.grid_search([.1, .3, .5, 1.0]),
     # 'lr_decay': tune.grid_search([1.0, .99, .95, .9]),
     # 'rel_emb_dim': tune.grid_search([10, 20, 50, 100]),
@@ -261,7 +261,7 @@ analysis = tune.run(
     config=opt,
     verbose=1,
     name="train_semeval",  # This is used to specify the logging directory.
-    resources_per_trial={'cpu': 2, 'gpu': .5}
+    resources_per_trial={'cpu': 1, 'gpu': .25}
 )
 best_config = analysis.get_best_config(metric='mean_accuracy')
 print(best_config)
