@@ -27,7 +27,6 @@ from utils.vocab import Vocab
 from collections import defaultdict
 from configs.dict_with_attributes import AttributeDict
 
-
 def str2bool(v):
     return v.lower() in ('true')
 
@@ -145,7 +144,7 @@ dev_confusion_save_file = os.path.join(test_save_dir, 'dev_confusion_matrix.pkl'
 helper.print_config(opt)
 
 # model
-model = RelationModel(opt, emb_matrix=emb_matrix)
+# model = RelationModel(opt, emb_matrix=emb_matrix)
 
 id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
 dev_f1_history = []
@@ -158,7 +157,7 @@ max_steps = len(train_batch) * opt['num_epoch']
 best_dev_metrics = defaultdict(lambda: -np.inf)
 test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
 
-def train_epoch(model, train_data, opt, global_step):
+def train_epoch(model, train_data, opt, global_step, epoch):
     train_loss = 0
     for i, batch in enumerate(train_data):
     # for i in range(0):
@@ -168,7 +167,7 @@ def train_epoch(model, train_data, opt, global_step):
         train_loss += losses['cumulative']
         if global_step % opt['log_step'] == 0:
             duration = time.time() - start_time
-            print_info = format_str.format(datetime.now(), global_step, max_steps, epoch,\
+            print_info = format_str.format(datetime.now(), global_step, max_steps, epoch,
                     opt['num_epoch'], duration, current_lr)
             loss_prints = ''
             for loss_type, loss in losses.items():
@@ -187,24 +186,65 @@ def evaluate_model(model, test_data, opt, epoch, eval_type='dev'):
     f1 = metrics['f1']
 
     mean_loss = aggregate_loss / test_data.num_examples * opt['batch_size']  # avg loss per batch
-    print("epoch {}: train_loss = {:.6f}, dev_loss = {:.6f}, dev_f1 = {:.4f}".format(
-        epoch, train_loss, dev_loss, dev_f1))
-    file_logger.log("{}\t{:.6f}\t{:.4f}".format(epoch, mean_loss, f1))
+    print("epoch {}: mean loss = {:.6f}, F1 = {:.4f}".format(
+        epoch, mean_loss, f1))
+    file_logger.log("{}\t{}\t{:.6f}\t{:.4f}".format(epoch, eval_type, mean_loss, f1))
     print(f"Epoch: {epoch} | Eval: {eval_type} | F1: {f1}")
-    return f1
+    return metrics
 
-# start training
-for epoch in range(1, opt['num_epoch']+1):
-    train_loss = 0
-    train_epoch(model=model, train_data=train_batch, opt=opt, global_step=global_step)
-    print("Evaluating on train set...")
-    train_f1 = evaluate_model(model=model, test_data=train_batch, opt=opt, epoch=epoch, eval_type='train')
-    print("Evaluating on dev set...")
-    dev_f1 = evaluate_model(model=model, test_data=dev_batch, opt=opt, epoch=epoch, eval_type='dev')
-    print("Evaluating on test set...")
-    test_f1 = evaluate_model(model=model, test_data=test_batch, opt=opt, epoch=epoch, eval_type='test')
-    tune.track.log(mean_accuracy=dev_f1)
+def train_model(opt):
+    # model
+    model = RelationModel(opt, emb_matrix=emb_matrix)
+    # start training
+    for epoch in range(1, opt['num_epoch']+1):
+        train_loss = 0
+        train_epoch(model=model, train_data=train_batch, opt=opt, global_step=global_step, epoch=epoch)
+        print("Evaluating on train set...")
+        train_metrics = evaluate_model(model=model, test_data=train_batch, opt=opt, epoch=epoch, eval_type='train')
+        print("Evaluating on dev set...")
+        dev_metrics = evaluate_model(model=model, test_data=dev_batch, opt=opt, epoch=epoch, eval_type='dev')
+        print("Evaluating on test set...")
+        test_metrics = evaluate_model(model=model, test_data=test_batch, opt=opt, epoch=epoch, eval_type='test')
 
+        tune.track.log(mean_accuracy=dev_metrics['f1'], test_f1=test_metrics['f1'],
+                       test_precision=test_metrics['precision'],
+                       test_recall=test_metrics['recall'])
+
+        if epoch % 5 == 0:
+            torch.save(model, "./model.pth")  # This saves the model to the trial directory
+
+def match_tune2opt(opt, tune_params):
+    for name in tune_params:
+        opt[name] = tune_params[name]
+    return opt
+
+tune_params = {
+    'lambda': tune.grid_search([.1, .2])
+}
+
+custom_scheduler = AsyncHyperBandScheduler(
+    metric='mean_accuracy',
+    mode='max',
+    grace_period=1
+)  # TODO: Add a ASHA as custom scheduler here
+
+opt = match_tune2opt(opt, tune_params=tune_params)
+analysis = tune.run(
+    train_model,
+    scheduler=custom_scheduler,
+    config=opt,
+    verbose=1,
+    name="train_semeval",  # This is used to specify the logging directory.
+    resources_per_trial={'num_cpu': 4, 'num_gpu': .5}
+)
+best_config = analysis.get_best_config(metric='mean_accuracy')
+print(best_config)
+# best_logdir = analysis.get_best_logdir(metric='mean_accuracy', mode='max')
+# model = torch.load(os.path.join(best_logdir, "model.pth"))
+# evaluate_model(model=model, test_data=test_batch, opt=opt, epoch='Last', eval_type='test')
+
+
+print('Done!')
     # update lambda if needed
     # if opt['kg_loss'] is not None and epoch % opt['kg_loss']['lambda_update_gap'] == 0:
     #     model.update_lambda_term()
@@ -263,25 +303,25 @@ for epoch in range(1, opt['num_epoch']+1):
     # print("epoch {}: test_loss = {:.6f}, test_f1 = {:.4f}".format(epoch, test_loss, test_f1))
     # file_logger.log("{}\t{:.6f}\t{:.6f}\t{:.4f}".format(epoch, train_loss, test_loss, test_f1))
     #
-    if best_dev_metrics['f1'] <= current_dev_metrics['f1']:
-        best_dev_metrics = current_dev_metrics
-        test_metrics_at_best_dev = test_metrics_at_current_dev
-        # Compute Confusion Matrices over triples excluded in Training
-        test_triple_preds = np.array(predictions)[test_batch.triple_idxs]
-        test_triple_gold = np.array(test_batch.gold())[test_batch.triple_idxs]
-        dev_triple_preds = np.array(dev_predictions)[dev_batch.triple_idxs]
-        dev_triple_gold = np.array(dev_batch.gold())[dev_batch.triple_idxs]
-        test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_triple_gold,
-                                                                  predictions=test_triple_preds)
-        dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_triple_gold,
-                                                                 predictions=dev_triple_preds)
-        print("Saving test info...")
-        with open(test_save_file, 'wb') as outfile:
-            pickle.dump(test_preds, outfile)
-        with open(test_confusion_save_file, 'wb') as handle:
-            pickle.dump(test_confusion_matrix, handle)
-        with open(dev_confusion_save_file, 'wb') as handle:
-            pickle.dump(dev_confusion_matrix, handle)
+    # if best_dev_metrics['f1'] <= current_dev_metrics['f1']:
+    #     best_dev_metrics = current_dev_metrics
+    #     test_metrics_at_best_dev = test_metrics_at_current_dev
+    #     # Compute Confusion Matrices over triples excluded in Training
+    #     test_triple_preds = np.array(predictions)[test_batch.triple_idxs]
+    #     test_triple_gold = np.array(test_batch.gold())[test_batch.triple_idxs]
+    #     dev_triple_preds = np.array(dev_predictions)[dev_batch.triple_idxs]
+    #     dev_triple_gold = np.array(dev_batch.gold())[dev_batch.triple_idxs]
+    #     test_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=test_triple_gold,
+    #                                                               predictions=test_triple_preds)
+    #     dev_confusion_matrix = scorer.compute_confusion_matrices(ground_truth=dev_triple_gold,
+    #                                                              predictions=dev_triple_preds)
+    #     print("Saving test info...")
+    #     with open(test_save_file, 'wb') as outfile:
+    #         pickle.dump(test_preds, outfile)
+    #     with open(test_confusion_save_file, 'wb') as handle:
+    #         pickle.dump(test_confusion_matrix, handle)
+    #     with open(dev_confusion_save_file, 'wb') as handle:
+    #         pickle.dump(dev_confusion_matrix, handle)
     #
     # print_str = 'Best Dev Metrics |'
     # for name, value in best_dev_metrics.items():
@@ -310,5 +350,5 @@ for epoch in range(1, opt['num_epoch']+1):
     # dev_f1_history += [dev_f1]
     # print("")
 
-print("Training ended with {} epochs.".format(epoch))
+# print("Training ended with {} epochs.".format(epoch))
 

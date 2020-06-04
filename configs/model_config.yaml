@@ -15,10 +15,10 @@ dropout: .5 # Input and RNN dropout rate.
 word_dropout: .04 # The rate at which randomly set a word to UNK.
 topn: 1e10  # Only finetune top N embeddings.
 lower: False  # Lowercase all words.
-lr: tune.grid_search([.1, .3, .5, 1.]) # Applies to SGD and Adagrad
+lr: .3 # Applies to SGD and Adagrad
 lr_decay: 0.9
 optim: 'sgd'  # sgd, adagrad, adam or adamax.
-num_epoch: 30 # number of epochs
+num_epoch: 1 # number of epochs
 batch_size: 50
 max_grad_norm: 5.0  # Gradient Clipping.
 log_step: 1  # Print log every k steps.
@@ -36,8 +36,8 @@ pe_dim: 30  # Position encoding dimension.
 kg_loss:
   model: 'ConvE'
   label_smoothing: .1
-  lambda: tune.uniform(0.01, 1.0)
-  lambda_decay: tune.uniform(.9, 1.1)
+  lambda: .1
+  lambda_decay: 1.
   lambda_update_gap: 5 # number of epochs between lambda updates
   freeze_embeddings: False
 relation_masking: False
