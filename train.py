@@ -193,6 +193,8 @@ def evaluate_model(model, test_data, opt, epoch, eval_type='dev'):
     return metrics
 
 def train_model(opt):
+    dev_f1_history = []
+    current_lr = opt['lr']
     # model
     model = RelationModel(opt, emb_matrix=emb_matrix)
     # start training
@@ -203,23 +205,47 @@ def train_model(opt):
         train_metrics = evaluate_model(model=model, test_data=train_batch, opt=opt, epoch=epoch, eval_type='train')
         print("Evaluating on dev set...")
         dev_metrics = evaluate_model(model=model, test_data=dev_batch, opt=opt, epoch=epoch, eval_type='dev')
+        dev_f1 = dev_metrics['f1']
         print("Evaluating on test set...")
         test_metrics = evaluate_model(model=model, test_data=test_batch, opt=opt, epoch=epoch, eval_type='test')
 
         tune.track.log(mean_accuracy=dev_metrics['f1'], test_f1=test_metrics['f1'],
                        test_precision=test_metrics['precision'],
                        test_recall=test_metrics['recall'])
+        # lr schedule
+        if len(dev_f1_history) > 10 and dev_f1 <= dev_f1_history[-1] and \
+                opt['optim'] in ['sgd', 'adagrad']:
+            current_lr *= opt['lr_decay']
+            model.update_lr(current_lr)
+
+        dev_f1_history += [dev_f1]
 
         if epoch % 5 == 0:
             torch.save(model, "./model.pth")  # This saves the model to the trial directory
 
 def match_tune2opt(opt, tune_params):
     for name in tune_params:
-        opt[name] = tune_params[name]
+        params = tune_params[name]
+        if name in opt:
+            opt[name] = params
+        elif name in opt['kg_loss']:
+            opt['kg_loss'][name] = params
+        elif name in opt['kg_loss']['model']:
+            opt['kg_loss']['model'][name] = params
+        else:
+            raise ValueError('Parameter {} not in Model Config'.format((name)))
     return opt
 
 tune_params = {
-    'lambda': tune.grid_search([.1, .2])
+    'lambda': tune.grid_search([.1, .2, .5, .7, 1.]),
+    'label_smoothing': tune.grid_search([.0, .01, .05, .1]),
+    'lr': tune.grid_search([.1, .3, .5, 1.0]),
+    'lr_decay': tune.grid_search([1.0, .99, .95, .9]),
+    'rel_emb_dim': tune.grid_search([10, 20, 50, 100]),
+    'use_bias': tune.grid_search([True, False]),
+    'input_drop': tune.grid_search([0.0, .2, .5, .7]),
+    'hidden_drop': tune.grid_search([0.0, .2, .5, .7]),
+    'feat_drop': tune.grid_search([0.0, .2, .5, .7])
 }
 
 custom_scheduler = AsyncHyperBandScheduler(
@@ -235,7 +261,7 @@ analysis = tune.run(
     config=opt,
     verbose=1,
     name="train_semeval",  # This is used to specify the logging directory.
-    resources_per_trial={'cpu': 4, 'gpu': .5}
+    resources_per_trial={'cpu': 1, 'gpu': .5}
 )
 best_config = analysis.get_best_config(metric='mean_accuracy')
 print(best_config)

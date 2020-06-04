@@ -5,7 +5,7 @@ ConvE:
   ent_emb_dim: 300
   ent_emb_shape1: 30
   rel_emb_dim: 100
-  rel_emb_shape1: 10
+#  rel_emb_shape1: 10
   use_bias: False
   kernel_size: (3, 3)
   filter_channels: 32

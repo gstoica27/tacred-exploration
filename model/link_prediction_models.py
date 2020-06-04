@@ -85,8 +85,8 @@ class ConvE(torch.nn.Module):
         self.loss = torch.nn.BCELoss()
         self.ent_emb_dim1 = args['ent_emb_shape1']
         self.ent_emb_dim2 = args['ent_emb_dim'] // self.ent_emb_dim1
-        self.rel_emb_dim1 = args['rel_emb_shape1']
-        self.rel_emb_dim2 = args['rel_emb_dim'] // self.rel_emb_dim1
+        self.rel_emb_dim1 = args['rel_emb_dim'] // self.ent_emb_dim2
+        self.rel_emb_dim2 =self.ent_emb_dim2
 
         self.kernel_size = eval(args['kernel_size'])
         self.filter_channels = args['filter_channels']
