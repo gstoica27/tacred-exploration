@@ -251,7 +251,7 @@ tune_params = {
 custom_scheduler = AsyncHyperBandScheduler(
     metric='mean_accuracy',
     mode='max',
-    grace_period=1
+    grace_period=25
 )  # TODO: Add a ASHA as custom scheduler here
 
 opt = match_tune2opt(opt, tune_params=tune_params)
