@@ -261,7 +261,7 @@ analysis = tune.run(
     config=opt,
     verbose=1,
     name="train_semeval",  # This is used to specify the logging directory.
-    resources_per_trial={'cpu': 1, 'gpu': .5}
+    resources_per_trial={'cpu': 1, 'gpu': .2}
 )
 best_config = analysis.get_best_config(metric='mean_accuracy')
 print(best_config)
