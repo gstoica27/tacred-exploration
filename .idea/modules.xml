@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../KGRE/.idea/KGRE.iml" filepath="$PROJECT_DIR$/../KGRE/.idea/KGRE.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../TACRED_IC/.idea/TACRED_IC.iml" filepath="$PROJECT_DIR$/../TACRED_IC/.idea/TACRED_IC.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/tacred-exploration.iml" filepath="$PROJECT_DIR$/.idea/tacred-exploration.iml" />
+    </modules>
+  </component>
+</project>
