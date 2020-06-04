@@ -27,7 +27,7 @@ log:  'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
 id: NONE # Model ID under which to save models.
 info: ''  # Optional info.or the experiment.
-seed: 0  # random seed
+seed: 1234  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
 cuda: True
 cpu: True # Ignore CUDA.
@@ -36,10 +36,10 @@ attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 kg_loss:
   model: 'ConvE'
-  label_smoothing: .1
-  lambda: 1.
+  label_smoothing: .01
+  lambda: .7
   lambda_decay: 1.
-  negative_sampling_prop: .8
+  negative_sampling_prop: None
 #  lambda_update_gap: 1 # number of epochs between lambda updates
   freeze_embeddings: False
 relation_masking: False
