@@ -1,3 +1,0 @@
-fact_checking:
-  lambda: 1.
-  fact_checking_model: 'DistMult'
