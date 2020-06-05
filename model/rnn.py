@@ -96,7 +96,7 @@ class RelationModel(object):
         # one_hot_labels = self.one_hot_embedding(labels, num_classes=self.opt['num_class'])
         main_loss = self.criterion(logits, labels)
         cumulative_loss = main_loss
-        losses['main'] = main_loss.data.item()
+        losses['main'] = main_loss.cpu().data.item()
         if self.opt['kg_loss'] is not None:
             relation_kg_loss = supplemental_losses['relation']
             sentence_kg_loss = supplemental_losses['sentence']
