@@ -1,0 +1,49 @@
+data_dir: '/usr0/home/gis/research/gcn-over-pruned-trees/dataset/NYT'
+vocab_dir: '/usr0/home/gis/research/gcn-over-pruned-trees/dataset/NYT/vocab'
+test_save_dir: '/usr0/home/gis/research/tacred-exploration/tacred_test_performances'
+save_dir: '/usr0/home/gis/research/tacred-exploration/saved_models'
+
+dataset:
+  max_labels: 15
+  negative_sample_ratio: 2.
+encoding_type: 'LSTM' # sentence encoding type: LSTM or BiLSTM
+emb_dim: 300  # Word embedding dimension.
+ner_dim: 30 # NER embedding dimension.
+pos_dim: 30 # POS embedding dimension.
+hidden_dim: 300 # RNN hidden state size.
+num_layers: 2 # Num of RNN layers.
+dropout: .5 # Input and RNN dropout rate.
+word_dropout: .04 # The rate at which randomly set a word to UNK.
+word_emb_dropout: 0.
+topn: 1e10  # Only finetune top N embeddings.
+lower: False  # Lowercase all words.
+lr: 1. # Applies to SGD and Adagrad
+lr_decay: 0.9
+optim: 'sgd'  # sgd, adagrad, adam or adamax.
+num_epoch: 50 # number of epochs
+batch_size: 50
+max_grad_norm: 5.0  # Gradient Clipping.
+log_step: 20  # Print log every k steps.
+log:  'logs.txt'  # Write training log to file.
+save_epoch: 5 # Save model checkpoints every k epochs
+id: 'PALSTM-JRRELP-.1-1.-1.-F-F-F-300' # Model ID under which to save models.
+info: ''  # Optional info.or the experiment.
+seed: 1234  # random seed
+remove_entity_types: False # Replace subject and object granular typing with universal subject and object
+cuda: True
+cpu: True # Ignore CUDA.
+attn: True # Use attention layer.
+attn_dim: 200 # Attention size.
+pe_dim: 30  # Position encoding dimension.
+kg_loss:
+  model: 'ConvE'
+  label_smoothing: .1
+  lambda: 1.
+  lambda_decay: 1.
+#  lambda_update_gap: 1 # number of epochs between lambda updates
+  freeze_embeddings: False
+relation_masking: False
+no_relation_masking: False
+negative_factor:
+positive_factor:
+entropy_reg:
