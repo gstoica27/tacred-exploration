@@ -135,7 +135,7 @@ dev_batch = DataLoader(opt['data_dir'] + '/dev_parsed.json',
                        evaluation=True,
                        kg_graph=train_batch.kg_graph,
                        rel_graph=train_batch.e1e2_to_rel)
-test_batch = DataLoader(opt['data_dir'] + '/test.json',
+test_batch = DataLoader(opt['data_dir'] + '/test_parsed.json',
                         opt['batch_size'],
                         opt,
                         vocab,
