@@ -1,7 +1,7 @@
-data_dir: '/usr0/home/gis/research/gcn-over-pruned-trees/dataset/NYT'
-vocab_dir: '/usr0/home/gis/research/gcn-over-pruned-trees/dataset/NYT/vocab'
-test_save_dir: '/usr0/home/gis/research/tacred-exploration/semeval_test_performances'
-save_dir: '/usr0/home/gis/research/tacred-exploration/saved_models'
+data_dir: 'dataset/NYT'
+vocab_dir: 'dataset/NYT/vocab'
+test_save_dir: 'semeval_test_performances'
+save_dir: 'saved_models'
 dataset:
   max_labels: 15
   negative_sample_ratio: 2.
