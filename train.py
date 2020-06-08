@@ -121,7 +121,7 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/dev_parsed.json', #train_split_parsed
+train_batch = DataLoader(opt['data_dir'] + '/train_split_parsed.json',
                          opt['batch_size'],
                          opt,
                          vocab,
