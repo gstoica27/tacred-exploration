@@ -1,7 +1,7 @@
-data_dir: '/Users/georgestoica/Desktop/Research/tacred-exploration/dataset/semeval/data/json'
-vocab_dir: '/Users/georgestoica/Desktop/Research/tacred-exploration/dataset/semeval/data/vocab'
-test_save_dir: '/Users/georgestoica/Desktop/Research/semeval_test_performances'
-save_dir: '/Users/georgestoica/Desktop/Research/research/tacred-exploration/saved_models'
+data_dir: 'dataset/semeval/data/json'
+vocab_dir: 'dataset/semeval/data/vocab'
+test_save_dir: 'semeval_test_performances'
+save_dir: 'saved_models'
 dataset:
   max_labels: 15
   negative_sample_ratio: 2.
