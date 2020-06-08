@@ -55,8 +55,10 @@ def create_model_name(cfg_dict):
     if cfg_dict['kg_loss'] is not None:
         kglp_task_cfg = cfg_dict['kg_loss']
         kglp_task = '{}-{}-{}-{}'.format(
-            kglp_task_cfg['label_smoothing'], kglp_task_cfg['lambda'],
-            kglp_task_cfg['freeze_embeddings'], #kglp_task_cfg['without_no_relation'],
+            kglp_task_cfg['label_smoothing'],
+            kglp_task_cfg['lambda'],
+            kglp_task_cfg['freeze_embeddings'],
+            # kglp_task_cfg['without_no_relation'],
             # kglp_task_cfg['lambda_scalar'],
             kglp_task_cfg['negative_sampling_prop']
         )
@@ -161,7 +163,7 @@ file_logger = helper.FileLogger(model_save_dir + '/' + opt['log'],
                     header="# epoch\ttrain_loss\tdev_loss\tdev_f1")
 
 
-test_save_dir = os.path.join(opt['test_save_dir'], opt['id'])
+test_save_dir = os.path.join(opt['test_save_dir'], model_id)
 os.makedirs(test_save_dir, exist_ok=True)
 test_save_file = os.path.join(test_save_dir, 'test_records.pkl')
 test_confusion_save_file = os.path.join(test_save_dir, 'test_confusion_matrix.pkl')

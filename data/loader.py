@@ -215,7 +215,7 @@ class DataLoader(object):
                 # the offset is 4 because the vocab order is: ['PAD', 'UNK', 'SUBJ-_', 'SUBJ-_', 'OBJ-*']. So
                 # objects are at index 4 onwards.
                 subject_id = vocab.word2id[subject_type]
-                object_id = vocab.word2id[object_type] - 16 #- 4
+                object_id = vocab.word2id[object_type] - 22
                 self.kg_graph[(subject_id, relation)].add(object_id)
                 supplemental_components['knowledge_graph'] += [(subject_id, relation, object_id)]
                 # Extract all known answers for subject type, relation pair in KG

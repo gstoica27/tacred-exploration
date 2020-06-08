@@ -1,5 +1,5 @@
-data_dir: '/Users/georgestoica/Desktop/Research/tacred-exploration/dataset/semeval/data/json'
-vocab_dir: '/Users/georgestoica/Desktop/Research/tacred-exploration/dataset/semeval/data/vocab'
+data_dir: '/Users/georgestoica/Desktop/Research/new_gcn_master/cgcn_master/dataset/NYT'
+vocab_dir: '/Users/georgestoica/Desktop/Research/new_gcn_master/cgcn_master/dataset/NYT/vocab'
 test_save_dir: '/Volumes/External HDD/dataset/tacred/test_perfs'
 save_dir: '/Volumes/External HDD/dataset/tacred/saved_models'
 dataset:
@@ -40,7 +40,7 @@ kg_loss:
   lambda_decay: .9
   lambda_update_gap: 1 # number of epochs between lambda updates
   freeze_embeddings: False
-  negative_sampling_prop: .8
+  negative_sampling_prop:
 relation_masking: False
 no_relation_masking: False
 negative_factor:
