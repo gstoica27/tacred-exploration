@@ -114,10 +114,10 @@ opt['obj_idxs'] = vocab.obj_idxs
 # opt['kg_e2_idxs'] = opt['subj_idxs'] + opt['obj_idxs']
 
 cwd = os.getcwd()
-opt['data_dir'] = os.path.join(cwd, 'dataset/semeval/data/json')
-opt['vocab_dir'] = os.path.join(cwd, 'dataset/semeval/data/vocab')
-opt['test_save_dir'] = os.path.join(cwd, 'semeval_test_performances')
-opt['save_dir'] = os.path.join(cwd, 'saved_models')
+opt['data_dir'] = os.path.join(cwd, opt['data_dir'])
+opt['vocab_dir'] = os.path.join(cwd, opt['vocab_dir'])
+opt['test_save_dir'] = os.path.join(cwd, opt['test_save_dir'])
+opt['save_dir'] = os.path.join(cwd, opt['save_dir'])
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
