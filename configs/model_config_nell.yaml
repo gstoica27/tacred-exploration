@@ -1,7 +1,7 @@
-data_dir: '/home/ec2-user/research/tacred-exploration/dataset/semeval/data/json'
-vocab_dir: '/home/ec2-user/research/tacred-exploration/dataset/semeval/data/vocab'
-test_save_dir: '/home/ec2-user/research/tacred-exploration/tacred_test_performances'
-save_dir: '/home/ec2-user/research/tacred-exploration/saved_models'
+data_dir: '/Users/georgestoica/Desktop/Research/tacred-exploration/dataset/semeval/data/json'
+vocab_dir: '/Users/georgestoica/Desktop/Research/tacred-exploration/dataset/semeval/data/vocab'
+test_save_dir: '/Users/georgestoica/Desktop/Research/semeval_test_performances'
+save_dir: '/Users/georgestoica/Desktop/Research/research/tacred-exploration/saved_models'
 dataset:
   max_labels: 15
   negative_sample_ratio: 2.
