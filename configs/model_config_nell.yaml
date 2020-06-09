@@ -16,7 +16,7 @@ word_dropout: .04 # The rate at which randomly set a word to UNK.
 word_emb_dropout: 0.
 topn: 1e10  # Only finetune top N embeddings.
 lower: False  # Lowercase all words.
-lr: 1. # Applies to SGD and Adagrad
+lr: .3 # Applies to SGD and Adagrad
 lr_decay: 0.9
 optim: 'sgd'  # sgd, adagrad, adam or adamax.
 num_epoch: 50 # number of epochs
