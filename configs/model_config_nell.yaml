@@ -1,6 +1,6 @@
 data_dir: 'dataset/NYT'
 vocab_dir: 'dataset/NYT/vocab'
-test_save_dir: 'semeval_test_performances'
+test_save_dir: 'nytsingle_test_performances'
 save_dir: 'saved_models'
 dataset:
   max_labels: 15
