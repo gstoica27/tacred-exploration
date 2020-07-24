@@ -153,11 +153,10 @@ class RelationModel(object):
     def update_lr(self, new_lr):
         torch_utils.change_lr(self.optimizer, new_lr)
 
-    def save(self, filename, epoch):
+    def save(self, filename):
         params = {
                 'model': self.model.state_dict(),
                 'config': self.opt,
-                'epoch': epoch
                 }
         try:
             torch.save(params, filename)

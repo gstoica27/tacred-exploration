@@ -7,13 +7,17 @@ from datetime import datetime
 import time
 import numpy as np
 import random
-import argparse
 from shutil import copyfile
 import torch
 import pickle
 import yaml
-import torch.nn as nn
-import torch.optim as optim
+# Ray Imports
+import ray
+from ray import tune
+from ray.tune import track
+from ray.tune.schedulers import AsyncHyperBandScheduler
+from ray.tune.utils import validate_save_restore
+from ray.tune.utils import pin_in_object_store, get_pinned_object
 
 from data.loader import DataLoader, map_to_ids
 from utils.kg_vocab import KGVocab
@@ -22,6 +26,9 @@ from utils import scorer, constant, helper
 from utils.vocab import Vocab
 from collections import defaultdict
 from configs.dict_with_attributes import AttributeDict
+
+# Initialize ray
+ray.init()
 
 def create_model_name(cfg_dict):
     top_level_name = 'NYT-Single'
@@ -140,6 +147,12 @@ test_batch = DataLoader(opt['data_dir'] + '/test_parsed.json',
                         evaluation=True,
                         kg_graph=train_batch.kg_graph,
                         rel_graph=train_batch.e1e2_to_rel)
+
+# Pin datasets to avoid ray object failure
+train_batch = pin_in_object_store(train_batch)
+dev_batch = pin_in_object_store(dev_batch)
+test_batch = pin_in_object_store(test_batch)
+
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model']['num_entities'] = len(constant.OBJ_NER_TO_ID) - 2
     cfg_dict['kg_loss']['model']['num_relations'] = len(constant.LABEL_TO_ID)
@@ -175,11 +188,37 @@ dev_f1_history = []
 current_lr = opt['lr']
 
 global_step = 0
-global_start_time = time.time()
 format_str = '{}: step {}/{} (epoch {}/{}), ({:.3f} sec/batch), lr: {:.6f}'
-max_steps = len(train_batch) * opt['num_epoch']
+max_steps = len(get_pinned_object(train_batch)) * opt['num_epoch']
 best_dev_metrics = defaultdict(lambda: -np.inf)
 test_metrics_at_best_dev = defaultdict(lambda: -np.inf)
+
+class RayTrainPALSTM(tune.Trainable):
+    def _setup(self, config):
+        self.config = config
+        self.model = RelationModel(config, emb_matrix=emb_matrix)
+        self.global_step = 0
+        self.current_lr = config.get('lr', .3)
+        self.lr_decay = config.get('lr_decay', .9)
+        self.dev_f1_history = []
+
+    def train_epoch(self, train_data):
+        unpinned_train_data = get_pinned_object(train_data)
+        train_loss = 0
+        for i, batch in enumerate(unpinned_train_data):
+        # for i in range(0):
+            start_time = time.time()
+            self.global_step += 1
+            losses = model.update(batch)
+            train_loss += losses['cumulative']
+            if self.global_step % opt['log_step'] == 0:
+                duration = time.time() - start_time
+                print_info = format_str.format(datetime.now(), self.global_step, max_steps, epoch,
+                        opt['num_epoch'], duration, current_lr)
+                loss_prints = ''
+                for loss_type, loss in losses.items():
+                    loss_prints += ', {}: {:.6f}'.format(loss_type, loss)
+                print(print_info + loss_prints)
 
 # start training
 for epoch in range(1, opt['num_epoch']+1):
