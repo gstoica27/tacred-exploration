@@ -31,7 +31,7 @@ attn: False # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 kg_loss:
-  model: 'ConvE'
-  label_smoothing: .1
-  lambda: 1.
-  vocab_path: '/Volumes/External HDD/dataset/tacred/data/json'
+#  model: 'ConvE'
+#  label_smoothing: .1
+#  lambda: 1.
+#  vocab_path: '/Volumes/External HDD/dataset/tacred/data/json'

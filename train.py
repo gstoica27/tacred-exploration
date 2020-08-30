@@ -44,6 +44,33 @@ def add_encoding_config(cfg_dict):
         cfg_dict['encoding_dim'] = cfg_dict['hidden_dim']
         cfg_dict['bidirectional_encoding'] = False
 
+def create_model_name(cfg_dict):
+    top_level_name = 'TACRRED-{}'.format(cfg_dict['data_type'])
+    approach_type = 'PALSTM-JRRELP' if cfg_dict['kg_loss'] is not None else 'PA-LSTM'
+    main_name = '{}-{}-{}-{}'.format(
+        cfg_dict['optim'], cfg_dict['lr'], cfg_dict['lr_decay'],
+        cfg_dict['seed']
+    )
+    if cfg_dict['kg_loss'] is not None:
+        kglp_task_cfg = cfg_dict['kg_loss']
+        kglp_task = '{}-{}-{}'.format(
+            kglp_task_cfg['label_smoothing'], kglp_task_cfg['lambda'],
+             #kglp_task_cfg['without_no_relation'],
+            # kglp_task_cfg['lambda_scalar'],
+            kglp_task_cfg['negative_sampling_prop']
+        )
+        lp_cfg = cfg_dict['kg_loss']['model']
+        kglp_name = '{}-{}-{}-{}-{}-{}-{}'.format(
+            lp_cfg['input_drop'], lp_cfg['hidden_drop'],
+            lp_cfg['feat_drop'], lp_cfg['rel_emb_dim'],
+            lp_cfg['use_bias'], lp_cfg['filter_channels'],
+            lp_cfg['stride']
+        )
+
+        aggregate_name = os.path.join(top_level_name, approach_type, main_name, kglp_task, kglp_name)
+    else:
+        aggregate_name = os.path.join(top_level_name, approach_type, main_name)
+    return aggregate_name
 
 cwd = os.getcwd()
 on_server = 'Desktop' not in cwd
@@ -94,11 +121,11 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'], opt, vocab, evaluation=False, kg_vocab=kg_vocab)
-dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
-test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+train_batch = DataLoader(opt['data_dir'] + f'/train_{opt["data_type"]}.json', opt['batch_size'], opt, vocab, evaluation=False, kg_vocab=kg_vocab)
+dev_batch = DataLoader(opt['data_dir'] + f'/dev_{opt["data_type"]}.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+test_batch = DataLoader(opt['data_dir'] + f'/test_{opt["data_type"]}.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
 
-model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
+model_id = create_model_name(opt)
 model_save_dir = os.path.join(opt['save_dir'], model_id)
 opt['model_save_dir'] = model_save_dir
 helper.ensure_dir(model_save_dir, verbose=True)
