@@ -333,7 +333,7 @@ class PositionAwareRNN(nn.Module):
             sentence_kg_preds = self.kg_model.loss(sentence_kg_preds, labels)
 
             if self.opt['kg_loss']['exclude_no_relation']:
-                is_no_relation = torch.eq(labels, constant.NO_RELATION_ID).eq(0).unsqueeze(-1).type(torch.float)
+                is_no_relation = torch.eq(labels, constant.NO_RELATION_ID).eq(0).type(torch.float)
                 total_positive_relations = is_no_relation.sum()
                 relation_kg_loss = (relation_kg_loss * is_no_relation).sum() / total_positive_relations
                 sentence_kg_preds *= (sentence_kg_preds * is_no_relation).sum() / total_positive_relations

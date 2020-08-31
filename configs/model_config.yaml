@@ -37,11 +37,15 @@ kg_loss:
   model: 'ConvE'
   label_smoothing: .1
   lambda: 1.
-  lambda_decay: .9
-  lambda_update_gap: 1 # number of epochs between lambda updates
+  lambda_decay: 1.
+#  lambda_update_gap: 1 # number of epochs between lambda updates
   freeze_embeddings: False
-  negative_sampling_prop: .8
+  exclude_no_relation: True
+  exclude_cyclic_loss: False
+  exclude_lp_loss: False
+  negative_sampling_prop:
 relation_masking: False
 no_relation_masking: False
 negative_factor:
 positive_factor:
+entropy_reg:
