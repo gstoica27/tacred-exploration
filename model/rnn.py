@@ -330,13 +330,13 @@ class PositionAwareRNN(nn.Module):
             sentence_kg_preds = self.kg_model.forward(subject_embs, final_hidden, e2s)
             # Compute each loss term
             relation_kg_loss = self.kg_model.loss(relation_kg_preds, labels)
-            sentence_kg_preds = self.kg_model.loss(sentence_kg_preds, labels)
+            sentence_kg_loss = self.kg_model.loss(sentence_kg_preds, labels)
 
             if self.opt['kg_loss']['exclude_no_relation']:
                 is_no_relation = torch.eq(labels, constant.NO_RELATION_ID).eq(0).type(torch.float)
                 total_positive_relations = is_no_relation.sum()
                 relation_kg_loss = (relation_kg_loss * is_no_relation).sum() / total_positive_relations
-                sentence_kg_preds *= (sentence_kg_preds * is_no_relation).sum() / total_positive_relations
+                sentence_kg_loss = (sentence_kg_loss * is_no_relation).sum() / total_positive_relations
 
             elif self.opt['kg_loss']['negative_sampling_prop'] is not None:
                 prop = self.opt['kg_loss']['negative_sampling_prop']
@@ -346,15 +346,15 @@ class PositionAwareRNN(nn.Module):
                 loss_mask = (mask + labels).eq(0).eq(0)
                 total_nonzero = loss_mask.sum()
                 relation_kg_loss *= loss_mask
-                sentence_kg_preds *= loss_mask
+                sentence_kg_loss *= loss_mask
                 relation_kg_loss = relation_kg_loss.sum() / total_nonzero
-                sentence_kg_preds = sentence_kg_preds.sum() / total_nonzero
+                sentence_kg_loss = sentence_kg_loss.sum() / total_nonzero
             else:
                 total_nonzero = labels.shape[0] * labels.shape[1]
                 relation_kg_loss = relation_kg_loss.sum() / total_nonzero
-                sentence_kg_preds = sentence_kg_preds.sum() / total_nonzero
+                sentence_kg_loss = sentence_kg_loss.sum() / total_nonzero
 
-            supplemental_losses = {'relation':relation_kg_loss, 'sentence': sentence_kg_preds}
+            supplemental_losses = {'relation':relation_kg_loss, 'sentence': sentence_kg_loss}
             # Remove gradient from flowing to the relation embeddings in the main loss calculation
             logits = torch.mm(final_hidden, self.rel_emb.weight.transpose(1, 0))
             #logits += self.class_bias
