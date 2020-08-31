@@ -47,17 +47,19 @@ def add_encoding_config(cfg_dict):
 
 def create_model_name(cfg_dict):
     top_level_name = 'SemEval'
-    approach_type = 'PALSTM-JRRELP' if cfg_dict['kg_loss'] is not None else 'CGCN'
+    approach_type = 'PALSTM-JRRELP' if cfg_dict['kg_loss'] is not None else 'PALSTM'
     main_name = '{}-{}-{}-{}'.format(
         cfg_dict['optim'], cfg_dict['lr'], cfg_dict['lr_decay'],
         cfg_dict['seed']
     )
     if cfg_dict['kg_loss'] is not None:
         kglp_task_cfg = cfg_dict['kg_loss']
-        kglp_task = '{}-{}-{}-{}'.format(
+        kglp_task = '{}-{}-{}-{}-{}-{}-{}'.format(
             kglp_task_cfg['label_smoothing'], kglp_task_cfg['lambda'],
-            kglp_task_cfg['freeze_embeddings'], #kglp_task_cfg['without_no_relation'],
-            # kglp_task_cfg['lambda_scalar'],
+            kglp_task_cfg['freeze_embeddings'],
+            kglp_task_cfg['exclude_cyclic_loss'],
+            kglp_task_cfg['exclude_lp_loss'],
+            kglp_task_cfg['exclude_no_relation'],
             kglp_task_cfg['negative_sampling_prop']
         )
         lp_cfg = cfg_dict['kg_loss']['model']

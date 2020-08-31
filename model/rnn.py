@@ -98,8 +98,8 @@ class RelationModel(object):
         cumulative_loss = main_loss
         losses['main'] = main_loss.data.item()
         if self.opt['kg_loss'] is not None:
-            relation_kg_loss = supplemental_losses['relation']
-            sentence_kg_loss = supplemental_losses['sentence']
+            relation_kg_loss = supplemental_losses['relation'] * (1. - self.opt['kg_loss']['exclude_cyclic_loss'])
+            sentence_kg_loss = supplemental_losses['sentence'] * (1. - self.opt['kg_loss']['exclude_lp_loss'])
             cumulative_loss += (relation_kg_loss + sentence_kg_loss) * self.lambda_term
             # losses.update(supplemental_losses)
             relation_kg_loss_value = relation_kg_loss.data.item()
@@ -332,7 +332,13 @@ class PositionAwareRNN(nn.Module):
             relation_kg_loss = self.kg_model.loss(relation_kg_preds, labels)
             sentence_kg_preds = self.kg_model.loss(sentence_kg_preds, labels)
 
-            if self.opt['kg_loss']['negative_sampling_prop'] is not None:
+            if self.opt['kg_loss']['exclude_no_relation']:
+                is_no_relation = torch.eq(labels, constant.NO_RELATION_ID).eq(0).unsqueeze(-1).type(torch.float)
+                total_positive_relations = is_no_relation.sum()
+                relation_kg_loss = (relation_kg_loss * is_no_relation).sum() / total_positive_relations
+                sentence_kg_preds *= (sentence_kg_preds * is_no_relation).sum() / total_positive_relations
+
+            elif self.opt['kg_loss']['negative_sampling_prop'] is not None:
                 prop = self.opt['kg_loss']['negative_sampling_prop']
                 mask = torch.empty_like(relation_kg_loss).bernoulli(prop)
                 if self.opt['cuda']:
@@ -341,10 +347,12 @@ class PositionAwareRNN(nn.Module):
                 total_nonzero = loss_mask.sum()
                 relation_kg_loss *= loss_mask
                 sentence_kg_preds *= loss_mask
+                relation_kg_loss = relation_kg_loss.sum() / total_nonzero
+                sentence_kg_preds = sentence_kg_preds.sum() / total_nonzero
             else:
                 total_nonzero = labels.shape[0] * labels.shape[1]
-            relation_kg_loss = relation_kg_loss.sum() / total_nonzero
-            sentence_kg_preds = sentence_kg_preds.sum() / total_nonzero
+                relation_kg_loss = relation_kg_loss.sum() / total_nonzero
+                sentence_kg_preds = sentence_kg_preds.sum() / total_nonzero
 
             supplemental_losses = {'relation':relation_kg_loss, 'sentence': sentence_kg_preds}
             # Remove gradient from flowing to the relation embeddings in the main loss calculation
