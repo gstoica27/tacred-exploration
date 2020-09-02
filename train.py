@@ -134,15 +134,13 @@ dev_batch = DataLoader(opt['data_dir'] + '/dev.json',
                        opt,
                        vocab,
                        evaluation=True,
-                       kg_graph=train_batch.kg_graph,
-                       rel_graph=train_batch.e1e2_to_rel)
+                       kg_graph=train_batch.kg_graph)
 test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         opt['batch_size'],
                         opt,
                         vocab,
                         evaluation=True,
-                        kg_graph=train_batch.kg_graph,
-                        rel_graph=train_batch.e1e2_to_rel)
+                        kg_graph=train_batch.kg_graph)
 if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
     cfg_dict['kg_loss']['model']['num_relations'] = len(constant.LABEL_TO_ID)
