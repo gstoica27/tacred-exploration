@@ -39,8 +39,8 @@ kg_loss:
   lambda: 1.
   freeze_embeddings: False
   vocab_path: '/Volumes/External HDD/dataset/tacred/data/json'
-  without_observed: True
-  without_verification: False
+  without_observed: False
+  without_verification: True
   without_no_relation: True
 relation_masking: False
 no_relation_masking: False
