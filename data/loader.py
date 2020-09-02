@@ -57,6 +57,7 @@ class DataLoader(object):
 
         with open(filename) as infile:
             data = json.load(infile)
+        print('Data Loaded from: {} | Size: {}'.format(infile, len(data)))
         self.raw_data = data
         data = self.preprocess(data, vocab, opt)
         # shuffle for training
@@ -73,7 +74,7 @@ class DataLoader(object):
         # chunk into batches
         data = self.create_batches(data=data, batch_size=batch_size)
         self.data = data
-        print("{} batches created for {}, batch size: {}".format(len(data), len(data[0][0]), filename))
+        print("{} batches created for {}, batch size: {}".format(len(data), len(data[0]['base']), filename))
 
     def downsample_data(self, data, factor=4.0, partition='negatives'):
         if partition == 'negatives':
