@@ -1,5 +1,5 @@
-data_dir: '/home/scratch/gis/datasets/tacred/data/json'
-vocab_dir: '/home/scratch/gis/datasets/tacred-relation_data'
+data_dir: '/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-trees/dataset/full_tacred/tacred/data/json'
+vocab_dir: '/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-trees/dataset/full_tacred/tacred/data/vocab'
 test_save_dir: '/home/scratch/gis/tacred_test_performances'
 save_dir: '/home/scratch/gis/saved_models'
 encoding_type: 'LSTM' # sentence encoding type: LSTM or BiLSTM
@@ -35,3 +35,6 @@ kg_loss:
   label_smoothing: .1
   lambda: 1.
   vocab_path: '/Volumes/External HDD/dataset/tacred/data/json'
+  without_observed: False
+  without_verification: False
+  without_no_relation: False

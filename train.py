@@ -44,6 +44,35 @@ def add_encoding_config(cfg_dict):
         cfg_dict['encoding_dim'] = cfg_dict['hidden_dim']
         cfg_dict['bidirectional_encoding'] = False
 
+def create_model_name(cfg_dict):
+    top_level_name = 'TACRED'
+    approach_type = 'PALSTM-JRRELP' if cfg_dict['kg_loss'] is not None else 'PALSTM'
+    main_name = '{}-{}-{}-{}'.format(
+        cfg_dict['optim'], cfg_dict['lr'], cfg_dict['lr_decay'],
+        cfg_dict['seed']
+    )
+    if cfg_dict['kg_loss'] is not None:
+        kglp_task_cfg = cfg_dict['kg_loss']
+        kglp_task = '{}-{}-{}-{}-{}-{}'.format(
+            kglp_task_cfg['label_smoothing'],
+            kglp_task_cfg['lambda'],
+            kglp_task_cfg['freeze_embeddings'],
+            kglp_task_cfg['without_observed'],
+            kglp_task_cfg['without_verification'],
+            kglp_task_cfg['without_no_relation']
+        )
+        lp_cfg = cfg_dict['kg_loss']['model']
+        kglp_name = '{}-{}-{}-{}-{}-{}-{}'.format(
+            lp_cfg['input_drop'], lp_cfg['hidden_drop'],
+            lp_cfg['feat_drop'], lp_cfg['embedding_shape1'],
+            lp_cfg['use_bias'], lp_cfg['filter_channels'],
+            lp_cfg['stride']
+        )
+
+        aggregate_name = os.path.join(top_level_name, approach_type, main_name, kglp_task, kglp_name)
+    else:
+        aggregate_name = os.path.join(top_level_name, approach_type, main_name)
+    return aggregate_name
 
 cwd = os.getcwd()
 on_server = 'Desktop' not in cwd
@@ -118,7 +147,7 @@ if cfg_dict['kg_loss'] is not None:
     cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
     cfg_dict['kg_loss']['model']['num_relations'] = len(constant.LABEL_TO_ID)
 
-model_id = opt['id'] if len(opt['id']) > 1 else '0' + opt['id']
+model_id = create_model_name(opt)
 model_save_dir = os.path.join(opt['save_dir'], model_id)
 opt['model_save_dir'] = model_save_dir
 helper.ensure_dir(model_save_dir, verbose=True)
