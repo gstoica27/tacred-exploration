@@ -121,9 +121,9 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + f'/train_{opt["data_type"]}.json', opt['batch_size'], opt, vocab, evaluation=False, kg_vocab=kg_vocab)
-dev_batch = DataLoader(opt['data_dir'] + f'/dev_{opt["data_type"]}.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
-test_batch = DataLoader(opt['data_dir'] + f'/test_{opt["data_type"]}.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+train_batch = DataLoader(opt['data_dir'] + f'/{opt["data_type"]}/train.json', opt['batch_size'], opt, vocab, evaluation=False, kg_vocab=kg_vocab)
+dev_batch = DataLoader(opt['data_dir'] + f'/{opt["data_type"]}/dev.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+test_batch = DataLoader(opt['data_dir'] + f'/{opt["data_type"]}/test.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
 
 model_id = create_model_name(opt)
 model_save_dir = os.path.join(opt['save_dir'], model_id)
