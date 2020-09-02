@@ -73,7 +73,7 @@ class DataLoader(object):
         # chunk into batches
         data = self.create_batches(data=data, batch_size=batch_size)
         self.data = data
-        print("{} batches created for {}".format(len(data), filename))
+        print("{} batches created for {}, batch size: {}".format(len(data), len(data[0]), filename))
 
     def downsample_data(self, data, factor=4.0, partition='negatives'):
         if partition == 'negatives':
