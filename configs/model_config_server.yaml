@@ -2,6 +2,9 @@ data_dir: '/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-tree
 vocab_dir: '/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-trees/dataset/full_tacred/tacred/data/vocab'
 test_save_dir: '/home/scratch/gis/tacred_test_performances'
 save_dir: '/home/scratch/gis/saved_models'
+dataset:
+  max_labels: 15
+  negative_sample_ratio: 2.
 encoding_type: 'LSTM' # sentence encoding type: LSTM or BiLSTM
 emb_dim: 300  # Word embedding dimension.
 ner_dim: 30 # NER embedding dimension.
