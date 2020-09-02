@@ -45,31 +45,43 @@ def add_encoding_config(cfg_dict):
         cfg_dict['bidirectional_encoding'] = False
 
 def create_model_name(cfg_dict):
-    top_level_name = 'TACRRED-{}'.format(cfg_dict['data_type'])
-    approach_type = 'PALSTM-JRRELP' if cfg_dict['kg_loss'] is not None else 'PA-LSTM'
+    top_level_name = 'TACRED'
+    approach_type = 'PALSTM-JRRELP' if cfg_dict['kg_loss'] is not None else 'PALSTM'
     main_name = '{}-{}-{}-{}'.format(
         cfg_dict['optim'], cfg_dict['lr'], cfg_dict['lr_decay'],
         cfg_dict['seed']
     )
+
+    base_params = ['emb_dim', 'ner_dim', 'pos_dim', 'hidden_dim', 'attn_dim',
+                   'pe_dim', 'num_layers', 'dropout', 'word_dropout', 'encoding_type', 'attn']
+    main_params =''
+    for base_param in base_params:
+        if main_params == '':
+            main_params += f'{base_param}'
+        else:
+            main_params += f'-{base_param}'
+
     if cfg_dict['kg_loss'] is not None:
         kglp_task_cfg = cfg_dict['kg_loss']
-        kglp_task = '{}-{}-{}'.format(
-            kglp_task_cfg['label_smoothing'], kglp_task_cfg['lambda'],
-             #kglp_task_cfg['without_no_relation'],
-            # kglp_task_cfg['lambda_scalar'],
-            kglp_task_cfg['negative_sampling_prop']
+        kglp_task = '{}-{}-{}-{}-{}-{}'.format(
+            kglp_task_cfg['label_smoothing'],
+            kglp_task_cfg['lambda'],
+            kglp_task_cfg['freeze_embeddings'],
+            kglp_task_cfg['without_observed'],
+            kglp_task_cfg['without_verification'],
+            kglp_task_cfg['without_no_relation']
         )
         lp_cfg = cfg_dict['kg_loss']['model']
         kglp_name = '{}-{}-{}-{}-{}-{}-{}'.format(
             lp_cfg['input_drop'], lp_cfg['hidden_drop'],
-            lp_cfg['feat_drop'], lp_cfg['rel_emb_dim'],
+            lp_cfg['feat_drop'], lp_cfg['embedding_shape1'],
             lp_cfg['use_bias'], lp_cfg['filter_channels'],
             lp_cfg['stride']
         )
 
-        aggregate_name = os.path.join(top_level_name, approach_type, main_name, kglp_task, kglp_name)
+        aggregate_name = os.path.join(top_level_name, approach_type, main_name, main_params, kglp_task, kglp_name)
     else:
-        aggregate_name = os.path.join(top_level_name, approach_type, main_name)
+        aggregate_name = os.path.join(top_level_name, approach_type, main_name, main_params)
     return aggregate_name
 
 cwd = os.getcwd()
