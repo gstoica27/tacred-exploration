@@ -57,9 +57,9 @@ def create_model_name(cfg_dict):
     main_params =''
     for base_param in base_params:
         if main_params == '':
-            main_params += f'{base_param}'
+            main_params += f'{cfg_dict[base_param]}'
         else:
-            main_params += f'-{base_param}'
+            main_params += f'-{cfg_dict[base_param]}'
 
     if cfg_dict['kg_loss'] is not None:
         kglp_task_cfg = cfg_dict['kg_loss']
