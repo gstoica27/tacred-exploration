@@ -141,8 +141,10 @@ test_batch = DataLoader(opt['data_dir'] + '/test.json',
                         vocab,
                         evaluation=True,
                         kg_graph=train_batch.kg_graph)
+
+
 if cfg_dict['kg_loss'] is not None:
-    cfg_dict['kg_loss']['model']['num_entities'] = len(train_batch.entities)
+    cfg_dict['kg_loss']['model']['num_entities'] = len(constant.SUBJ_NER_TO_ID) + len(constant.OBJ_NER_TO_ID) - 4
     cfg_dict['kg_loss']['model']['num_relations'] = len(constant.LABEL_TO_ID)
 
 model_id = create_model_name(opt)
