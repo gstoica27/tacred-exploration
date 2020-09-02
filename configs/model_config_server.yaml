@@ -39,3 +39,7 @@ kg_loss:
   without_observed: True
   without_verification: False
   without_no_relation: True
+relation_masking: False
+no_relation_masking: False
+negative_factor:
+positive_factor:
