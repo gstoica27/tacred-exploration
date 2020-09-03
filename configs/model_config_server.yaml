@@ -1,7 +1,10 @@
-data_dir: '/home/scratch/gis/datasets/tacred/data/json'
-vocab_dir: '/home/scratch/gis/datasets/tacred-relation_data'
-test_save_dir: '/home/scratch/gis/tacred_test_performances'
-save_dir: '/home/scratch/gis/saved_models'
+data_dir: 'dataset/semeval/data/json'
+vocab_dir: 'dataset/semeval/data/vocab'
+test_save_dir: 'semeval_test_performances'
+save_dir: 'saved_models'
+dataset:
+  max_labels: 15
+  negative_sample_ratio: 2.
 encoding_type: 'LSTM' # sentence encoding type: LSTM or BiLSTM
 emb_dim: 300  # Word embedding dimension.
 ner_dim: 30 # NER embedding dimension.
@@ -10,28 +13,40 @@ hidden_dim: 300 # RNN hidden state size.
 num_layers: 2 # Num of RNN layers.
 dropout: .5 # Input and RNN dropout rate.
 word_dropout: .04 # The rate at which randomly set a word to UNK.
+word_emb_dropout: 0.
 topn: 1e10  # Only finetune top N embeddings.
 lower: False  # Lowercase all words.
-lr: 1.0 # Applies to SGD and Adagrad
+lr: 1. # Applies to SGD and Adagrad
 lr_decay: 0.9
 optim: 'sgd'  # sgd, adagrad, adam or adamax.
-num_epoch: 30 # number of epochs
+num_epoch: 50 # number of epochs
 batch_size: 50
 max_grad_norm: 5.0  # Gradient Clipping.
-log_step: 1  # Print log every k steps.
+log_step: 20  # Print log every k steps.
 log:  'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
-id: 'joint-re-lp'  # Model ID under which to save models.
-info: ''  # Optional info for the experiment.
+#id: 'PALSTM-JRRELP-.1-1.-1.-F-F-F-300' # Model ID under which to save models.
+info: ''  # Optional info.or the experiment.
 seed: 1234  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
 cuda: True
 cpu: True # Ignore CUDA.
-attn: False # Use attention layer.
+attn: True # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 kg_loss:
   model: 'ConvE'
   label_smoothing: .1
   lambda: 1.
-  vocab_path: '/Volumes/External HDD/dataset/tacred/data/json'
+  lambda_decay: 1.
+#  lambda_update_gap: 1 # number of epochs between lambda updates
+  freeze_embeddings: False
+  exclude_no_relation: False
+  exclude_cyclic_loss: False
+  exclude_lp_loss: False
+  negative_sampling_prop:
+relation_masking: False
+no_relation_masking: False
+negative_factor:
+positive_factor:
+entropy_reg:
