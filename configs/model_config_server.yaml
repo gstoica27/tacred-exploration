@@ -6,8 +6,8 @@ encoding_type: 'LSTM' # sentence encoding type: LSTM or BiLSTM
 emb_dim: 300  # Word embedding dimension.
 ner_dim: 30 # NER embedding dimension.
 pos_dim: 30 # POS embedding dimension.
-hidden_dim: 150 # RNN hidden state size.
-num_layers: 2 # Num of RNN layers.
+hidden_dim: 300 # RNN hidden state size.
+num_layers: 3 # Num of RNN layers.
 dropout: .5 # Input and RNN dropout rate.
 word_dropout: .04 # The rate at which randomly set a word to UNK.
 topn: 1e10  # Only finetune top N embeddings.
