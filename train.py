@@ -45,7 +45,7 @@ def add_encoding_config(cfg_dict):
         cfg_dict['bidirectional_encoding'] = False
 
 def create_model_name(cfg_dict):
-    top_level_name = 'TACRED'
+    top_level_name = 'TACRED-{}'.format(cfg_dict['data_type'].upper())
     approach_type = 'PALSTM-JRRELP' if cfg_dict['kg_loss'] is not None else 'PALSTM'
     main_name = '{}-{}-{}-{}'.format(
         cfg_dict['optim'], cfg_dict['lr'], cfg_dict['lr_decay'],
