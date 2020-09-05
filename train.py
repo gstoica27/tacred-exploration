@@ -45,7 +45,7 @@ def add_encoding_config(cfg_dict):
         cfg_dict['bidirectional_encoding'] = False
 
 def create_model_name(cfg_dict):
-    top_level_name = 'TACRED-{}'.format(cfg_dict['data_type'].upper())
+    top_level_name = 'TACRED-{}-{}'.format(cfg_dict['data_type'].upper(), cfg_dict['version'].upper())
     approach_type = 'PALSTM-JRRELP' if cfg_dict['kg_loss'] is not None else 'PALSTM'
     main_name = '{}-{}-{}-{}'.format(
         cfg_dict['optim'], cfg_dict['lr'], cfg_dict['lr_decay'],
@@ -133,9 +133,9 @@ opt['obj_idxs'] = vocab.obj_idxs
 
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + f'/{opt["data_type"]}/train.json', opt['batch_size'], opt, vocab, evaluation=False, kg_vocab=kg_vocab)
-dev_batch = DataLoader(opt['data_dir'] + f'/{opt["data_type"]}/dev.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
-test_batch = DataLoader(opt['data_dir'] + f'/{opt["data_type"]}/test.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+train_batch = DataLoader(opt['data_dir'] + f'/{opt["data_type"]}/train_{opt["version"]}.json', opt['batch_size'], opt, vocab, evaluation=False, kg_vocab=kg_vocab)
+dev_batch = DataLoader(opt['data_dir'] + f'/{opt["data_type"]}/dev_{opt["version"]}.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
+test_batch = DataLoader(opt['data_dir'] + f'/{opt["data_type"]}/test_{opt["version"]}.json', opt['batch_size'], opt, vocab, evaluation=True, kg_vocab=kg_vocab)
 
 model_id = create_model_name(opt)
 model_save_dir = os.path.join(opt['save_dir'], model_id)

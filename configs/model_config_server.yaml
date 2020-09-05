@@ -31,6 +31,7 @@ attn: True # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 data_type: unpatched
+version: full
 kg_loss:
 #  model: 'ConvE'
  # label_smoothing: .1
