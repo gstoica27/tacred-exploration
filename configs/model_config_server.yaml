@@ -9,7 +9,7 @@ encoding_type: 'LSTM' # sentence encoding type: LSTM or BiLSTM
 emb_dim: 300  # Word embedding dimension.
 ner_dim: 30 # NER embedding dimension.
 pos_dim: 30 # POS embedding dimension.
-hidden_dim: 300 # RNN hidden state size.
+hidden_dim: 200 # RNN hidden state size.
 num_layers: 2 # Num of RNN layers.
 dropout: .5 # Input and RNN dropout rate.
 word_dropout: .04 # The rate at which randomly set a word to UNK.
@@ -34,14 +34,14 @@ attn: False # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
 kg_loss:
-  model: 'ConvE'
-  label_smoothing: .1
-  lambda: .5
-  freeze_embeddings: False
-  vocab_path: '/Volumes/External HDD/dataset/tacred/data/json'
-  without_observed: False
-  without_verification: False
-  without_no_relation: True
+#  model: 'ConvE'
+#  label_smoothing: .1
+#  lambda: .5
+#  freeze_embeddings: False
+#  vocab_path: '/Volumes/External HDD/dataset/tacred/data/json'
+#  without_observed: False
+#  without_verification: False
+#  without_no_relation: True
 relation_masking: False
 no_relation_masking: False
 negative_factor:
