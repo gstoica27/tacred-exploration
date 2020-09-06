@@ -1,4 +1,4 @@
-data_dir: '/Volumes/External HDD/dataset/tacred/data/json'
+data_dir: '/Volumes/External HDD/dataset/tacred/data/json/relabeled'
 vocab_dir: '/Volumes/External HDD/dataset/tacred/data/vocab'
 test_save_dir: '/Volumes/External HDD/dataset/tacred/test_perfs'
 save_dir: '/Volumes/External HDD/dataset/tacred/saved_models'
@@ -29,11 +29,13 @@ cpu: True # Ignore CUDA.
 attn: True # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
+data_type: patched
+version: full
 link_prediction:
-  model: 'ConvE'
-  label_smoothing: .1
-  lambda: .5
-  freeze_network: False
-  without_observed: False
-  without_verification: False
-  without_no_relation: True
+#  model: 'ConvE'
+#  label_smoothing: .1
+#  lambda: .5
+#  freeze_network: False
+#  without_observed: False
+#  without_verification: False
+#  without_no_relation: True

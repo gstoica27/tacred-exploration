@@ -1,5 +1,5 @@
-data_dir: '/home/scratch/gis/datasets/tacred/data/json'
-vocab_dir: '/home/scratch/gis/datasets/tacred/data/vocab'
+data_dir: '/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-trees/dataset/full_tacred/tacred/data/json/relabeled'
+vocab_dir: ''/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-trees/dataset/full_tacred/tacred/data/vocab'
 test_save_dir: '/home/scratch/gis/tacred_test_performances'
 save_dir: '/home/scratch/gis/saved_models'
 emb_dim: 300  # Word embedding dimension.
@@ -29,11 +29,13 @@ cpu: False # Ignore CUDA.
 attn: True # Use attention layer.
 attn_dim: 200 # Attention size.
 pe_dim: 30  # Position encoding dimension.
+data_type: patched
+version: full
 link_prediction:
-  model: 'ConvE'
-  label_smoothing: .1
-  lambda: .5
-  freeze_network: False
-  without_observed: False
-  without_verification: False
-  without_no_relation: False
+#  model: 'ConvE'
+#  label_smoothing: .1
+#  lambda: .5
+#  freeze_network: False
+#  without_observed: False
+#  without_verification: False
+#  without_no_relation: False
