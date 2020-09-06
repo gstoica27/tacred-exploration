@@ -27,41 +27,36 @@ def generate_param_list(params, cfg_dict, prefix=''):
             param_list += f'-{cfg_dict[param]}'
     return param_list
 
-def create_model_name(cfg_dict):
-    top_level_name = 'TACRED-{}-{}'.format(cfg_dict['data_type'].upper(), cfg_dict['version'].upper())
-    approach_type = 'CGCN-JRRELP' if cfg_dict['link_prediction'] is not None else 'CGCN'
-    optim_name = ['optim', 'lr', 'lr_decay', 'conv_l2', 'pooling_l2', 'max_grad_norm', 'seed']
-    base_params = ['emb_dim', 'ner_dim', 'pos_dim', 'hidden_dim', 'num_layers', 'mlp_layers',
-                   'input_dropout', 'gcn_dropout', 'word_dropout', 'lower', 'prune_k', 'no_adj']
+def create_model_name(opt):
+    top_level_name = 'TACRED-{}-{}'.format(opt['data_type'], opt['version'].upper())
+    approach_type = 'PALSTM-JRRELP' if opt['link_prediction'] is not None else 'PALSTM'
+    main_name = '{}-{}-{}-{}'.format(
+        opt['optim'], opt['lr'], opt['lr_decay'],
+        opt['seed']
+    )
+    if opt['link_prediction'] is not None:
+        kglp_task_cfg = opt['link_prediction']
+        kglp_task = '{}-{}-{}-{}-{}-{}'.format(
+            kglp_task_cfg['label_smoothing'],
+            kglp_task_cfg['lambda'],
+            kglp_task_cfg['freeze_network'],
+            kglp_task_cfg['without_observed'],
+            kglp_task_cfg['without_verification'],
+            kglp_task_cfg['without_no_relation']
+        )
+        lp_cfg = opt['link_prediction']['model']
+        kglp_name = '{}-{}-{}-{}-{}-{}-{}'.format(
+            lp_cfg['input_drop'], lp_cfg['hidden_drop'],
+            lp_cfg['feat_drop'], lp_cfg['rel_emb_dim'],
+            lp_cfg['use_bias'], lp_cfg['filter_channels'],
+            lp_cfg['stride']
+        )
 
-    param_name_list = [top_level_name, approach_type]
-
-    optim_name = generate_param_list(optim_name, cfg_dict, prefix='optim')
-    param_name_list.append(optim_name)
-
-    main_name = generate_param_list(base_params, cfg_dict, prefix='base')
-    param_name_list.append(main_name)
-
-    if cfg_dict['rnn']:
-        rnn_params = ['rnn_hidden', 'rnn_layers', 'rnn_dropout']
-        rnn_name = generate_param_list(rnn_params, cfg_dict, prefix='rnn')
-        param_name_list.append(rnn_name)
-
-    if cfg_dict['link_prediction'] is not None:
-        kglp_task_cfg = cfg_dict['link_prediction']
-        jrrelp_params = ['label_smoothing', 'lambda', 'free_network',
-                       'with_relu', 'without_observed',
-                       'without_verification', 'without_no_relation']
-        jrrelp_name = generate_param_list(jrrelp_params, kglp_task_cfg, prefix='jrrelp')
-        param_name_list.append(jrrelp_name)
-
-        kglp_params = ['input_drop', 'hidden_drop', 'feat_drop', 'rel_emb_dim', 'use_bias', 'filter_channels', 'stride']
-        lp_cfg = cfg_dict['link_prediction']['model']
-        kglp_name = generate_param_list(kglp_params, lp_cfg, prefix='kglp')
-        param_name_list.append(kglp_name)
-
-    aggregate_name = os.path.join(*param_name_list)
+        aggregate_name = os.path.join(top_level_name, approach_type, main_name, kglp_task, kglp_name)
+    else:
+        aggregate_name = os.path.join(top_level_name, approach_type, main_name)
     return aggregate_name
+
 
 parser = argparse.ArgumentParser()
 # parser.add_argument('model_dir', type=str, help='Directory of the model.')
