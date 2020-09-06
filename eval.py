@@ -93,6 +93,7 @@ with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 
 opt = cfg_dict
+opt['id'] = create_model_name(opt)
 #opt = vars(args)
 torch.manual_seed(opt['seed'])
 np.random.seed(opt['seed'])
@@ -110,8 +111,6 @@ print("Loading model from {}".format(model_file))
 opt = torch_utils.load_config(model_file)
 model = RelationModel(opt)
 model.load(model_file)
-model_load_dir = opt['save_dir'] + '/' + opt['id']
-print(model_load_dir)
 # load vocab
 vocab_file = opt['vocab_dir'] + '/vocab.pkl'
 vocab = Vocab(vocab_file, load=True)
