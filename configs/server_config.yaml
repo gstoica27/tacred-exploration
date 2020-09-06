@@ -1,5 +1,5 @@
 data_dir: '/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-trees/dataset/full_tacred/tacred/data/json/relabeled'
-vocab_dir: ''/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-trees/dataset/full_tacred/tacred/data/vocab'
+vocab_dir: '/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-trees/dataset/full_tacred/tacred/data/vocab'
 test_save_dir: '/home/scratch/gis/tacred_test_performances'
 save_dir: '/home/scratch/gis/saved_models'
 emb_dim: 300  # Word embedding dimension.
@@ -22,7 +22,7 @@ log:  'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
 id: 'joint-re-lp'  # Model ID under which to save models.
 info: ''  # Optional info for the experiment.
-seed: 1234  # random seed
+seed: 3  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
 cuda: True
 cpu: False # Ignore CUDA.
