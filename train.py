@@ -31,7 +31,7 @@ def add_kg_model_params(opt, cwd):
     return params
 
 def create_model_name(opt):
-    top_level_name = 'TACRED'
+    top_level_name = 'SemEval'
     approach_type = 'PALSTM-JRRELP' if opt['link_prediction'] is not None else 'PALSTM'
     main_name = '{}-{}-{}-{}'.format(
         opt['optim'], opt['lr'], opt['lr_decay'],
@@ -91,7 +91,7 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 opt['object_indices'] = vocab.obj_idxs
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'], opt, vocab, evaluation=False)
+train_batch = DataLoader(opt['data_dir'] + '/train_sampled.json', opt['batch_size'], opt, vocab, evaluation=False)
 dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vocab, evaluation=True)
 test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'], opt, vocab, evaluation=True)
 

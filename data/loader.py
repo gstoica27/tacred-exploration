@@ -88,7 +88,10 @@ class DataLoader(object):
             l = len(tokens)
             subj_positions = get_positions(d['subj_start'], d['subj_end'], l)
             obj_positions = get_positions(d['obj_start'], d['obj_end'], l)
-            relation = constant.LABEL_TO_ID[d['relation']]
+            relation = d['relation']
+            if '(e2,e1)' in relation or '(e1,e2)' in relation:
+                relation = relation[:-7]
+            relation = constant.LABEL_TO_ID[relation]
             processed_data['base'] += [(tokens, pos, ner, deprel, subj_positions, obj_positions, relation)]
             # KG Creation
             subject_id = vocab.word2id[subject_type]
