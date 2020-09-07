@@ -69,7 +69,7 @@ class RelationModel(object):
         if self.opt['link_prediction'] is not None:
             kglp_loss = supplemental_losses['kglp']
             verification_loss = supplemental_losses['verification']
-            loss += (kglp_loss + verification_loss) * self.opt['link_prediction']['lambda']
+            loss += (kglp_loss * self.opt['link_prediction']['lambda'] + verification_loss * self.opt['link_prediction']['lambda2'])
             kglp_loss_value = kglp_loss.data.item()
             verification_loss_value = verification_loss.data.item()
             losses.update({'kglp': kglp_loss_value, 'verification': verification_loss_value})
