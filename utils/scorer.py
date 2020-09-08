@@ -143,7 +143,63 @@ category_maps = {
         'org:parents',
         'org:subsidiaries',
     },
-
+    'org:members': {
+        'org:members',
+        'org:subsidiaries'
+    },
+    'org:member_of': {
+        'org:member_of',
+        'org:parents'
+    },
+    'per:residence': {
+        'per:countries_of_residence',
+        'per:cities_of_residence',
+        'per:stateorprovinces_of_residence'
+    },
+    'per:death': {
+        'per:city_of_death',
+        'per:city_of_birth',
+        'per:stateorprovince_of_death',
+    },
+    'per:birth': {
+        'per:stateorprovince_of_birth',
+        'per:country_of_death',
+        'per:country_of_birth',
+    },
+    'org:loc': {
+        'org:country_of_headquarters',
+        'org:city_of_headquarters',
+        'org:stateorprovince_of_headquarters',
+        'org:other_location_of_headquarters',
+    },
+    'rest': {
+        'org:alternate_names',
+        'org:dissolved',
+        'org:founded',
+        'org:founded_by',
+        'org:number_of_employees/members',
+        'org:political/religious_affiliation',
+        'org:shareholders',
+        'org:top_members/employees',
+        'org:website',
+        'per:age',
+        'per:alternate_names',
+        'per:cause_of_death',
+        'per:charges',
+        'per:children',
+        'per:date_of_birth',
+        'per:date_of_death',
+        'per:employee_of',
+        'per:identity',
+        'per:origin',
+        'per:other_family',
+        'per:parents',
+        'per:religion',
+        'per:schools_attended',
+        'per:siblings',
+        'per:spouse',
+        'per:title'
+    }
 }
 
 NO_RELATION = "no_relation"
@@ -162,7 +218,9 @@ def score(key, prediction, verbose=False):
     correct_by_relation = Counter()
     guessed_by_relation = Counter()
     gold_by_relation = Counter()
-
+    misclassified_indices = []
+    correct_indices = []
+    wrong_predictions = []
     # Loop over the data to compute a score
     for row in range(len(key)):
         gold = key[row]
@@ -179,6 +237,11 @@ def score(key, prediction, verbose=False):
             gold_by_relation[gold] += 1
             if gold == guess:
                 correct_by_relation[guess] += 1
+        if gold == guess:
+            correct_indices.append(row)
+        else:
+            misclassified_indices.append(row)
+            wrong_predictions.append(guess)
 
     # Print verbose information
     if verbose:
@@ -239,15 +302,15 @@ def score(key, prediction, verbose=False):
                     category2records[category]['gold_by_relation'].append(gold)
         category_f1s = {}
         for category, records in category2records.items():
-            correct_by_relation = sum(records['correct_by_relation'])
-            guessed_by_relation = sum(records['guessed_by_relation'])
-            gold_by_relation = sum(records['gold_by_relation'])
+            correct_by_relation_ = sum(records['correct_by_relation'])
+            guessed_by_relation_ = sum(records['guessed_by_relation'])
+            gold_by_relation_ = sum(records['gold_by_relation'])
             precision = 1.0
-            if guessed_by_relation > 0:
-                precision = float(correct_by_relation) / float(guessed_by_relation)
+            if guessed_by_relation_ > 0:
+                precision = float(correct_by_relation_) / float(guessed_by_relation_)
             recall = 0
-            if gold_by_relation > 0:
-                recall = float(correct_by_relation) / float(gold_by_relation)
+            if gold_by_relation_ > 0:
+                recall = float(correct_by_relation_) / float(gold_by_relation_)
             f1 = 0
             if precision + recall > 0:
                 f1 = 2.0 * precision * recall / (precision + recall)
@@ -267,7 +330,7 @@ def score(key, prediction, verbose=False):
             if f1 < 0.1: sys.stdout.write(' ')
             if f1 < 1.0: sys.stdout.write(' ')
             sys.stdout.write("{:.2%}".format(f1))
-            sys.stdout.write("  #: %d" % gold_by_relation)
+            sys.stdout.write("  #: %d" % gold_by_relation_)
             sys.stdout.write("\n")
 
     # Print the aggregate score
@@ -285,7 +348,9 @@ def score(key, prediction, verbose=False):
     print("Precision (micro): {:.3%}".format(prec_micro))
     print("   Recall (micro): {:.3%}".format(recall_micro))
     print("       F1 (micro): {:.3%}".format(f1_micro))
-    return {'f1': f1_micro, 'precision': prec_micro, 'recall': recall_micro}
+    return {'f1': f1_micro, 'precision': prec_micro, 'recall': recall_micro}, \
+           {'wrong_indices': misclassified_indices, 'correct_indices': correct_indices,
+            'wrong_predictions': wrong_predictions}
 
 
 if __name__ == "__main__":
