@@ -90,6 +90,7 @@ with open(config_path, 'r') as file:
 
 opt = cfg_dict
 opt['id'] = create_model_name(opt)
+eval_file = cfg_dict.get('eval_file', None)
 #opt = vars(args)
 torch.manual_seed(opt['seed'])
 np.random.seed(opt['seed'])
@@ -114,8 +115,8 @@ assert opt['vocab_size'] == vocab.size, "Vocab size must match that in the saved
 # Add subject/object indices
 opt['object_indices'] = vocab.obj_idxs
 # load data
-if opt['eval_file'] is not None:
-    data_file = opt['eval_file']
+if eval_file is not None:
+    data_file = eval_file
 else:
     data_file = opt['data_dir'] +f'/test_{opt["version"]}.json'
 print("Loading data from {} with batch size {}...".format(data_file, opt['batch_size']))
