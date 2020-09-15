@@ -114,7 +114,10 @@ assert opt['vocab_size'] == vocab.size, "Vocab size must match that in the saved
 # Add subject/object indices
 opt['object_indices'] = vocab.obj_idxs
 # load data
-data_file = opt['data_dir'] +f'/test_{opt["version"]}.json'
+if opt['eval_file'] is not None:
+    data_file = opt['eval_file']
+else:
+    data_file = opt['data_dir'] +f'/test_{opt["version"]}.json'
 print("Loading data from {} with batch size {}...".format(data_file, opt['batch_size']))
 batch = DataLoader(data_file, opt['batch_size'], opt, vocab, evaluation=True)
 
