@@ -73,7 +73,12 @@ def compute_ranks(probs, gold_labels, hits_to_compute=(1, 3, 5, 10, 20, 50)):
     ranks = []
     assert len(sorted_args) == len(gold_labels)
     for row_args, gold_label in zip(sorted_args, gold_labels):
-        rank = int(np.where(row_args == gold_label)[0]) + 1
+        try:
+            rank = int(np.where(row_args == gold_label)[0]) + 1
+        except:
+            print(row_args)
+            print(gold_label)
+            exit()
         ranks.append(rank)
     # all_probs[gold_one_hot == 0] = -np.inf
     # all_probs[gold_one_hot == 1] = np.inf
