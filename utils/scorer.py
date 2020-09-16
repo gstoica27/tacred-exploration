@@ -201,34 +201,29 @@ category_maps = {
         'per:title'
     },
     'non_refined_labels': {
-        'per:spouse',
-        'per:parents',
-        'per:children',
-        'per:siblings',
-
-        'per:schools_attended',
-        'per:religion',
-        'per:employee_of',
-
-        'org:top_members/employees',
-        'org:founded_by',
-        'org:shareholders',
-
-        'per:date_of_death',
-        'per:date_of_birth',
-
-        'org:founded',
-        'org:dissolved',
-
         'per:title',
+        'per:employee_of',
+        'org:top_members/employees',
         'org:alternate_names',
         'per:age',
         'per:origin',
+        'per:spouse',
+        'per:date_of_death',
+        'per:children',
+        'per:parents',
         'per:cause_of_death',
         'per:charges',
+        'per:siblings',
+        'org:founded_by',
         'org:political/religious_affiliation',
         'org:website',
+        'per:schools_attended',
+        'per:religion',
+        'org:shareholders',
+        'org:founded',
+        'per:date_of_birth',
         'org:number_of_employees/members',
+        'org:dissolved',
     }
 }
 
