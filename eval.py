@@ -97,7 +97,7 @@ def compute_ranks(probs, gold_labels, hits_to_compute=(1, 3, 5, 10, 20, 50)):
         if 'HIT' in name or 'MRR' in name:
             value = round(metric * 100, 2)
         else:
-            value = metric
+            value = round(metric, 2)
         print('{}: {}'.format(name, value))
     return name2ranks
 
