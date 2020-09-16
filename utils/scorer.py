@@ -201,18 +201,6 @@ category_maps = {
         'per:title'
     },
     'non_refined_labels': {
-        'per:cities_of_residence',
-        'per:stateorprovinces_of_residence',
-        'per:countries_of_residence',
-
-        'per:city_of_birth',
-        'per:stateorprovince_of_birth',
-        'per:country_of_birth',
-
-        'per:city_of_death',
-        'per:stateorprovince_of_death',
-        'per:country_of_death',
-
         'per:spouse',
         'per:parents',
         'per:children',
