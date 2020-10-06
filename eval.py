@@ -215,6 +215,17 @@ for i, b in enumerate(batch):
 predictions = [id2label[p] for p in predictions]
 metrics, other_data = scorer.score(batch.gold(), predictions, verbose=True)
 
+ids = [instance['id'] for instance in batch.raw_data]
+formatted_data = []
+for instance_id, pred, gold in zip(ids, predictions, batch.gold()):
+    formatted_data.append(
+        {
+            "id": instance_id.replace("'", '"'),
+            "label_true": gold.replace("'", '"'),
+            "label_pred": pred.replace("'", '"')
+        }
+    )
+
 compute_ranks(all_probs, batch.gold())
 
 structure_parts = compute_structure_parts(batch.raw_data)
@@ -244,6 +255,11 @@ np.savetxt(os.path.join(data_save_dir, 'wrong_predictions.txt'), wrong_predictio
 
 id2preds = {d['id']: pred for d, pred in zip(raw_data, predictions)}
 json.dump(id2preds, open(os.path.join(data_save_dir, 'id2preds.json'), 'w'))
+
+with open(os.path.join(data_save_dir, 'palstm_retacred.jsonl'), 'w') as handle:
+    for instance in formatted_data:
+            line = "{}\n".format(instance)
+            handle.write(line)
 
 # save probability scores
 if len(args.out) > 0:
