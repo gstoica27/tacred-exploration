@@ -33,9 +33,9 @@ def add_kg_model_params(opt, cwd):
 def create_model_name(opt):
     top_level_name = 'TACRED-{}-{}'.format(opt['data_type'], opt['version'].upper())
     approach_type = 'PALSTM-JRRELP' if opt['link_prediction'] is not None else 'PALSTM'
-    main_name = '{}-{}-{}-{}'.format(
+    main_name = '{}-{}-{}-{}-{}-{}-{}-{}'.format(
         opt['optim'], opt['lr'], opt['lr_decay'],
-        opt['seed']
+        opt['seed'], opt['hidden_dim'], opt['num_layers'], opt['attn_dim'], opt['pe_dim']
     )
     if opt['link_prediction'] is not None:
         kglp_task_cfg = opt['link_prediction']
