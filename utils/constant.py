@@ -8,7 +8,7 @@ TEST_JSON = 'test.json'
 GLOVE_DIR = 'dataset/glove'
 
 EMB_INIT_RANGE = 1.0
-MAX_LEN = 100
+MAX_LEN = 125
 
 # vocab
 PAD_TOKEN = '<PAD>'
