@@ -78,12 +78,12 @@ class DataLoader(object):
             if opt['lower']:
                 tokens = [t.lower() for t in tokens]
             # anonymize tokens
-            subject_type = 'SUBJ-'+d['subj_type']
-            object_type = 'OBJ-'+d['obj_type']
+            subject_type = 'ENT-' + d['subj_type']
+            object_type = 'ENT-' + d['obj_type']
             ss, se = d['subj_start'], d['subj_end']
             os, oe = d['obj_start'], d['obj_end']
-            tokens[ss:se + 1] = ['SUBJ-' + d['subj_type']] * (se - ss + 1)
-            tokens[os:oe + 1] = ['OBJ-' + d['obj_type']] * (oe - os + 1)
+            tokens[ss:se + 1] = ['ENT-' + d['subj_type']] * (se - ss + 1)
+            tokens[os:oe + 1] = ['ENT-' + d['obj_type']] * (oe - os + 1)
             tokens = map_to_ids(tokens, vocab.word2id)
             pos = map_to_ids(d['stanford_pos'], constant.POS_TO_ID)
             ner = map_to_ids(d['stanford_ner'], constant.NER_TO_ID)
@@ -97,7 +97,7 @@ class DataLoader(object):
             subject_id = vocab.word2id[subject_type]
             # Offset by 4 because we need it to be zero-indexed instead of 4-index
             #   (['PAD', 'UNK', 'SUBJ-PER', 'SUBJ-ORG', 'OBJ-*'])
-            object_id = vocab.word2id[object_type] - 21
+            object_id = vocab.word2id[object_type] - 2
             self.kg_graph[(subject_id, relation)].add(object_id)
             self.kg_graph['subjects'].add(subject_id)
             self.kg_graph['objects'].add(object_id)
@@ -147,7 +147,7 @@ class DataLoader(object):
         return {'base': tensor_batch, 'sentence_lengths': lens}
 
     def ready_kg_batch(self, kg_batch, sentence_lengths):
-        num_objects = len(constant.OBJ_NER_TO_ID) - 2
+        num_objects = len(constant.ENT_TO_ID) - 2
         batch = list(zip(*kg_batch))
         batch, _ = sort_all(batch, sentence_lengths)
         subjects, relations, known_objects = batch

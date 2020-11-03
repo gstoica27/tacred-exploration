@@ -241,6 +241,8 @@ class PositionAwareRNN(nn.Module):
 
         if self.opt.get('link_prediction', None) is not None:
             subjects, relations, labels = kg_inputs
+            label_smoothing = self.opt['link_prediction']['label_smoothing']
+            smoothed_known_objects = ((1.0 - label_smoothing) * labels) + (1.0 / labels.size(1))
             # object indices to compare against
             object_embs = self.emb(self.object_indices)
             # Obtain embeddings
@@ -250,12 +252,8 @@ class PositionAwareRNN(nn.Module):
             kglp_preds = self.lp_model(subject_embs, relation_embs, object_embs)
             verification_preds = self.lp_model(subject_embs, final_hidden, object_embs)
             # Compute each loss term
-            relation_kg_loss = self.lp_model.loss(kglp_preds, labels)
-            sentence_kg_loss = self.lp_model.loss(verification_preds, labels)
-            if self.opt.get('link_prediction', None)['without_no_relation']:
-                positive_relations = torch.eq(labels, constant.NO_RELATION_ID).eq(0).type(torch.float32)
-                relation_kg_loss = relation_kg_loss * positive_relations
-                sentence_kg_loss = sentence_kg_loss * positive_relations
+            relation_kg_loss = self.lp_model.loss(kglp_preds, smoothed_known_objects)
+            sentence_kg_loss = self.lp_model.loss(verification_preds, smoothed_known_objects)
             kglp_loss = relation_kg_loss.mean() * (1 - self.opt.get('link_prediction', None)['without_observed'])
             verification_loss = sentence_kg_loss.mean() * (1 - self.opt.get('link_prediction', None)['without_verification'])
             supplemental_losses = {'kglp':kglp_loss, 'verification': verification_loss}

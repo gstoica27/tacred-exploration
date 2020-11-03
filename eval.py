@@ -12,7 +12,7 @@ import torch.optim as optim
 
 from data.loader import DataLoader
 from model.rnn import RelationModel
-from utils import torch_utils, scorer, constant, helper
+from utils import torch_utils, scorer_txt, constant, helper
 from utils.vocab import Vocab
 import yaml
 import numpy as np
@@ -217,7 +217,7 @@ for i, b in enumerate(batch):
     predictions += preds
     all_probs += probs
 predictions = [id2label[p] for p in predictions]
-metrics, other_data = scorer.score(batch.gold(), predictions, verbose=True)
+metrics, other_data = scorer_txt.score(batch.gold(), predictions, verbose=True)
 
 ids = [instance['id'] for instance in batch.raw_data]
 formatted_data = []

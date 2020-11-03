@@ -8,7 +8,7 @@ import numpy as np
 from collections import Counter
 
 from data.loader import DataLoader
-from utils import scorer, constant
+from utils import scorer_txt, constant
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -43,7 +43,7 @@ def main():
         predictions += [pred]
     id2label = dict([(v,k) for k,v in constant.LABEL_TO_ID.items()])
     predictions = [id2label[p] for p in predictions]
-    scorer.score(labels, predictions, verbose=True)
+    scorer_txt.score(labels, predictions, verbose=True)
 
 def ensemble(scores):
     """

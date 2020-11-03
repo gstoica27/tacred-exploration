@@ -1,7 +1,9 @@
-data_dir: '/Volumes/External HDD/dataset/tacred/data/json'
-vocab_dir: '/Volumes/External HDD/dataset/tacred/data/vocab'
-test_save_dir: '/Volumes/External HDD/dataset/tacred/test_perfs'
-save_dir: '/Volumes/External HDD/dataset/tacred/saved_models'
+data_dir: '/Users/georgestoica/Desktop/nyt_parsed'
+eval_file: #/zfsauton3/home/gis/research/relation_extraction/gcn-over-pruned-trees/dataset/full_tacred/tacred/data/json/test.json
+vocab_dir: '/Users/georgestoica/Desktop/nyt_parsed'
+test_save_dir: '/Users/georgestoica/Desktop/nyt_parsed/test_save_dir'
+save_dir: '/Users/georgestoica/Desktop/nyt_parsed/saved_models'
+id_load_file:
 emb_dim: 300  # Word embedding dimension.
 ner_dim: 30 # NER embedding dimension.
 pos_dim: 30 # POS embedding dimension.

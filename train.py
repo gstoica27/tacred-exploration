@@ -17,7 +17,7 @@ import torch.optim as optim
 
 from data.loader import DataLoader
 from model.rnn import RelationModel
-from utils import scorer, constant, helper
+from utils import scorer_txt, constant, helper
 from utils.vocab import Vocab
 
 def add_kg_model_params(opt, cwd):
@@ -31,7 +31,7 @@ def add_kg_model_params(opt, cwd):
     return params
 
 def create_model_name(opt):
-    top_level_name = 'TACRED'
+    top_level_name = 'NYT'
     approach_type = 'PALSTM-JRRELP' if opt['link_prediction'] is not None else 'PALSTM'
     main_name = '{}-{}-{}-{}'.format(
         opt['optim'], opt['lr'], opt['lr_decay'],
@@ -91,15 +91,15 @@ assert emb_matrix.shape[1] == opt['emb_dim']
 opt['object_indices'] = vocab.obj_idxs
 # load data
 print("Loading data from {} with batch size {}...".format(opt['data_dir'], opt['batch_size']))
-train_batch = DataLoader(opt['data_dir'] + '/train.json', opt['batch_size'], opt, vocab, evaluation=False)
-dev_batch = DataLoader(opt['data_dir'] + '/dev.json', opt['batch_size'], opt, vocab, evaluation=True)
-test_batch = DataLoader(opt['data_dir'] + '/test.json', opt['batch_size'], opt, vocab, evaluation=True)
+train_batch = DataLoader(opt['data_dir'] + '/train_ilp_full_parsed.json', opt['batch_size'], opt, vocab, evaluation=False)
+dev_batch = DataLoader(opt['data_dir'] + '/dev_ilp_full_parsed.json', opt['batch_size'], opt, vocab, evaluation=True)
+test_batch = DataLoader(opt['data_dir'] + '/test_ilp_full_parsed.json', opt['batch_size'], opt, vocab, evaluation=True)
 
 if opt['link_prediction'] is not None:
     opt['link_prediction']['model'] = add_kg_model_params(opt, cwd)
     opt['num_relations'] = len(constant.LABEL_TO_ID)
-    opt['num_subjects'] = len(constant.SUBJ_NER_TO_ID) - 2
-    opt['num_objects'] = len(constant.OBJ_NER_TO_ID) - 2
+    opt['num_subjects'] = len(constant.ENT_TO_ID) - 2
+    opt['num_objects'] = len(constant.ENT_TO_ID) - 2
     opt['link_prediction']['model']['num_objects'] = opt['num_objects']
 
 model_id = create_model_name(opt)
@@ -151,7 +151,7 @@ for epoch in range(1, opt['num_epoch']+1):
         predictions += preds
         dev_loss += loss
     predictions = [id2label[p] for p in predictions]
-    current_dev_metrics, _ = scorer.score(dev_batch.gold(), predictions)
+    current_dev_metrics, _ = scorer_txt.score(dev_batch.gold(), predictions)
     dev_f1 = current_dev_metrics['f1']
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size'] # avg loss per batch
@@ -170,7 +170,7 @@ for epoch in range(1, opt['num_epoch']+1):
         test_loss += loss
         test_preds += probs
     predictions = [id2label[p] for p in predictions]
-    test_metrics_at_current_dev, _ = scorer.score(test_batch.gold(), predictions)
+    test_metrics_at_current_dev, _ = scorer_txt.score(test_batch.gold(), predictions)
     test_f1 = test_metrics_at_current_dev['f1']
 
     train_loss = train_loss / train_batch.num_examples * opt['batch_size']  # avg loss per batch

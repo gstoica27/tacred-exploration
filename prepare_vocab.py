@@ -26,9 +26,9 @@ def main():
     args = parse_args()
     
     # input files
-    train_file = args.data_dir + '/train.json'
-    dev_file = args.data_dir + '/dev.json'
-    test_file = args.data_dir + '/test.json'
+    train_file = args.data_dir + '/train_ilp_full.json'
+    dev_file = args.data_dir + '/dev_ilp_full.json'
+    test_file = args.data_dir + '/test_ilp_full.json'
     wv_file = args.glove_dir + '/' + args.wv_file
     wv_dim = args.wv_dim
 
@@ -75,7 +75,7 @@ def load_tokens(filename):
         data = json.load(infile)
         tokens = []
         for d in data:
-            tokens += d['token']
+            tokens += d['sentence']
     print("{} tokens from {} examples loaded from {}.".format(len(tokens), len(data), filename))
     return tokens
 
@@ -101,10 +101,8 @@ def count_oov(tokens, vocab):
 def entity_masks():
     """ Get all entity mask tokens as a list. """
     masks = []
-    subj_entities = list(constant.SUBJ_NER_TO_ID.keys())[2:]
-    obj_entities = list(constant.OBJ_NER_TO_ID.keys())[2:]
-    masks += ["SUBJ-" + e for e in subj_entities]
-    masks += ["OBJ-" + e for e in obj_entities]
+    subj_entities = list(constant.ENT_TO_ID.keys())[2:]
+    masks += ['ENT-{}'.format(e) for e in subj_entities]
     return masks
 
 if __name__ == '__main__':
