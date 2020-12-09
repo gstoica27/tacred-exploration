@@ -6,7 +6,7 @@ save_dir: '/home/scratch/gis/saved_models'
 emb_dim: 300  # Word embedding dimension.
 ner_dim: 30 # NER embedding dimension.
 pos_dim: 30 # POS embedding dimension.
-hidden_dim: 300 # RNN hidden state size.
+hidden_dim: 200 # RNN hidden state size.
 num_layers: 2 # Num of RNN layers.
 dropout: .5 # Input and RNN dropout rate.
 word_dropout: .04 # The rate at which randomly set a word to UNK.
@@ -23,7 +23,7 @@ log:  'logs.txt'  # Write training log to file.
 save_epoch: 5 # Save model checkpoints every k epochs
 id: 'joint-re-lp'  # Model ID under which to save models.
 info: ''  # Optional info for the experiment.
-seed: 1234  # random seed
+seed: 3  # random seed
 remove_entity_types: False # Replace subject and object granular typing with universal subject and object
 cuda: True
 cpu: False # Ignore CUDA.
@@ -35,7 +35,7 @@ version: full
 link_prediction:
   model: 'ConvE'
   label_smoothing: .1
-  lambda: .5
+  lambda: .75
   freeze_network: False
   without_observed: False
   without_verification: False
